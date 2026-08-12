@@ -176,6 +176,14 @@ export default function OrderDetail() {
   const isTech = user.role === "techniker";
   const canManage = user.role === "admin" || user.role === "mitarbeiter";
 
+  // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
+  // from the local costForm state so the totals update in real-time as they type.
+  const liveNet = canManage
+    ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
+    : Number(order.cost?.net || 0);
+  const liveTax = canManage ? liveNet * 0.19 : Number(order.cost?.tax || 0);
+  const liveGross = canManage ? liveNet + liveTax : Number(order.cost?.gross || 0);
+
   return (
     <div>
       <PageHeader label={branchName} title={order.auftragsnummer}>
@@ -383,9 +391,9 @@ export default function OrderDetail() {
                 )}
 
                 <div className="border-t border-border pt-3 font-mono text-sm space-y-1">
-                  <div className="flex justify-between text-muted-foreground"><span>Netto</span><span data-testid="detail-cost-net">{Number(order.cost?.net || 0).toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>MwSt. (19%)</span><span data-testid="detail-cost-tax">{Number(order.cost?.tax || 0).toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>Gesamt (Brutto)</span><span data-testid="detail-cost-gross">{Number(order.cost?.gross || 0).toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>Netto</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>MwSt. (19%)</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>Gesamt (Brutto)</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
                 </div>
 
                 {canManage && (
@@ -613,8 +621,13 @@ export default function OrderDetail() {
               </div>
             </Section>
 
-            {canManage && (order.status === "ANGENOMMEN" || !order.assigned_techniker_id) && (
-              <Section title="Techniker zuweisen" icon={Wrench}>
+            {canManage && (order.status === "ANGENOMMEN" || order.status === "ABGELEHNT" || !order.assigned_techniker_id) && (
+              <Section title={order.status === "ABGELEHNT" ? "Neu zuweisen (nach Ablehnung)" : "Techniker zuweisen"} icon={Wrench}>
+                {order.status === "ABGELEHNT" && (
+                  <p data-testid="reassign-hint" className="text-[11px] font-mono text-amber-300 mb-2">
+                    Auftrag wurde abgelehnt. Wählen Sie einen anderen Techniker, um erneut zuzuweisen.
+                  </p>
+                )}
                 <select data-testid="assign-technician-select" defaultValue="" onChange={(e) => e.target.value && assign(e.target.value)}
                   className="w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent">
                   <option value="">— Techniker wählen —</option>

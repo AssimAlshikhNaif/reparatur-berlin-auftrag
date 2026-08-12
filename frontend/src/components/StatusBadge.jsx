@@ -1,13 +1,15 @@
 import { STATUS_LABELS, STATUS_STYLES } from "@/lib/constants";
 import { Warning } from "@phosphor-icons/react";
+import { useTranslation } from "react-i18next";
 
 export function StatusBadge({ status }) {
+  const { t } = useTranslation();
   return (
     <span
       data-testid={`status-badge-${status}`}
       className={`inline-flex items-center px-2 py-0.5 text-xs font-mono uppercase tracking-wider border rounded-lg ${STATUS_STYLES[status] || "bg-muted text-foreground/80 border-border"}`}
     >
-      {STATUS_LABELS[status] || status}
+      {t(`status.${status}`, STATUS_LABELS[status] || status)}
     </span>
   );
 }

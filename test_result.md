@@ -637,3 +637,134 @@ agent_communication:
         - Frontend testing NOT performed (as per instructions: backend only)
         - Main agent should test frontend components: Abholschein close button, OrderChat send/receive, notification bell
         - All backend APIs for chat feature are working correctly
+
+# ===== Iteration 6: Real-time cost totals in OrderDetail =====
+frontend:
+  - task: "OrderDetail live cost totals (Netto/MwSt/Brutto)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/OrderDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Netto/Tax(19%)/Brutto now computed live from local costForm (diagnosis_fee+labor_cost+parts_cost) for admin/mitarbeiter instead of static order.cost. Updates instantly on input change. 'Kosten speichern' still posts costForm values; backend recomputes totals. data-testids: cost-diagnosis-input, cost-labor-input, cost-parts-input, detail-cost-net, detail-cost-tax, detail-cost-gross, save-costs."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify OrderDetail real-time cost totals. Login as mitarbeiter (mohini@repair.de) or admin (admin@repair.de), open any order detail. In the Kostenaufschlüsselung section change cost-diagnosis-input, cost-labor-input, cost-parts-input and confirm detail-cost-net = sum, detail-cost-tax = 19% of net, detail-cost-gross = net+tax update INSTANTLY as you type (before clicking save). Example: diagnosis=10, labor=20, parts=30 -> Netto 60.00, MwSt 11.40, Brutto 71.40. Then click save-costs and reload -> values persist. Confirm no other functionality broke (techniker still sees NO cost section).
+
+# ===== Iteration 7: Reassign after rejection (ABGELEHNT trap) =====
+backend:
+  - task: "Reassign after ABGELEHNT clears reject_reason + audit/notify"
+    implemented: true
+    working: "NA"
+    file: "backend/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "assign_order now clears reject_reason when reassigning; if order was ABGELEHNT adds ZUWEISUNG audit ('Nach Ablehnung neu zugewiesen an X') and a neu-zugewiesen notification. Verified via curl: reject->ABGELEHNT(reason set); assign->ZUGEWIESEN, reject_reason '', audit shows ZUWEISUNG."
+frontend:
+  - task: "Show assign dropdown when status ABGELEHNT"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/OrderDetail.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Assign section now renders for canManage when status ANGENOMMEN or ABGELEHNT or no assigned tech. When ABGELEHNT shows a hint + retitle 'Neu zuweisen (nach Ablehnung)'. Uses [data-testid=assign-technician-select]."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify reassign-after-rejection. UI flow: login mitarbeiter (mohini@repair.de), create order assigned to techniker Chris. Login chris@repair.de, open order, click reject and enter a reason -> status ABGELEHNT. Login back as mohini, open same order: the right column must now show the assign section ([data-testid=assign-technician-select]) with hint [data-testid=reassign-hint]; select a DIFFERENT technician (e.g. Nam) -> status becomes ZUGEWIESEN, red Ablehnungsgrund banner gone, and admin gets a notification. Also confirm existing flows (normal assign on ANGENOMMEN) still work and techniker still cannot assign.
+
+# ===== Iteration 8: i18n (DE default, EN, AR + RTL) =====
+frontend:
+  - task: "i18n multi-language (de/en/ar) + switcher + RTL + localStorage"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/i18n/*, LanguageSwitcher.jsx, Layout.jsx, Login.jsx, Orders.jsx, StatusBadge.jsx, GlobalSearch.jsx, index.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added i18next + react-i18next + LanguageDetector. Default German, fallbackLng de, detection only from localStorage key rb_lang. LanguageSwitcher [data-testid=language-switcher] in top bar (and Login). Translated nav, roles, statuses (StatusBadge everywhere), login, orders list/toolbar/headers, global search. RTL: document dir=rtl for ar via applyDirection on init + languageChanged. Existing dynamic data untouched."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify i18n. (1) Default: fresh load (clear localStorage rb_lang) shows GERMAN (nav 'Aufträge','Ersatzteile'; login 'Willkommen zurück'). (2) Switcher [data-testid=language-switcher] in top bar (after login) and on Login page; options [data-testid=language-option-de|en|ar]. Switch to EN -> nav shows 'Orders','Spare Parts','Analytics'; Orders page title 'Orders', column headers English; status badges English (e.g. Received/Assigned). Switch to AR -> Arabic text AND document.documentElement.dir === 'rtl' (page mirrors). Switch back to DE -> dir 'ltr'. (3) Persistence: choose EN, reload page -> still English (localStorage rb_lang='en'). (4) Regression: no React errors; existing features still work (login, orders list loads, status badges show). ALSO re-verify earlier fix (reassign after rejection): mitarbeiter creates order assigned to Chris; chris rejects with reason -> ABGELEHNT; mitarbeiter reopens -> assign dropdown [data-testid=assign-technician-select] with [data-testid=reassign-hint] visible; pick Nam -> status ZUGEWIESEN, rejection banner gone.
+
+# ===== Iteration 9: Global Procurement Dashboard =====
+backend:
+  - task: "GET /api/purchases/all (central procurement, role-scoped)"
+    implemented: true
+    working: "NA"
+    file: "backend/purchases.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New GET /purchases/all: admin=all items, mitarbeiter=only their branch's orders, techniker=403. Each item enriched with auftragsnummer, device_brand, device_model, customer_name, order_status. Status/arrival updates reuse existing PATCH /purchases/{id} (already notifies admin + audit). Smoke: admin 2, mitarbeiter 1, techniker 403."
+frontend:
+  - task: "Global Procurement page + nav + route"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Procurement.jsx, App.js, Layout.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New /beschaffung page (admin+mitarbeiter) with sidebar nav item [nav-beschaffung]. Table [data-testid=procurement-table] lists all items with order no (link), device/customer, part, external link, order/expected/actual timestamps, price (non-tech), and per-row status select [data-testid=procurement-status-<id>]. Search + status filter. Techniker has no nav item and route is role-guarded."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify Global Procurement Dashboard. As admin@repair.de: sidebar shows a 'Beschaffung' item ([data-testid=nav-beschaffung]) -> navigates to /beschaffung showing [data-testid=procurement-table] listing ALL procurement items across orders with columns Auftrag (link), Gerät/Kunde, Teil, Link, Bestellt, Erwartet, Angekommen, Preis, Status. Change a row status via [data-testid=procurement-status-<id>] (e.g. to Angekommen) -> success toast; the change persists on reload and 'Angekommen' auto-stamps actual arrival. Clicking the Auftrag link navigates to that order detail. As mitarbeiter (mohini@repair.de): page shows only their branch's items. As techniker (chris@repair.de): NO 'Beschaffung' nav item and visiting /beschaffung should redirect (role-guarded). Also confirm a status change by mitarbeiter creates an admin notification (bell) since it uses PATCH /purchases which notifies. If there are no procurement items for a branch, first create one from an order's 'Beschaffung & Einkauf' tab.
+
+# ===== Iteration 10: Procurement Arrival Alerts (Due Today / Overdue) =====
+backend:
+  - task: "GET /api/purchases/alerts (due today / overdue)"
+    implemented: true
+    working: "NA"
+    file: "backend/purchases.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New GET /purchases/alerts returns not-yet-arrived items (status not ANGEKOMMEN/EINGEBAUT/STORNIERT) whose expected_arrival date <= today; each tagged due_category OVERDUE|TODAY + days_overdue, enriched with order info; role-scoped (admin all, mitarbeiter branch, techniker 403); overdue sorted first. Smoke verified: overdue+today returned, future excluded, techniker 403."
+frontend:
+  - task: "ProcurementAlerts section on Dashboard + Procurement page"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/ProcurementAlerts.jsx, pages/Dashboard.jsx, pages/Procurement.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "ProcurementAlerts [data-testid=procurement-alerts] renders on admin/mitarbeiter Dashboard and atop /beschaffung. Shows overdue (red)/today (amber) badges, part+device+customer, expected date, order link, and quick status select [data-testid=alert-status-<id>] (PATCH /purchases -> notifies admin + audit). Auto-refresh every 30s. Hidden if no alerts."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify Procurement Arrival Alerts. Test data already seeded via API for mohini's branch: an 'Overdue Part' (2 days overdue) and a 'Today Part'. (1) Login admin@repair.de -> Dashboard shows [data-testid=procurement-alerts] section titled 'Ersatzteile: Fällig heute / Überfällig' listing overdue (red badge, 'XT überfällig') and today (amber 'heute') items, NOT future ones. Counts [data-testid=alerts-overdue-count]/[alerts-today-count] show. (2) Quick status update: change [data-testid=alert-status-<id>] of an alert row to 'Angekommen' -> success toast; the row disappears from alerts (since arrived) after refresh. (3) /beschaffung page also shows the same alerts section at top. (4) Login mohini@repair.de: sees alerts for her branch. Login chris@repair.de (techniker): Dashboard shows NO procurement-alerts section (endpoint 403 -> component renders nothing). (5) Confirm no console errors. Also a mitarbeiter status change should create an admin BESCHAFFUNG notification.

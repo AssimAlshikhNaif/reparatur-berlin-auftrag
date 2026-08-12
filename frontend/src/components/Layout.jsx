@@ -1,27 +1,31 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
 import { ROLE_LABELS } from "@/lib/constants";
 import NotificationBell from "@/components/NotificationBell";
 import GlobalSearch from "@/components/GlobalSearch";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   Gauge, Wrench, Package, Users, QrCode, PlusCircle,
-  SignOut, List, X, Wall, ChartBar,
+  SignOut, List, X, Wall, ChartBar, ShoppingCart,
 } from "@phosphor-icons/react";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: Gauge, roles: ["admin", "mitarbeiter", "techniker"], end: true },
-  { to: "/auftraege", label: "Aufträge", icon: Wrench, roles: ["admin", "mitarbeiter", "techniker"] },
-  { to: "/auftrag/neu", label: "Neuer Auftrag", icon: PlusCircle, roles: ["admin", "mitarbeiter"] },
-  { to: "/scannen", label: "QR Scannen", icon: QrCode, roles: ["admin", "mitarbeiter", "techniker"] },
-  { to: "/ersatzteile", label: "Ersatzteile", icon: Package, roles: ["admin", "mitarbeiter", "techniker"] }, // متاح للأدمن، الموظف، والتقني
-  { to: "/analyse", label: "Analyse", icon: ChartBar, roles: ["admin"] },
-  { to: "/benutzer", label: "Benutzer", icon: Users, roles: ["admin"] },
+  { to: "/", key: "dashboard", icon: Gauge, roles: ["admin", "mitarbeiter", "techniker"], end: true },
+  { to: "/auftraege", key: "orders", icon: Wrench, roles: ["admin", "mitarbeiter", "techniker"] },
+  { to: "/auftrag/neu", key: "newOrder", icon: PlusCircle, roles: ["admin", "mitarbeiter"] },
+  { to: "/scannen", key: "scan", icon: QrCode, roles: ["admin", "mitarbeiter", "techniker"] },
+  { to: "/ersatzteile", key: "parts", icon: Package, roles: ["admin", "mitarbeiter", "techniker"] },
+  { to: "/beschaffung", key: "procurement", icon: ShoppingCart, roles: ["admin", "mitarbeiter"] },
+  { to: "/analyse", key: "analytics", icon: ChartBar, roles: ["admin"] },
+  { to: "/benutzer", key: "users", icon: Users, roles: ["admin"] },
 ];
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -39,7 +43,7 @@ export default function Layout({ children }) {
           <Wall size={26} weight="duotone" className="text-accent" />
           <div>
             <div className="font-head font-bold text-sm tracking-tight leading-none">REPARATUR</div>
-            <div className="font-mono text-[10px] tracking-[0.3em] text-muted-foreground mt-1">BERLIN · ERP</div>
+            <div className="font-mono text-[10px] tracking-[0.3em] text-muted-foreground mt-1">{t("brand.tagline")}</div>
           </div>
         </div>
       </div>
@@ -62,7 +66,7 @@ export default function Layout({ children }) {
               }
             >
               <Icon size={18} weight="regular" />
-              <span>{n.label}</span>
+              <span>{t(`nav.${n.key}`)}</span>
             </NavLink>
           );
         })}
@@ -71,7 +75,7 @@ export default function Layout({ children }) {
         <div className="mb-3">
           <div className="text-sm font-medium text-foreground truncate" data-testid="current-user-name">{user.name}</div>
           <div className="font-mono text-[10px] uppercase tracking-widest text-accent mt-0.5">
-            {ROLE_LABELS[user.role]}
+            {t(`roles.${user.role}`, ROLE_LABELS[user.role])}
           </div>
         </div>
         <button
@@ -79,7 +83,7 @@ export default function Layout({ children }) {
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-mono uppercase tracking-wider border border-border text-foreground/80 hover:bg-muted hover:text-primary-foreground transition-colors rounded-lg"
         >
-          <SignOut size={14} /> Abmelden
+          <SignOut size={14} /> {t("common.logout")}
         </button>
       </div>
     </>
@@ -115,6 +119,7 @@ export default function Layout({ children }) {
           </div>
           <div className="flex-1 sm:hidden" />
           {user.role === "admin" && <NotificationBell />}
+          <LanguageSwitcher />
           <ThemeToggle />
         </div>
         {children}

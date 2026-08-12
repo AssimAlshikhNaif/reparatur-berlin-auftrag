@@ -1,0 +1,87 @@
+{
+  "brand": {
+    "tagline": "برلين · نظام"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "orders": "الطلبات",
+    "newOrder": "طلب جديد",
+    "scan": "مسح QR",
+    "parts": "قطع الغيار",
+    "analytics": "التحليلات",
+    "users": "المستخدمون",
+    "procurement": "المشتريات"
+  },
+  "common": {
+    "logout": "تسجيل الخروج",
+    "search": "بحث: رقم الطلب، IMEI، الهاتف…",
+    "close": "إغلاق",
+    "save": "حفظ",
+    "print": "طباعة",
+    "cancel": "إلغاء",
+    "loading": "جارٍ التحميل…",
+    "back": "رجوع",
+    "notifications": "الإشعارات",
+    "markAllRead": "تعليم الكل كمقروء",
+    "clearAll": "مسح الكل",
+    "noNotifications": "لا توجد إشعارات.",
+    "open": "فتح",
+    "language": "اللغة",
+    "searching": "جارٍ البحث…",
+    "noResults": "لا نتائج."
+  },
+  "roles": {
+    "admin": "مدير",
+    "mitarbeiter": "موظف",
+    "techniker": "فني"
+  },
+  "status": {
+    "ANGENOMMEN": "مُستلم",
+    "ZUGEWIESEN": "مُسند",
+    "AKZEPTIERT": "مقبول",
+    "IN_BEARBEITUNG": "قيد التنفيذ",
+    "WARTEN_ERSATZTEIL": "بانتظار قطعة",
+    "FERTIG": "جاهز",
+    "ABGEHOLT": "تم الاستلام",
+    "ABGELEHNT": "مرفوض"
+  },
+  "login": {
+    "anmeldung": "تسجيل الدخول",
+    "welcome": "مرحباً بعودتك",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "submit": "تسجيل الدخول",
+    "submitting": "جارٍ تسجيل الدخول…",
+    "noRegister": "لا يوجد تسجيل عام. يتم إنشاء الحسابات من قبل المدير فقط.",
+    "heroTitle1": "إدارة",
+    "heroTitle2": "الإصلاح",
+    "heroDesc": "نظام مركزي لخمسة فروع. الطلبات وقطع الغيار ودردشة الورشة ومراقبة SLA — متوافق مع GDPR.",
+    "demoTitle": "حسابات تجريبية",
+    "show": "عرض",
+    "hide": "إخفاء",
+    "pwForAll": "كلمة المرور لجميع الحسابات:",
+    "use": "استخدام"
+  },
+  "orders": {
+    "label": "الورشة",
+    "title": "الطلبات",
+    "searchPlaceholder": "رقم الطلب، الجهاز، العميل…",
+    "allStatus": "كل الحالات",
+    "loading": "جارٍ تحميل الطلبات…",
+    "empty": "لا توجد طلبات.",
+    "colNumber": "رقم الطلب",
+    "colDevice": "الجهاز",
+    "colBranch": "الفرع",
+    "colCustomer": "العميل",
+    "colStaff": "الموظف",
+    "colTech": "الفني",
+    "colStatus": "الحالة",
+    "colCreated": "أُنشئ",
+    "newOrder": "طلب جديد"
+  },
+  "langNames": {
+    "de": "Deutsch",
+    "en": "English",
+    "ar": "العربية"
+  }
+}

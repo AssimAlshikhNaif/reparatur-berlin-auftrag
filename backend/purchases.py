@@ -93,10 +93,109 @@ async def _log_audit(order_id: str, action: str, detail: str, by: str):
     })
 
 
+@router.get("/alerts")
+async def get_arrival_alerts(current_user=Depends(get_current_user)):
+    """Procurement items that are due TODAY or OVERDUE and not yet arrived.
+    Admin: all; Mitarbeiter: own branch; Techniker: 403."""
+    if current_user["role"] not in ("admin", "mitarbeiter"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    from datetime import date as _date
+    today = datetime.now(timezone.utc).date()
+    done_states = {"ANGEKOMMEN", "EINGEBAUT", "STORNIERT"}
+
+    purchases = await db.purchases.find().sort("expected_arrival", 1).to_list(2000)
+    order_ids = []
+    for p in purchases:
+        oid = p.get("order_id")
+        if oid:
+            try:
+                order_ids.append(ObjectId(oid))
+            except Exception:
+                pass
+    orders = await db.orders.find({"_id": {"$in": order_ids}}).to_list(2000) if order_ids else []
+    omap = {str(o["_id"]): o for o in orders}
+    user_branch = current_user.get("branch_id")
+
+    out = []
+    for p in purchases:
+        if p.get("status") in done_states:
+            continue
+        exp = p.get("expected_arrival")
+        if not exp:
+            continue
+        try:
+            exp_date = _date.fromisoformat(str(exp)[:10])
+        except Exception:
+            continue
+        if exp_date > today:
+            continue  # not due yet
+        order = omap.get(p.get("order_id"))
+        if current_user["role"] == "mitarbeiter":
+            if not order or order.get("branch_id") != user_branch:
+                continue
+        item = _serialize(p, current_user)
+        item["due_category"] = "OVERDUE" if exp_date < today else "TODAY"
+        item["days_overdue"] = (today - exp_date).days
+        if order:
+            item["auftragsnummer"] = order.get("auftragsnummer")
+            item["device_brand"] = order.get("device_brand")
+            item["device_model"] = order.get("device_model")
+            item["customer_name"] = order.get("customer_name")
+            item["order_status"] = order.get("status")
+        else:
+            item["auftragsnummer"] = None
+            item["device_brand"] = item["device_model"] = item["customer_name"] = None
+            item["order_status"] = None
+        out.append(item)
+    # Overdue first, then by expected date ascending
+    out.sort(key=lambda x: (0 if x["due_category"] == "OVERDUE" else 1, x.get("expected_arrival") or ""))
+    return out
+
+
 @router.get("/order/{order_id}")
 async def get_purchases_by_order(order_id: str, current_user=Depends(get_current_user)):
     purchases = await db.purchases.find({"order_id": order_id}).sort("created_at", -1).to_list(200)
     return [_serialize(p, current_user) for p in purchases]
+
+
+@router.get("/all")
+async def get_all_purchases(current_user=Depends(get_current_user)):
+    """Centralized procurement list across ALL orders (Admin: all; Mitarbeiter: own
+    branch). Technicians are not allowed here."""
+    if current_user["role"] not in ("admin", "mitarbeiter"):
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+    purchases = await db.purchases.find().sort("created_at", -1).to_list(2000)
+    order_ids = []
+    for p in purchases:
+        oid = p.get("order_id")
+        if oid:
+            try:
+                order_ids.append(ObjectId(oid))
+            except Exception:
+                pass
+    orders = await db.orders.find({"_id": {"$in": order_ids}}).to_list(2000) if order_ids else []
+    omap = {str(o["_id"]): o for o in orders}
+
+    user_branch = current_user.get("branch_id")
+    out = []
+    for p in purchases:
+        order = omap.get(p.get("order_id"))
+        if current_user["role"] == "mitarbeiter":
+            if not order or order.get("branch_id") != user_branch:
+                continue
+        item = _serialize(p, current_user)
+        if order:
+            item["auftragsnummer"] = order.get("auftragsnummer")
+            item["device_brand"] = order.get("device_brand")
+            item["device_model"] = order.get("device_model")
+            item["customer_name"] = order.get("customer_name")
+            item["order_status"] = order.get("status")
+        else:
+            item["auftragsnummer"] = None
+            item["device_brand"] = item["device_model"] = item["customer_name"] = None
+            item["order_status"] = None
+        out.append(item)
+    return out
 
 
 @router.post("")

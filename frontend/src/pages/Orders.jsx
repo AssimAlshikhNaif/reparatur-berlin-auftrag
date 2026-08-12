@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,6 +10,7 @@ import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck } from "@phos
 
 export default function Orders() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,14 +41,14 @@ export default function Orders() {
 
   return (
     <div>
-      <PageHeader label="Werkstatt" title="Aufträge">
+      <PageHeader label={t("orders.label")} title={t("orders.title")}>
         {(user.role === "admin" || user.role === "mitarbeiter") && (
           <button
             data-testid="header-new-order"
             onClick={() => navigate("/auftrag/neu")}
             className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2.5 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors"
           >
-            <PlusCircle size={16} weight="bold" /> Neuer Auftrag
+            <PlusCircle size={16} weight="bold" /> {t("orders.newOrder")}
           </button>
         )}
       </PageHeader>
@@ -59,7 +61,7 @@ export default function Orders() {
             data-testid="orders-search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Auftragsnr., Gerät, Kunde…"
+            placeholder={t("orders.searchPlaceholder")}
             className="w-full bg-background border border-border pl-9 pr-3 py-2 text-sm rounded-lg outline-none focus:border-accent transition-colors font-mono"
           />
         </div>
@@ -71,9 +73,9 @@ export default function Orders() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-background border border-border pl-9 pr-8 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono appearance-none"
           >
-            <option value="">Alle Status</option>
-            {Object.entries(STATUS_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
+            <option value="">{t("orders.allStatus")}</option>
+            {Object.keys(STATUS_LABELS).map((k) => (
+              <option key={k} value={k}>{t(`status.${k}`, STATUS_LABELS[k])}</option>
             ))}
           </select>
         </div>
@@ -82,21 +84,21 @@ export default function Orders() {
       {/* Table */}
       <div className="overflow-x-auto">
         {loading ? (
-          <div className="p-8 font-mono text-muted-foreground">Lade Aufträge…</div>
+          <div className="p-8 font-mono text-muted-foreground">{t("orders.loading")}</div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center font-mono text-muted-foreground text-sm">Keine Aufträge gefunden.</div>
+          <div className="p-12 text-center font-mono text-muted-foreground text-sm">{t("orders.empty")}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                <th className="px-6 md:px-8 py-3 font-medium">Auftragsnr.</th>
-                <th className="px-4 py-3 font-medium">Gerät</th>
-                <th className="px-4 py-3 font-medium">Filiale</th>
-                {user.role !== "techniker" && <th className="px-4 py-3 font-medium">Kunde</th>}
-                {user.role !== "techniker" && <th className="px-4 py-3 font-medium">Mitarbeiter</th>}
-                <th className="px-4 py-3 font-medium">Techniker</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Erstellt</th>
+                <th className="px-6 md:px-8 py-3 font-medium">{t("orders.colNumber")}</th>
+                <th className="px-4 py-3 font-medium">{t("orders.colDevice")}</th>
+                <th className="px-4 py-3 font-medium">{t("orders.colBranch")}</th>
+                {user.role !== "techniker" && <th className="px-4 py-3 font-medium">{t("orders.colCustomer")}</th>}
+                {user.role !== "techniker" && <th className="px-4 py-3 font-medium">{t("orders.colStaff")}</th>}
+                <th className="px-4 py-3 font-medium">{t("orders.colTech")}</th>
+                <th className="px-4 py-3 font-medium">{t("orders.colStatus")}</th>
+                <th className="px-4 py-3 font-medium">{t("orders.colCreated")}</th>
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>

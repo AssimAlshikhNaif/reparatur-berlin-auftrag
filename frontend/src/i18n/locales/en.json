@@ -1,0 +1,87 @@
+{
+  "brand": {
+    "tagline": "BERLIN · ERP"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "orders": "Orders",
+    "newOrder": "New Order",
+    "scan": "Scan QR",
+    "parts": "Spare Parts",
+    "analytics": "Analytics",
+    "users": "Users",
+    "procurement": "Procurement"
+  },
+  "common": {
+    "logout": "Log out",
+    "search": "Search: order no., IMEI, phone…",
+    "close": "Close",
+    "save": "Save",
+    "print": "Print",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "back": "Back",
+    "notifications": "Notifications",
+    "markAllRead": "Mark all read",
+    "clearAll": "Clear all",
+    "noNotifications": "No notifications.",
+    "open": "Open",
+    "language": "Language",
+    "searching": "Searching…",
+    "noResults": "No results."
+  },
+  "roles": {
+    "admin": "Administrator",
+    "mitarbeiter": "Staff",
+    "techniker": "Technician"
+  },
+  "status": {
+    "ANGENOMMEN": "Received",
+    "ZUGEWIESEN": "Assigned",
+    "AKZEPTIERT": "Accepted",
+    "IN_BEARBEITUNG": "In Progress",
+    "WARTEN_ERSATZTEIL": "Awaiting Part",
+    "FERTIG": "Ready",
+    "ABGEHOLT": "Collected",
+    "ABGELEHNT": "Rejected"
+  },
+  "login": {
+    "anmeldung": "Sign in",
+    "welcome": "Welcome back",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "noRegister": "No public registration. Accounts are created by the administrator only.",
+    "heroTitle1": "Repair",
+    "heroTitle2": "Management",
+    "heroDesc": "Central system for 5 branches. Orders, spare parts, workshop chat and SLA monitoring — GDPR-compliant.",
+    "demoTitle": "Demo Accounts",
+    "show": "Show",
+    "hide": "Hide",
+    "pwForAll": "Password for all accounts:",
+    "use": "Use"
+  },
+  "orders": {
+    "label": "Workshop",
+    "title": "Orders",
+    "searchPlaceholder": "Order no., device, customer…",
+    "allStatus": "All statuses",
+    "loading": "Loading orders…",
+    "empty": "No orders found.",
+    "colNumber": "Order no.",
+    "colDevice": "Device",
+    "colBranch": "Branch",
+    "colCustomer": "Customer",
+    "colStaff": "Staff",
+    "colTech": "Technician",
+    "colStatus": "Status",
+    "colCreated": "Created",
+    "newOrder": "New Order"
+  },
+  "langNames": {
+    "de": "Deutsch",
+    "en": "English",
+    "ar": "العربية"
+  }
+}

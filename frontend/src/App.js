@@ -14,6 +14,7 @@ import Inventory from "@/pages/Inventory";
 import Users from "@/pages/Users";
 import Scan from "@/pages/Scan";
 import Analytics from "@/pages/Analytics";
+import Procurement from "@/pages/Procurement";
 
 function Protected({ children, roles }) {
   const { user, loading } = useAuth();
@@ -37,7 +38,9 @@ function AppRoutes() {
       
       {/* تم السماح للجميع (أدمن، تقني، موظف) بالدخول لصفحة قطع الغيار والصلاحيات تُدار داخل الصفحة نفسها */}
       <Route path="/ersatzteile" element={<Protected><Inventory /></Protected>} />
-      
+
+      <Route path="/beschaffung" element={<Protected roles={["admin", "mitarbeiter"]}><Procurement /></Protected>} />
+
       <Route path="/benutzer" element={<Protected roles={["admin"]}><Users /></Protected>} />
       <Route path="/analyse" element={<Protected roles={["admin"]}><Analytics /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />

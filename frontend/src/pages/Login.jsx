@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Wall, Eye, EyeSlash, SpinnerGap, Copy, ShieldCheck, User, Wrench } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
@@ -15,6 +17,7 @@ const BG = "https://images.unsplash.com/photo-1522743791393-522312deeebf?crop=en
 
 export default function Login() {
   const { login } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +37,10 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex">
+      {/* Language switcher (top-right, absolute) */}
+      <div className="absolute top-4 end-4 right-4 z-20">
+        <LanguageSwitcher />
+      </div>
       {/* Left brand panel */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 relative border-r border-border overflow-hidden">
         <img src={BG} alt="Berlin" className="absolute inset-0 w-full h-full object-cover opacity-30" />
@@ -47,11 +54,10 @@ export default function Login() {
         </div>
         <div className="relative z-10 p-12">
           <h1 className="font-head font-bold text-4xl xl:text-5xl tracking-tighter uppercase leading-[0.95]">
-            Reparatur<br />Verwaltung
+            {t("login.heroTitle1")}<br />{t("login.heroTitle2")}
           </h1>
           <p className="text-muted-foreground mt-6 max-w-sm text-sm leading-relaxed">
-            Zentrales System für 5 Filialen. Aufträge, Ersatzteile, Werkstatt-Chat und
-            SLA-Überwachung — DSGVO-konform.
+            {t("login.heroDesc")}
           </p>
           <div className="mt-8 flex gap-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
             <span>Auftrag</span><span>·</span><span>Techniker</span><span>·</span><span>Abholschein</span>
@@ -66,12 +72,12 @@ export default function Login() {
             <Wall size={28} weight="duotone" className="text-accent" />
             <span className="font-head font-bold text-base">REPARATUR BERLIN</span>
           </div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">Anmeldung</div>
-          <h2 className="font-head font-bold text-2xl tracking-tight mb-8">Willkommen zurück</h2>
+          <div className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted-foreground mb-2">{t("login.anmeldung")}</div>
+          <h2 className="font-head font-bold text-2xl tracking-tight mb-8">{t("login.welcome")}</h2>
 
           <form onSubmit={submit} className="space-y-5">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2">E-Mail</label>
+              <label className="block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2">{t("login.email")}</label>
               <input
                 data-testid="login-email"
                 type="email"
@@ -83,7 +89,7 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2">Passwort</label>
+              <label className="block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2">{t("login.password")}</label>
               <div className="relative">
                 <input
                   data-testid="login-password"
@@ -113,12 +119,12 @@ export default function Login() {
               disabled={busy}
               className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider py-3 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors disabled:opacity-50"
             >
-              {busy ? <><SpinnerGap size={16} className="animate-spin" /> Anmelden…</> : "Anmelden"}
+              {busy ? <><SpinnerGap size={16} className="animate-spin" /> {t("login.submitting")}</> : t("login.submit")}
             </button>
           </form>
 
           <p className="text-[11px] text-muted-foreground/70 mt-8 font-mono leading-relaxed">
-            Keine öffentliche Registrierung. Konten werden ausschließlich vom Administrator erstellt.
+            {t("login.noRegister")}
           </p>
 
           <DemoAccounts onPick={(email) => { setEmail(email); setPassword(DEMO_PW); }} />

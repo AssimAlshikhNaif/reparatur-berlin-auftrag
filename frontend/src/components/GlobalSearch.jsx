@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { MagnifyingGlass, X, ShieldCheck, Warning } from "@phosphor-icons/react";
 import { STATUS_LABELS } from "@/lib/constants";
 
 export default function GlobalSearch() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
@@ -51,7 +53,7 @@ export default function GlobalSearch() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
-          placeholder="Suche: Auftragsnr., IMEI, Telefon…"
+          placeholder={t("common.search")}
           className="flex-1 min-w-0 bg-transparent text-sm outline-none"
         />
         {q && (
@@ -67,9 +69,9 @@ export default function GlobalSearch() {
           <div data-testid="global-search-results"
             className="absolute left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto z-40 bg-background border border-border rounded-xl shadow-2xl">
             {loading ? (
-              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">Suche…</div>
+              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.searching")}</div>
             ) : results.length === 0 ? (
-              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">Keine Treffer.</div>
+              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.noResults")}</div>
             ) : (
               results.map((o) => (
                 <button key={o.id} onClick={() => go(o.id)}
@@ -87,7 +89,7 @@ export default function GlobalSearch() {
                           <Warning size={10} /> IMEI
                         </span>
                       )}
-                      <span className="text-[9px] font-mono uppercase text-muted-foreground">{STATUS_LABELS[o.status] || o.status}</span>
+                      <span className="text-[9px] font-mono uppercase text-muted-foreground">{t(`status.${o.status}`, STATUS_LABELS[o.status] || o.status)}</span>
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">

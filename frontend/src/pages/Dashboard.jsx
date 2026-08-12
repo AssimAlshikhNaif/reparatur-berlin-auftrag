@@ -4,6 +4,7 @@ import api, { formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
+import ProcurementAlerts from "@/components/ProcurementAlerts";
 import { STATUS_LABELS } from "@/lib/constants";
 import MitarbeiterDashboard from "@/pages/MitarbeiterDashboard";
 import { toast } from "sonner";
@@ -102,6 +103,9 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
           <Metric testid="metric-done" label="Abgeholt" value={stats.by_status?.ABGEHOLT ?? 0} icon={CheckCircle} accent="text-emerald-500" />
         )}
       </div>
+
+      {/* Procurement arrival alerts (admin & staff) */}
+      {(user?.role === "admin" || user?.role === "mitarbeiter") && <ProcurementAlerts />}
 
       {/* Revenue chart section */}
       {user?.role === "admin" && stats.revenue_by_branch?.length > 0 && (

@@ -565,11 +565,17 @@ async def assign_order(order_id: str, input: AssignInput,
     tech = await db.users.find_one({"_id": ObjectId(input.techniker_id), "role": "techniker"})
     if not tech:
         raise HTTPException(status_code=404, detail="Techniker nicht gefunden")
+    was_rejected = order.get("status") == "ABGELEHNT"
+    # Clear any previous rejection reason so a reassigned order starts clean.
     await _touch_order(order_id, "ZUGEWIESEN", current["name"],
-                       {"assigned_techniker_id": input.techniker_id})
+                       {"assigned_techniker_id": input.techniker_id, "reject_reason": ""})
+    if was_rejected:
+        await log_audit(order_id, "ZUWEISUNG",
+                        f"Nach Ablehnung neu zugewiesen an {tech['name']}", current["name"])
+    action_word = "neu zugewiesen" if was_rejected else "zugewiesen"
     await push_notification(
-        kind="STATUS", title="Auftrag zugewiesen",
-        message=f"{current['name']} hat {order.get('auftragsnummer','')} an {tech['name']} zugewiesen.",
+        kind="STATUS", title=("Auftrag neu zugewiesen" if was_rejected else "Auftrag zugewiesen"),
+        message=f"{current['name']} hat {order.get('auftragsnummer','')} an {tech['name']} {action_word}.",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )

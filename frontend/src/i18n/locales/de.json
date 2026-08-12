@@ -1,0 +1,87 @@
+{
+  "brand": {
+    "tagline": "BERLIN · ERP"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "orders": "Aufträge",
+    "newOrder": "Neuer Auftrag",
+    "scan": "QR Scannen",
+    "parts": "Ersatzteile",
+    "analytics": "Analyse",
+    "users": "Benutzer",
+    "procurement": "Beschaffung"
+  },
+  "common": {
+    "logout": "Abmelden",
+    "search": "Suche: Auftragsnr., IMEI, Telefon…",
+    "close": "Schließen",
+    "save": "Speichern",
+    "print": "Drucken",
+    "cancel": "Abbrechen",
+    "loading": "Lädt…",
+    "back": "Zurück",
+    "notifications": "Benachrichtigungen",
+    "markAllRead": "Alle gelesen",
+    "clearAll": "Alle löschen",
+    "noNotifications": "Keine Benachrichtigungen.",
+    "open": "Öffnen",
+    "language": "Sprache",
+    "searching": "Suche…",
+    "noResults": "Keine Treffer."
+  },
+  "roles": {
+    "admin": "Administrator",
+    "mitarbeiter": "Mitarbeiter",
+    "techniker": "Techniker"
+  },
+  "status": {
+    "ANGENOMMEN": "Angenommen",
+    "ZUGEWIESEN": "Zugewiesen",
+    "AKZEPTIERT": "Akzeptiert",
+    "IN_BEARBEITUNG": "In Bearbeitung",
+    "WARTEN_ERSATZTEIL": "Warten auf Ersatzteil",
+    "FERTIG": "Fertig",
+    "ABGEHOLT": "Abgeholt",
+    "ABGELEHNT": "Abgelehnt"
+  },
+  "login": {
+    "anmeldung": "Anmeldung",
+    "welcome": "Willkommen zurück",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "submitting": "Anmelden…",
+    "noRegister": "Keine öffentliche Registrierung. Konten werden ausschließlich vom Administrator erstellt.",
+    "heroTitle1": "Reparatur",
+    "heroTitle2": "Verwaltung",
+    "heroDesc": "Zentrales System für 5 Filialen. Aufträge, Ersatzteile, Werkstatt-Chat und SLA-Überwachung — DSGVO-konform.",
+    "demoTitle": "Test-Zugänge (Demo)",
+    "show": "Anzeigen",
+    "hide": "Verbergen",
+    "pwForAll": "Passwort für alle Konten:",
+    "use": "Einsetzen"
+  },
+  "orders": {
+    "label": "Werkstatt",
+    "title": "Aufträge",
+    "searchPlaceholder": "Auftragsnr., Gerät, Kunde…",
+    "allStatus": "Alle Status",
+    "loading": "Lade Aufträge…",
+    "empty": "Keine Aufträge gefunden.",
+    "colNumber": "Auftragsnr.",
+    "colDevice": "Gerät",
+    "colBranch": "Filiale",
+    "colCustomer": "Kunde",
+    "colStaff": "Mitarbeiter",
+    "colTech": "Techniker",
+    "colStatus": "Status",
+    "colCreated": "Erstellt",
+    "newOrder": "Neuer Auftrag"
+  },
+  "langNames": {
+    "de": "Deutsch",
+    "en": "English",
+    "ar": "العربية"
+  }
+}
