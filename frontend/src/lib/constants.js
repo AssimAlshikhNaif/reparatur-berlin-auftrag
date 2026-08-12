@@ -40,3 +40,42 @@ export const COST_STATUS_STYLES = {
 };
 
 export const DEVICE_BRANDS = ["Apple", "Samsung", "Google", "Xiaomi", "Huawei", "OnePlus", "Sonstige"];
+
+// ===== External parts procurement =====
+export const PURCHASE_STATUS_LABELS = {
+  ANGEFRAGT: "Angefragt",
+  BESTELLT: "Bestellt",
+  UNTERWEGS: "Unterwegs",
+  ANGEKOMMEN: "Angekommen",
+  EINGEBAUT: "Eingebaut",
+  STORNIERT: "Storniert",
+};
+
+export const PURCHASE_STATUS_STYLES = {
+  ANGEFRAGT: "bg-zinc-800 text-zinc-200 border-zinc-600",
+  BESTELLT: "bg-blue-950 text-blue-300 border-blue-700",
+  UNTERWEGS: "bg-amber-950 text-amber-300 border-amber-600",
+  ANGEKOMMEN: "bg-emerald-950 text-emerald-300 border-emerald-600",
+  EINGEBAUT: "bg-indigo-950 text-indigo-300 border-indigo-700",
+  STORNIERT: "bg-red-950 text-red-300 border-red-700",
+};
+
+export const PURCHASE_STATUS_ORDER = [
+  "ANGEFRAGT", "BESTELLT", "UNTERWEGS", "ANGEKOMMEN", "EINGEBAUT", "STORNIERT",
+];
+
+// ===== Legal liability waiver (shown below the intake signature) =====
+export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
+
+1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.
+
+2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, können kostenpflichtig eingelagert, verwertet oder entsorgt werden.
+
+3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
+
+4. Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
+
+export const PICKUP_WAIVER = `Übernahmebestätigung:
+
+Mit meiner Unterschrift bestätige ich den Erhalt des oben genannten Geräts in ordnungsgemäßem Zustand. Die durchgeführten Arbeiten wurden mir erläutert und der Endbetrag wurde beglichen bzw. anerkannt.`;
+

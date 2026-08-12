@@ -1,95 +1,137 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { ShoppingCart, Plus, Check, Trash, Link as LinkIcon, CurrencyDollar, Clock } from "@phosphor-icons/react";
+import {
+  ShoppingCart, Plus, Trash, Link as LinkIcon, Clock, Truck, Package,
+  CalendarBlank, CheckCircle,
+} from "@phosphor-icons/react";
+import { PURCHASE_STATUS_LABELS, PURCHASE_STATUS_STYLES, PURCHASE_STATUS_ORDER } from "@/lib/constants";
+import { berlinDateTime } from "@/lib/datetime";
 
-export default function OrderPurchasesTab({ orderId }) {
+const inputCls = "w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent";
+
+function StatusPill({ status }) {
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PURCHASE_STATUS_STYLES[status] || "bg-muted text-foreground/80 border-border"}`}>
+      {PURCHASE_STATUS_LABELS[status] || status}
+    </span>
+  );
+}
+
+export default function OrderPurchasesTab({ orderId, onChange }) {
+  const { user } = useAuth();
+  const isTech = user.role === "techniker";
+  const canManage = user.role === "admin" || user.role === "mitarbeiter";
+
   const [purchases, setPurchases] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [itemName, setItemName] = useState("");
-  const [supplierUrl, setSupplierUrl] = useState("");
-  const [notes, setNotes] = useState("");
+  const [form, setForm] = useState({ part_name: "", supplier_url: "", price: "", expected_arrival: "", notes: "" });
 
-  // حالات خاصة بمعالجة الطلب من قبل الأدمن/الموظف
-  const [processingId, setProcessingId] = useState(null);
-  const [processForm, setProcessForm] = useState({ price: "", estimated_days: "", status: "BESTELLT" });
-
-  const loadPurchases = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/purchases/order/${orderId}`);
       setPurchases(data);
-    } catch (e) {
-      // تجاهل الخطأ في حال عدم وجود بيانات
-    }
-  }, [orderId]);
+      onChange && onChange(data.length);
+    } catch (e) { /* ignore */ }
+  }, [orderId, onChange]);
 
-  useEffect(() => {
-    loadPurchases();
-  }, [loadPurchases]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleRequestPart = async (e) => {
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const create = async (e) => {
     e.preventDefault();
-    if (!itemName.trim() && !supplierUrl.trim()) {
-      toast.error("Bitte Artikelname oder Link angeben");
-      return;
-    }
-
+    if (!form.part_name.trim()) { toast.error("Bitte Teilebezeichnung angeben"); return; }
     setLoading(true);
     try {
-      await api.post(`/purchases/request`, {
+      const payload = {
         order_id: orderId,
-        item_name: itemName,
-        supplier_url: supplierUrl,
-        notes: notes,
-      });
-      toast.success("Ersatzteil-Anfrage erfolgreich gesendet");
-      setItemName("");
-      setSupplierUrl("");
-      setNotes("");
-      loadPurchases();
+        part_name: form.part_name,
+        supplier_url: form.supplier_url,
+        notes: form.notes,
+        expected_arrival: form.expected_arrival || null,
+        status: "ANGEFRAGT",
+      };
+      if (!isTech && form.price !== "") payload.price = parseFloat(form.price) || 0;
+      await api.post("/purchases", payload);
+      toast.success("Beschaffung angelegt");
+      setForm({ part_name: "", supplier_url: "", price: "", expected_arrival: "", notes: "" });
+      load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Fehler beim Senden der Anfrage");
-    } finally {
-      setLoading(false);
-    }
+      toast.error(err.response?.data?.detail || "Fehler beim Anlegen");
+    } finally { setLoading(false); }
   };
 
-  const handleProcessSubmit = async (purchaseId) => {
+  const patch = async (id, updates, msg) => {
     try {
-      await api.patch(`/purchases/${purchaseId}/process`, {
-        price: parseFloat(processForm.price) || 0,
-        estimated_days: parseInt(processForm.estimated_days) || 0,
-        status: processForm.status,
-      });
-      toast.success("Bestellung erfolgreich aktualisiert");
-      setProcessingId(null);
-      setProcessForm({ price: "", estimated_days: "", status: "BESTELLT" });
-      loadPurchases();
+      await api.patch(`/purchases/${id}`, updates);
+      if (msg) toast.success(msg);
+      load();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Fehler beim Aktualisieren");
     }
   };
 
+  const remove = async (id) => {
+    try {
+      await api.delete(`/purchases/${id}`);
+      toast.success("Beschaffung gelöscht");
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Fehler beim Löschen");
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="purchases-tab">
       <div className="flex items-center gap-2 border-b border-border pb-3">
         <ShoppingCart size={16} className="text-accent" />
-        <h2 className="font-head font-semibold text-sm tracking-tight">Ersatzteil-Beschaffung & Anfragen</h2>
+        <h2 className="font-head font-semibold text-sm tracking-tight">Externe Ersatzteil-Beschaffung & Tracking</h2>
       </div>
 
-      {/* قائمة الطلبات الحالية */}
+      {/* New procurement form */}
+      <form onSubmit={create} className="border border-border rounded-lg p-4 bg-card/30 space-y-3">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Neue Beschaffung anlegen</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input data-testid="purchase-part-name" value={form.part_name} onChange={set("part_name")}
+            placeholder="Teilebezeichnung (z.B. OLED Display iPhone 13)" className={inputCls} />
+          <input data-testid="purchase-supplier-url" value={form.supplier_url} onChange={set("supplier_url")}
+            placeholder="Externer Link / URL (Lieferant)" className={`${inputCls} font-mono text-xs`} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Voraussichtliche Ankunft</label>
+            <input data-testid="purchase-expected" type="datetime-local" value={form.expected_arrival} onChange={set("expected_arrival")} className={`${inputCls} font-mono text-xs`} />
+          </div>
+          {!isTech && (
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Preis (€)</label>
+              <input data-testid="purchase-price" type="number" step="0.01" value={form.price} onChange={set("price")} placeholder="0.00" className={`${inputCls} font-mono`} />
+            </div>
+          )}
+        </div>
+        <input data-testid="purchase-notes" value={form.notes} onChange={set("notes")} placeholder="Notizen (optional)" className={inputCls} />
+        <button type="submit" disabled={loading} data-testid="purchase-submit"
+          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2.5 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50">
+          <Plus size={14} /> Beschaffung anlegen
+        </button>
+      </form>
+
+      {/* Procurement list */}
       {purchases.length === 0 ? (
-        <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">
-          Keine Beschaffungsanfragen für diesen Auftrag.
+        <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">
+          Keine Beschaffungen für diesen Auftrag.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="purchases-list">
           {purchases.map((p) => (
-            <div key={p._id} className="border border-border/60 px-3 py-2.5 bg-background/50 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
+            <div key={p.id} className="border border-border/70 rounded-lg p-3.5 bg-background/50 space-y-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1">
-                  <div className="text-sm text-foreground flex items-center gap-2">
-                    <span className="font-medium">{p.item_name}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm text-foreground">{p.part_name}</span>
+                    <StatusPill status={p.status} />
                     {p.supplier_url && (
                       <a href={p.supplier_url} target="_blank" rel="noreferrer" className="text-accent hover:underline flex items-center gap-1 text-xs">
                         <LinkIcon size={12} /> Link
@@ -97,116 +139,55 @@ export default function OrderPurchasesTab({ orderId }) {
                     )}
                   </div>
                   <div className="font-mono text-[10px] text-muted-foreground">
-                    Angefragt von: {p.requested_by_name} ({p.requested_by_role}) · Preis: {Number(p.price || 0).toFixed(2)} € · Status: <span className="uppercase text-accent font-semibold">{p.status}</span>
+                    Angelegt von {p.created_by || "—"}
+                    {!isTech && p.price != null ? ` · Preis: ${Number(p.price || 0).toFixed(2)} €` : ""}
                   </div>
                   {p.notes && <div className="text-xs text-muted-foreground/80">Hinweis: {p.notes}</div>}
                 </div>
-
-                {/* زر فتح نافذة المعالجة للأدمن/الموظف */}
-                <button
-                  onClick={() => {
-                    setProcessingId(p._id);
-                    setProcessForm({ price: p.price || "", estimated_days: p.estimated_days || "", status: p.status || "BESTELLT" });
-                  }}
-                  className="text-xs font-mono uppercase tracking-wider border border-border px-3 py-1.5 hover:bg-muted transition-colors"
-                >
-                  Bearbeiten
-                </button>
+                {canManage && (
+                  <button data-testid={`purchase-delete-${p.id}`} onClick={() => remove(p.id)}
+                    className="p-1.5 border border-border rounded hover:bg-red-950 text-red-400 shrink-0"><Trash size={13} /></button>
+                )}
               </div>
 
-              {/* نموذج المعالجة السريع عند الضغط على تعديل */}
-              {processingId === p._id && (
-                <div className="border-t border-border/60 pt-3 mt-2 space-y-2 bg-card/40 p-3 rounded">
-                  <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Bestellung freigeben / aktualisieren</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-mono text-muted-foreground mb-1">Preis (€)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={processForm.price}
-                        onChange={(e) => setProcessForm({ ...processForm, price: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1 text-xs rounded outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono text-muted-foreground mb-1">Tage (Lieferung)</label>
-                      <input
-                        type="number"
-                        value={processForm.estimated_days}
-                        onChange={(e) => setProcessForm({ ...processForm, estimated_days: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1 text-xs rounded outline-none font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono text-muted-foreground mb-1">Status</label>
-                      <select
-                        value={processForm.status}
-                        onChange={(e) => setProcessForm({ ...processForm, status: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1 text-xs rounded outline-none font-mono uppercase"
-                      >
-                        <option value="ANGEFRAGT">Angefragt</option>
-                        <option value="BESTELLT">Bestellt</option>
-                        <option value="GELIEFERT">Geliefert</option>
-                        <option value="STORNIERT">Storniert</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      onClick={() => setProcessingId(null)}
-                      className="px-3 py-1 text-xs border border-border text-muted-foreground hover:bg-muted"
-                    >
-                      Abbrechen
-                    </button>
-                    <button
-                      onClick={() => handleProcessSubmit(p._id)}
-                      className="px-3 py-1 text-xs bg-primary text-primary-foreground font-semibold uppercase tracking-wider hover:bg-blue-600"
-                    >
-                      Speichern
-                    </button>
-                  </div>
+              {/* timeline info */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Clock size={12} /> Bestellt: {p.order_timestamp ? berlinDateTime(p.order_timestamp) : "—"}
                 </div>
-              )}
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CalendarBlank size={12} /> Erwartet: {p.expected_arrival ? berlinDateTime(p.expected_arrival) : "—"}
+                </div>
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CheckCircle size={12} /> Angekommen: {p.actual_arrival ? berlinDateTime(p.actual_arrival) : "—"}
+                </div>
+              </div>
+
+              {/* status controls */}
+              <div className="flex flex-wrap items-center gap-2 border-t border-border/50 pt-2.5">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1"><Truck size={12} /> Status:</span>
+                <select
+                  data-testid={`purchase-status-${p.id}`}
+                  value={p.status}
+                  onChange={(e) => patch(p.id, { status: e.target.value }, "Status aktualisiert")}
+                  className="bg-background border border-border px-2 py-1 text-xs rounded outline-none focus:border-accent font-mono uppercase">
+                  {PURCHASE_STATUS_ORDER.map((s) => (
+                    <option key={s} value={s}>{PURCHASE_STATUS_LABELS[s]}</option>
+                  ))}
+                </select>
+                <div className="flex-1" />
+                <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                  <Package size={12} /> Erwartet:
+                  <input type="datetime-local"
+                    defaultValue={p.expected_arrival ? p.expected_arrival.slice(0, 16) : ""}
+                    onBlur={(e) => e.target.value && patch(p.id, { expected_arrival: e.target.value }, "Ankunft aktualisiert")}
+                    className="bg-background border border-border px-2 py-1 text-xs rounded outline-none focus:border-accent font-mono" />
+                </label>
+              </div>
             </div>
           ))}
         </div>
       )}
-
-      {/* نموذج طلب قطعة جديدة للفنيين */}
-      <form onSubmit={handleRequestPart} className="border-t border-border pt-3 space-y-3">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Neue Ersatzteil-Anfrage senden</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input
-            type="text"
-            placeholder="Artikelname (z.B. OLED Display iPhone 13)"
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            className="bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent"
-          />
-          <input
-            type="text"
-            placeholder="Supplier URL (Link)"
-            value={supplierUrl}
-            onChange={(e) => setSupplierUrl(e.target.value)}
-            className="bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono text-xs"
-          />
-        </div>
-        <input
-          type="text"
-          placeholder="Notizen (optional)"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 hover:bg-blue-600 transition-colors disabled:opacity-50"
-        >
-          <Plus size={14} /> Anfrage absenden
-        </button>
-      </form>
     </div>
   );
 }

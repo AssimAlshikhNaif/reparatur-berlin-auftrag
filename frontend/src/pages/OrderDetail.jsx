@@ -8,8 +8,9 @@ import OrderChat from "@/components/OrderChat";
 import OrderPurchasesTab from "@/components/OrderPurchasesTab";
 import Abholschein from "@/components/Abholschein";
 import CameraCapture from "@/components/CameraCapture";
+import SignaturePad from "@/components/SignaturePad";
 import WhatsAppFab from "@/components/WhatsAppFab";
-import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES } from "@/lib/constants";
+import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -17,6 +18,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, WhatsappLogo, ListChecks, ShoppingCart,
+  Warning, Signature,
 } from "@phosphor-icons/react";
 
 function Section({ title, icon: Icon, children }) {
@@ -62,6 +64,8 @@ export default function OrderDetail() {
   // حالة التبويب النشط ونظام المشتريات
   const [activeTab, setActiveTab] = useState("details"); // "details" | "purchases"
   const [purchasesCount, setPurchasesCount] = useState(0);
+  const [imeiInput, setImeiInput] = useState("");
+  const [savingSig, setSavingSig] = useState(false);
 
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
 
@@ -129,6 +133,23 @@ export default function OrderDetail() {
   const removePart = (pid) => act(() => api.delete(`/orders/${id}/parts/${pid}`), "Ersatzteil entfernt (Bestand zurück)")
     .then(() => api.get("/inventory").then((r) => setInventory(r.data)));
 
+  const saveImei = () => {
+    if (!imeiInput.trim()) { toast.error("Bitte IMEI eingeben"); return; }
+    act(() => api.patch(`/orders/${id}/imei`, { imei: imeiInput.trim() }), "IMEI nachgetragen")
+      .then(() => setImeiInput(""));
+  };
+
+  const saveSignature = async (type, dataUrl) => {
+    setSavingSig(true);
+    try {
+      await api.post(`/orders/${id}/signature`, { type, signature: dataUrl, signer_name: order.customer_name || "" });
+      toast.success(type === "pickup" ? "Abhol-Unterschrift gespeichert" : "Unterschrift gespeichert");
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || "Fehler beim Speichern der Unterschrift");
+    } finally { setSavingSig(false); }
+  };
+
   const uploadFiles = async (files) => {
     if (!files.length) return;
     setUploading(true);
@@ -168,6 +189,16 @@ export default function OrderDetail() {
       <div className="flex flex-wrap items-center gap-3 px-6 md:px-8 py-4 border-b border-border/60">
         <StatusBadge status={order.status} />
         {order.sla_breached && <SlaBadge days={order.working_days_open} />}
+        {order.imei_reminder && (
+          <span data-testid="imei-reminder-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg animate-pulse">
+            <Warning size={13} weight="fill" /> IMEI fehlt – bitte nachtragen
+          </span>
+        )}
+        {order.under_warranty && (
+          <span data-testid="warranty-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-emerald-600 bg-emerald-950 text-emerald-300 rounded-lg">
+            <ShieldCheck size={13} weight="fill" /> Garantie aktiv{typeof order.warranty_days_left === "number" ? ` · ${order.warranty_days_left} Tage` : ""}
+          </span>
+        )}
         <div className="flex-1" />
 
         {canManage && (
@@ -273,7 +304,7 @@ export default function OrderDetail() {
       {activeTab === "purchases" ? (
         <div className="p-6 md:p-8 max-w-4xl mx-auto w-full">
           <div className="border border-border p-6 bg-card/20 rounded-lg">
-            <OrderPurchasesTab orderId={order.id} />
+            <OrderPurchasesTab orderId={order.id} onChange={setPurchasesCount} />
           </div>
         </div>
       ) : (
@@ -282,12 +313,35 @@ export default function OrderDetail() {
           <div className="lg:col-span-2 space-y-4">
             <Section title="Gerät & Fehler" icon={DeviceMobile}>
               <Field label="Marke / Modell" value={`${order.device_brand} ${order.device_model}`} />
-              <Field label="IMEI" value={order.imei} />
+              <Field label="IMEI" value={order.imei || (order.imei_unreadable ? "— (nicht lesbar)" : "—")} />
+              {order.imei_reminder && (
+                <div data-testid="imei-fillin" className="my-2 border border-amber-800/60 bg-amber-950/20 rounded-lg p-3">
+                  <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-amber-300 mb-2">
+                    <Warning size={13} weight="fill" /> IMEI ausstehend – sobald Gerät zugänglich, bitte nachtragen
+                  </div>
+                  <div className="flex gap-2">
+                    <input data-testid="imei-input" value={imeiInput} onChange={(e) => setImeiInput(e.target.value)}
+                      placeholder="IMEI / Seriennummer" className="flex-1 bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+                    <button data-testid="imei-save" onClick={saveImei}
+                      className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                      Speichern
+                    </button>
+                  </div>
+                </div>
+              )}
               <Field label="Geräte-Passcode / PIN" value={order.device_passcode} />
               <Field label="Fehlerbeschreibung" value={order.issue_description} />
+              <Field label="Garantie" value={
+                order.warranty_months
+                  ? (order.warranty_until
+                      ? `${order.warranty_months} Monate · gültig bis ${berlinDateTime(order.warranty_until)}${order.under_warranty ? " (aktiv)" : " (abgelaufen)"}`
+                      : `${order.warranty_months} Monate (ab Abholung)`)
+                  : "Keine Garantie"
+              } />
             </Section>
 
             {/* Kostenaufschlüsselung */}
+            {!isTech && (
             <div className="border border-border">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
                 <div className="flex items-center gap-2">
@@ -352,6 +406,7 @@ export default function OrderDetail() {
                 )}
               </div>
             </div>
+            )}
 
             {/* Verbaute Ersatzteile */}
             <div className="border border-border">
@@ -368,10 +423,12 @@ export default function OrderDetail() {
                       <div key={p.id} data-testid={`used-part-${p.sku}`} className="flex items-center justify-between border border-border/60 px-3 py-2">
                         <div className="min-w-0">
                           <div className="text-sm text-foreground truncate">{p.name}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">{p.sku} · {p.quantity}× à {Number(p.unit_price).toFixed(2)} €</div>
+                          <div className="font-mono text-[10px] text-muted-foreground">{p.sku} · {p.quantity}×{!isTech && p.unit_price != null ? ` à ${Number(p.unit_price).toFixed(2)} €` : ""}</div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <span className="font-mono text-sm text-foreground">{Number(p.total).toFixed(2)} €</span>
+                          {!isTech && p.total != null && (
+                            <span className="font-mono text-sm text-foreground">{Number(p.total).toFixed(2)} €</span>
+                          )}
                           {order.status !== "ABGEHOLT" && (
                             <button data-testid={`remove-part-${p.sku}`} onClick={() => removePart(p.id)} className="p-1 border border-border hover:bg-red-950 text-red-400"><Trash size={13} /></button>
                           )}
@@ -455,10 +512,54 @@ export default function OrderDetail() {
               )}
             </Section>
 
+            {/* Digitale Unterschriften */}
+            {canManage && (
+              <Section title="Digitale Unterschriften" icon={Signature}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Intake / Abholschein */}
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Abgabe (Abholschein)</div>
+                    {order.has_intake_signature && order.intake_signature ? (
+                      <div className="space-y-1">
+                        <div className="border border-border rounded-lg bg-white p-2">
+                          <img src={order.intake_signature} alt="Unterschrift Abgabe" className="h-24 object-contain mx-auto" />
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {order.intake_signed_name || order.customer_name} · {order.intake_signed_at ? berlinDateTime(order.intake_signed_at) : ""}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("intake", d)} label="Kunde unterschreibt (Abgabe)" height={140} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pickup / Übergabe */}
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Abholung / Übergabe</div>
+                    {order.has_pickup_signature && order.pickup_signature ? (
+                      <div className="space-y-1">
+                        <div className="border border-border rounded-lg bg-white p-2">
+                          <img src={order.pickup_signature} alt="Unterschrift Abholung" className="h-24 object-contain mx-auto" />
+                        </div>
+                        <div className="font-mono text-[10px] text-muted-foreground">
+                          {order.pickup_signed_name || order.customer_name} · {order.pickup_signed_at ? berlinDateTime(order.pickup_signed_at) : ""}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed border border-border/60 rounded-lg p-2 bg-card/30">{PICKUP_WAIVER}</p>
+                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("pickup", d)} label="Kunde unterschreibt (Abholung)" height={140} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Section>
+            )}
+
             {/* Chat */}
             <OrderChat orderId={order.id} />
-
-            {/* Kundenkommunikation (WhatsApp) */}
             {canManage && (
               <Section title="Kundenkommunikation · WhatsApp" icon={WhatsappLogo}>
                 {comms.length === 0 ? (

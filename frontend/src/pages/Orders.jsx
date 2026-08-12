@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
 import { STATUS_LABELS } from "@/lib/constants";
-import { MagnifyingGlass, PlusCircle, Funnel } from "@phosphor-icons/react";
+import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck } from "@phosphor-icons/react";
 
 export default function Orders() {
   const { user } = useAuth();
@@ -115,9 +115,19 @@ export default function Orders() {
                   {user.role !== "techniker" && <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{o.created_by_name || "—"}</td>}
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{o.assigned_techniker_name || <span className="text-muted-foreground/70">—</span>}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <StatusBadge status={o.status} />
                       {o.sla_breached && <SlaBadge days={o.working_days_open} />}
+                      {o.imei_reminder && (
+                        <span data-testid={`list-imei-${o.auftragsnummer}`} title="IMEI fehlt" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
+                          <Warning size={10} weight="fill" /> IMEI
+                        </span>
+                      )}
+                      {o.under_warranty && (
+                        <span data-testid={`list-warranty-${o.auftragsnummer}`} title="Garantiefall" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-emerald-600 bg-emerald-950 text-emerald-300 rounded">
+                          <ShieldCheck size={10} weight="fill" /> Garantie
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">

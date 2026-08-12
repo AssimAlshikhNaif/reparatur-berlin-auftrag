@@ -3,6 +3,8 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
 import { ROLE_LABELS } from "@/lib/constants";
+import NotificationBell from "@/components/NotificationBell";
+import GlobalSearch from "@/components/GlobalSearch";
 import {
   Gauge, Wrench, Package, Users, QrCode, PlusCircle,
   SignOut, List, X, Wall, ChartBar,
@@ -107,7 +109,12 @@ export default function Layout({ children }) {
       )}
 
       <main className="flex-1 min-w-0 pt-14 md:pt-0">
-        <div className="flex items-center justify-end gap-3 h-12 px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
+        <div className="flex items-center gap-3 h-12 px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <GlobalSearch />
+          </div>
+          <div className="flex-1 sm:hidden" />
+          {user.role === "admin" && <NotificationBell />}
           <ThemeToggle />
         </div>
         {children}

@@ -3,12 +3,14 @@ import { jsPDF } from "jspdf";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
 
+const WAIVER_SLIP = "Haftungsausschluss: Keine Haftung fuer Datenverlust (Datensicherung ist Kundensache), fuer nicht innerhalb 90 Tagen abgeholte Geraete sowie fuer Folgen bestehender Vorschaeden (z.B. Wasser-/Sturzschaden). Mit Unterschrift Geraeteuebergabe u. Bedingungen akzeptiert.";
+
 export default function Abholschein({ order, branchName, onClose }) {
   const printTs = berlinNow();
   const downloadPdf = () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrData = canvas ? canvas.toDataURL("image/png") : null;
-    const doc = new jsPDF({ unit: "mm", format: [80, 170] });
+    const doc = new jsPDF({ unit: "mm", format: [80, 210] });
     let y = 8;
     doc.setFont("courier", "bold"); doc.setFontSize(12);
     doc.text("REPARATUR BERLIN", 40, y, { align: "center" }); y += 5;
@@ -24,6 +26,7 @@ export default function Abholschein({ order, branchName, onClose }) {
     line("Druck:", berlinNow());
     line("Geraet:", `${order.device_brand} ${order.device_model}`);
     if (order.imei) line("IMEI:", String(order.imei));
+    if (order.warranty_months) line("Garantie:", `${order.warranty_months} Monate`);
     y += 2; doc.setFont("courier", "bold"); doc.text("KUNDE", 4, y); y += 4;
     doc.setFont("courier", "normal");
     doc.text(String(order.customer_name || ""), 4, y); y += 4;
@@ -39,6 +42,22 @@ export default function Abholschein({ order, branchName, onClose }) {
       doc.setFont("courier", "bold");
       line("GESAMT:", `${Number(order.cost.gross).toFixed(2)} EUR`);
     }
+    // Liability waiver
+    y += 2; doc.setFont("courier", "bold"); doc.setFontSize(7);
+    doc.text("HAFTUNGSAUSSCHLUSS", 4, y); y += 3;
+    doc.setFont("courier", "normal"); doc.setFontSize(6);
+    const wv = doc.splitTextToSize(WAIVER_SLIP, 72);
+    doc.text(wv, 4, y); y += wv.length * 2.6 + 3;
+    // Signature
+    doc.setFontSize(8);
+    if (order.intake_signature) {
+      try { doc.addImage(order.intake_signature, "PNG", 4, y, 40, 14); } catch (e) { /* ignore */ }
+      y += 15;
+    } else {
+      y += 6;
+    }
+    doc.setLineWidth(0.2); doc.line(4, y, 50, y); y += 3;
+    doc.text("Unterschrift Kunde", 4, y); y += 5;
     doc.save(`${order.auftragsnummer}.pdf`);
   };
 
@@ -80,7 +99,8 @@ export default function Abholschein({ order, branchName, onClose }) {
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>Auftrag:</span><span>{berlinDateTime(order.created_at)}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>Druckdatum:</span><span>{printTs}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>Gerät:</span><span>{order.device_brand} {order.device_model}</span></div>
-              {order.imei ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>IMEI:</span><span>{order.imei}</span></div> : null}
+              {order.imei ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>IMEI:</span><span>{order.imei}</span></div> : (order.imei_unreadable ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>IMEI:</span><span>nicht lesbar</span></div> : null)}
+              {order.warranty_months ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>Garantie:</span><span>{order.warranty_months} Monate</span></div> : null}
             </div>
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
@@ -101,6 +121,20 @@ export default function Abholschein({ order, branchName, onClose }) {
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px" }}><span>GESAMT:</span><span>{Number(order.cost.gross).toFixed(2)} €</span></div>
               </div>
             )}
+
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7px", lineHeight: 1.45 }}>
+              <div style={{ fontWeight: 700, marginBottom: "1mm", fontSize: "8px" }}>HAFTUNGSAUSSCHLUSS</div>
+              <div>{WAIVER_SLIP}</div>
+            </div>
+
+            <div style={{ paddingTop: "6mm", marginTop: "2mm", fontSize: "9px" }}>
+              {order.intake_signature ? (
+                <img src={order.intake_signature} alt="Unterschrift" style={{ maxHeight: "16mm", display: "block" }} />
+              ) : null}
+              <div style={{ borderTop: "1px solid #000", width: "50mm", marginTop: "1mm", paddingTop: "1mm" }}>
+                Unterschrift Kunde{order.intake_signed_name ? ` (${order.intake_signed_name})` : ""}
+              </div>
+            </div>
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "3mm", marginTop: "3mm", fontSize: "8px", textAlign: "center", lineHeight: 1.5 }}>
               Bitte diesen Schein zur Abholung vorlegen.<br />

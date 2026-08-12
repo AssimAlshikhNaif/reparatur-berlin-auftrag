@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
-import { DEVICE_BRANDS } from "@/lib/constants";
+import { DEVICE_BRANDS, LIABILITY_WAIVER } from "@/lib/constants";
 import CameraCapture from "@/components/CameraCapture";
+import SignaturePad from "@/components/SignaturePad";
 import { toast } from "sonner";
-import { Camera, X, SpinnerGap, FloppyDisk, VideoCamera, Receipt } from "@phosphor-icons/react";
+import { Camera, X, SpinnerGap, FloppyDisk, VideoCamera, Receipt, Warning, ShieldCheck, Signature, CheckCircle } from "@phosphor-icons/react";
 
 const inputCls = "w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent transition-colors";
 const labelCls = "block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2";
@@ -20,12 +21,16 @@ export default function OrderCreate() {
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
+  const [intakeSignature, setIntakeSignature] = useState(null);
+  const [signerName, setSignerName] = useState("");
   const [form, setForm] = useState({
     branch_id: "", device_brand: "Apple", device_model: "", imei: "",
+    imei_unreadable: false,
     device_passcode: "", // <--- تمت إضافة حقل كلمة السر هنا
     issue_description: "", customer_name: "", customer_phone: "",
     customer_email: "", customer_address: "", estimated_price: "",
     diagnosis_fee: "", labor_cost: "", parts_cost: "",
+    warranty_months: 6,
     assigned_techniker_id: "",
   });
 
@@ -60,6 +65,11 @@ export default function OrderCreate() {
 
   const submit = async (e) => {
     e.preventDefault();
+    // Conditional IMEI validation
+    if (!form.imei.trim() && !form.imei_unreadable) {
+      toast.error("IMEI ist erforderlich. Falls das Gerät defekt / die IMEI nicht lesbar ist, bitte die Option aktivieren.");
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -68,7 +78,10 @@ export default function OrderCreate() {
         diagnosis_fee: parseFloat(form.diagnosis_fee) || 0,
         labor_cost: parseFloat(form.labor_cost) || 0,
         parts_cost: parseFloat(form.parts_cost) || 0,
+        warranty_months: parseInt(form.warranty_months) || 0,
         assigned_techniker_id: form.assigned_techniker_id || null,
+        intake_signature: intakeSignature || null,
+        intake_signed_name: signerName || form.customer_name,
       };
       const { data } = await api.post("/orders", payload);
       // upload media
@@ -116,13 +129,31 @@ export default function OrderCreate() {
               <input data-testid="order-model" required value={form.device_model} onChange={set("device_model")} placeholder="z.B. iPhone 14 Pro" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>IMEI / Seriennr.</label>
-              <input data-testid="order-imei" value={form.imei} onChange={set("imei")} placeholder="Optional" className={`${inputCls} font-mono`} />
+              <label className={labelCls}>IMEI / Seriennr. <span className="text-red-400">*</span></label>
+              <input data-testid="order-imei" value={form.imei} onChange={set("imei")}
+                placeholder={form.imei_unreadable ? "Später nachtragen…" : "Pflichtfeld"}
+                disabled={form.imei_unreadable}
+                className={`${inputCls} font-mono ${form.imei_unreadable ? "opacity-50" : ""}`} />
+              <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                <input data-testid="order-imei-unreadable" type="checkbox" checked={form.imei_unreadable}
+                  onChange={(e) => setForm({ ...form, imei_unreadable: e.target.checked, imei: e.target.checked ? "" : form.imei })}
+                  className="accent-amber-500 w-4 h-4" />
+                <span className="text-xs text-amber-300 flex items-center gap-1"><Warning size={13} /> Gerät defekt / IMEI nicht lesbar</span>
+              </label>
+              {form.imei_unreadable && (
+                <p className="text-[10px] font-mono text-amber-400/80 mt-1">Ein Erinnerungshinweis wird im Auftrag angezeigt, bis die IMEI nachgetragen wird.</p>
+              )}
             </div>
             {/* --- تم إضافة حقل كلمة سر الجهاز هنا --- */}
             <div>
               <label className={labelCls}>Geräte-Passcode / PIN</label>
               <input data-testid="order-device-passcode" value={form.device_passcode} onChange={set("device_passcode")} placeholder="z.B. 1234 أو رمز القفل" className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls}>Garantie (Monate)</label>
+              <select data-testid="order-warranty" value={form.warranty_months} onChange={set("warranty_months")} className={inputCls}>
+                {[0, 3, 6, 12, 24].map((m) => <option key={m} value={m}>{m === 0 ? "Keine Garantie" : `${m} Monate`}</option>)}
+              </select>
             </div>
           </div>
           <div className="mt-5">
@@ -228,6 +259,45 @@ export default function OrderCreate() {
               ))}
             </div>
           )}
+        </section>
+
+        {/* Digitale Unterschrift & Haftungsausschluss */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2 flex items-center gap-2">
+            <Signature size={18} className="text-accent" /> Unterschrift Kunde (Abholschein)
+          </h2>
+          <div className="border border-amber-900/50 bg-amber-950/20 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <ShieldCheck size={16} className="text-amber-400" />
+              <span className="font-mono text-[11px] uppercase tracking-wider text-amber-400">Haftungsausschluss / Einverständnis</span>
+            </div>
+            <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">{LIABILITY_WAIVER}</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            <div>
+              <label className={labelCls}>Name Unterzeichner (optional)</label>
+              <input data-testid="order-signer-name" value={signerName} onChange={(e) => setSignerName(e.target.value)}
+                placeholder="Standard: Kundenname" className={inputCls} />
+            </div>
+            <div>
+              {intakeSignature ? (
+                <div className="space-y-2">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle size={14} weight="fill" /> Unterschrift erfasst
+                  </div>
+                  <div className="border border-border rounded-lg bg-white p-2 inline-block">
+                    <img src={intakeSignature} alt="Unterschrift" className="h-20 object-contain" />
+                  </div>
+                  <button type="button" onClick={() => setIntakeSignature(null)}
+                    className="block text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground underline">
+                    Neu unterschreiben
+                  </button>
+                </div>
+              ) : (
+                <SignaturePad onSave={(d) => { setIntakeSignature(d); toast.success("Unterschrift erfasst"); }} label="Kunde unterschreibt hier (optional)" />
+              )}
+            </div>
+          </div>
         </section>
 
         <div className="flex gap-3 pt-2">

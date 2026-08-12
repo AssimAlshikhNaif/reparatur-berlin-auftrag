@@ -1,6 +1,22 @@
-export const fetchPurchases = async () => {
-  const response = await fetch('http://localhost:8001/purchases', { // تأكد من مطابقة المسار في backend/purchases.py
-    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-  });
-  return response.json();
+import api from "@/lib/api";
+
+// Fetch all procurement items for a given order (Auftrag).
+export const fetchPurchases = async (orderId) => {
+  const { data } = await api.get(`/purchases/order/${orderId}`);
+  return data;
+};
+
+export const createPurchase = async (payload) => {
+  const { data } = await api.post(`/purchases`, payload);
+  return data;
+};
+
+export const updatePurchase = async (id, updates) => {
+  const { data } = await api.patch(`/purchases/${id}`, updates);
+  return data;
+};
+
+export const deletePurchase = async (id) => {
+  const { data } = await api.delete(`/purchases/${id}`);
+  return data;
 };

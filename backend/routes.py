@@ -11,9 +11,12 @@ from pydantic import BaseModel
 from db import db
 from auth import get_current_user, require_roles, decode_user_from_token
 from storage import put_object, get_object, APP_NAME
+from notify import push_notification
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
+
+WARRANTY_DEFAULT_MONTHS = 6
 
 # ---- Status constants ----
 STATUS_FLOW = [
@@ -65,17 +68,59 @@ def compute_costs(order: dict) -> dict:
     }
 
 
-def serialize_order(order: dict, user: dict) -> dict:
+def compute_warranty(order: dict) -> dict:
+    months = int(order.get("warranty_months") or 0)
+    start = order.get("warranty_start")
+    until = order.get("warranty_until")
+    res = {
+        "warranty_months": months,
+        "warranty_start": start,
+        "warranty_until": until,
+        "under_warranty": False,
+        "warranty_days_left": None,
+    }
+    if until:
+        try:
+            u = datetime.fromisoformat(until)
+            if u.tzinfo is None:
+                u = u.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            res["under_warranty"] = now <= u
+            res["warranty_days_left"] = (u - now).days
+        except Exception:
+            pass
+    return res
+
+
+def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
     o = dict(order)
     o["id"] = str(o.pop("_id"))
     o["sla_breached"] = is_sla_breached(order)
     o["working_days_open"] = working_days_since(order.get("updated_at", order.get("created_at", "")))
     o["cost"] = compute_costs(order)
     o["used_parts"] = order.get("used_parts", [])
+    o["imei_unreadable"] = bool(order.get("imei_unreadable", False))
+    o["imei_reminder"] = bool(order.get("imei_unreadable", False)) and not (order.get("imei") or "").strip()
+    o.update(compute_warranty(order))
+    # Signature presence flags (avoid shipping heavy base64 in list views)
+    o["has_intake_signature"] = bool(order.get("intake_signature"))
+    o["has_pickup_signature"] = bool(order.get("pickup_signature"))
+    if light:
+        o.pop("intake_signature", None)
+        o.pop("pickup_signature", None)
     if user["role"] == "techniker":
         for f in PII_FIELDS:
             o.pop(f, None)
         o["dsgvo_masked"] = True
+        # Strict cost privacy: technicians must not see any pricing/costs
+        o.pop("cost", None)
+        for f in ("diagnosis_fee", "labor_cost", "parts_cost", "estimated_price"):
+            o.pop(f, None)
+        o["used_parts"] = [
+            {k: v for k, v in p.items() if k not in ("unit_price", "total")}
+            for p in o.get("used_parts", [])
+        ]
+        o["cost_hidden"] = True
     return o
 
 
@@ -101,6 +146,35 @@ async def log_audit(order_id: str, action: str, detail: str, by: str):
     })
 
 
+AUTO_STATUS_MESSAGES = {
+    "IN_BEARBEITUNG": "Ihr Gerät befindet sich jetzt in Reparatur. Wir halten Sie auf dem Laufenden.",
+    "WARTEN_ERSATZTEIL": "Für Ihre Reparatur wird ein Ersatzteil bestellt. Wir informieren Sie, sobald es eingetroffen ist.",
+    "FERTIG": "Gute Nachrichten! Ihre Reparatur ist abgeschlossen. Ihr Gerät kann abgeholt werden.",
+    "ABGEHOLT": "Vielen Dank! Ihr Gerät wurde abgeholt. Wir wünschen Ihnen viel Freude damit.",
+    "ABGELEHNT": "Ihr Reparaturauftrag wurde storniert/abgelehnt. Bei Fragen kontaktieren Sie uns bitte.",
+}
+
+
+async def auto_status_communication(order: dict, status: str, by_name: str):
+    """Log an automated customer status notification (WhatsApp-style) when the
+    order status changes to a customer-relevant state."""
+    text = AUTO_STATUS_MESSAGES.get(status)
+    if not text:
+        return
+    phone = order.get("customer_phone", "")
+    now = datetime.now(timezone.utc).isoformat()
+    auftrag = order.get("auftragsnummer", "")
+    message = f"[Auftrag {auftrag}] {text}"
+    await db.communications.insert_one({
+        "order_id": str(order["_id"]),
+        "channel": "auto",
+        "to": phone,
+        "message": message,
+        "by": "System (automatisch)",
+        "at": now,
+    })
+
+
 async def next_auftragsnummer() -> str:
     year = datetime.now(timezone.utc).year
     res = await db.counters.find_one_and_update(
@@ -119,6 +193,8 @@ class OrderCreate(BaseModel):
     device_brand: str
     device_model: str
     imei: Optional[str] = ""
+    imei_unreadable: Optional[bool] = False
+    device_passcode: Optional[str] = ""
     issue_description: str
     customer_name: str
     customer_phone: str
@@ -128,7 +204,20 @@ class OrderCreate(BaseModel):
     diagnosis_fee: Optional[float] = 0
     labor_cost: Optional[float] = 0
     parts_cost: Optional[float] = 0
+    warranty_months: Optional[int] = WARRANTY_DEFAULT_MONTHS
     assigned_techniker_id: Optional[str] = None
+    intake_signature: Optional[str] = None
+    intake_signed_name: Optional[str] = None
+
+
+class ImeiUpdate(BaseModel):
+    imei: str
+
+
+class SignatureInput(BaseModel):
+    type: str  # "intake" | "pickup"
+    signature: str  # base64 data URL
+    signer_name: Optional[str] = ""
 
 
 class CostUpdate(BaseModel):
@@ -360,7 +449,7 @@ async def list_orders(status: Optional[str] = None, sla: Optional[bool] = None,
         query["status"] = status
     orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
     bmap, umap = await _name_maps()
-    result = [attach_names(serialize_order(o, current), bmap, umap) for o in orders]
+    result = [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
     if sla:
         result = [o for o in result if o.get("sla_breached")]
     return result
@@ -394,19 +483,28 @@ async def get_order(order_id: str, current=Depends(get_current_user)):
 
 @router.post("/orders")
 async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
+    # Conditional IMEI validation: IMEI is mandatory unless the device is flagged
+    # as defective / IMEI unreadable.
+    if not (input.imei or "").strip() and not input.imei_unreadable:
+        raise HTTPException(
+            status_code=400,
+            detail="IMEI ist erforderlich. Falls das Gerät defekt / die IMEI nicht lesbar ist, bitte die Option 'Gerät defekt / IMEI nicht lesbar' aktivieren.",
+        )
     now = datetime.now(timezone.utc).isoformat()
     auftragsnummer = await next_auftragsnummer()
     status = "ZUGEWIESEN" if input.assigned_techniker_id else "ANGENOMMEN"
     branch_id = input.branch_id
     if current["role"] == "mitarbeiter":
         branch_id = current.get("branch_id") or input.branch_id
+    warranty_months = input.warranty_months if input.warranty_months is not None else WARRANTY_DEFAULT_MONTHS
     doc = {
         "auftragsnummer": auftragsnummer,
         "branch_id": branch_id,
         "device_brand": input.device_brand,
         "device_model": input.device_model,
         "imei": input.imei or "",
-        "device_passcode": getattr(input, "device_passcode", "") or "",  # <--- إضافة حفظ كلمة السر هنا
+        "imei_unreadable": bool(input.imei_unreadable),
+        "device_passcode": input.device_passcode or "",
         "issue_description": input.issue_description,
         "customer_name": input.customer_name,
         "customer_phone": input.customer_phone,
@@ -418,6 +516,15 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "parts_cost": input.parts_cost or 0,
         "cost_status": "WARTET",
         "used_parts": [],
+        "warranty_months": warranty_months,
+        "warranty_start": None,
+        "warranty_until": None,
+        "intake_signature": input.intake_signature or None,
+        "intake_signed_name": input.intake_signed_name or "",
+        "intake_signed_at": now if input.intake_signature else None,
+        "pickup_signature": None,
+        "pickup_signed_name": "",
+        "pickup_signed_at": None,
         "assigned_techniker_id": input.assigned_techniker_id,
         "status": status,
         "reject_reason": "",
@@ -430,6 +537,12 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
     }
     res = await db.orders.insert_one(doc)
     order = await db.orders.find_one({"_id": res.inserted_id})
+    await push_notification(
+        kind="AUFTRAG", title="Neuer Auftrag angelegt",
+        message=f"{current['name']} hat Auftrag {auftragsnummer} angelegt.",
+        by=current["name"], by_role=current["role"],
+        order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
+    )
     return serialize_order(order, current)
 
 
@@ -454,6 +567,12 @@ async def assign_order(order_id: str, input: AssignInput,
         raise HTTPException(status_code=404, detail="Techniker nicht gefunden")
     await _touch_order(order_id, "ZUGEWIESEN", current["name"],
                        {"assigned_techniker_id": input.techniker_id})
+    await push_notification(
+        kind="STATUS", title="Auftrag zugewiesen",
+        message=f"{current['name']} hat {order.get('auftragsnummer','')} an {tech['name']} zugewiesen.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -464,6 +583,12 @@ async def accept_order(order_id: str, current=Depends(require_roles("techniker")
     if not order or order.get("assigned_techniker_id") != str(current["_id"]):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
     await _touch_order(order_id, "AKZEPTIERT", current["name"])
+    await push_notification(
+        kind="STATUS", title="Auftrag akzeptiert",
+        message=f"Techniker {current['name']} hat {order.get('auftragsnummer','')} akzeptiert.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -478,6 +603,13 @@ async def reject_order(order_id: str, input: RejectInput,
         raise HTTPException(status_code=400, detail="Ablehnungsgrund erforderlich")
     await _touch_order(order_id, "ABGELEHNT", current["name"],
                        {"reject_reason": input.reason})
+    await auto_status_communication(order, "ABGELEHNT", current["name"])
+    await push_notification(
+        kind="STATUS", title="Auftrag abgelehnt",
+        message=f"Techniker {current['name']} hat {order.get('auftragsnummer','')} abgelehnt: {input.reason}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -503,8 +635,24 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         if not has_repair_media:
             raise HTTPException(status_code=400,
                                 detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
-    await _touch_order(order_id, input.status, current["name"],
-                       {"reject_reason": input.reason} if input.reason else None)
+    extra = {"reject_reason": input.reason} if input.reason else None
+    # Start warranty period when the device is handed back (delivered)
+    if input.status == "ABGEHOLT":
+        months = int(order.get("warranty_months") or WARRANTY_DEFAULT_MONTHS)
+        start = datetime.now(timezone.utc)
+        until = start + timedelta(days=30 * months)
+        extra = {**(extra or {}),
+                 "warranty_start": start.isoformat(),
+                 "warranty_until": until.isoformat()}
+    await _touch_order(order_id, input.status, current["name"], extra)
+    # Automated customer status notification (WhatsApp-style log)
+    await auto_status_communication(order, input.status, current["name"])
+    await push_notification(
+        kind="STATUS", title="Status geändert",
+        message=f"{current['name']}: {order.get('auftragsnummer','')} → {input.status}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -531,6 +679,12 @@ async def update_costs(order_id: str, input: CostUpdate,
             await log_audit(order_id, "KOSTEN", f"Kostenstatus → {updates['cost_status']}", current["name"])
         else:
             await log_audit(order_id, "KOSTEN", "Kosten aktualisiert", current["name"])
+        await push_notification(
+            kind="KOSTEN", title="Kosten aktualisiert",
+            message=f"{current['name']} hat Kosten für {order.get('auftragsnummer','')} aktualisiert.",
+            by=current["name"], by_role=current["role"],
+            order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+        )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -574,6 +728,12 @@ async def add_used_part(order_id: str, input: UsedPartInput, current=Depends(get
          "$set": {"parts_cost": new_parts_cost, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     await log_audit(order_id, "ERSATZTEIL", f"Verbaut: {input.quantity}× {part['sku']} (Lagerabzug)", current["name"])
+    await push_notification(
+        kind="ERSATZTEIL", title="Ersatzteil verbaut",
+        message=f"{current['name']} hat {input.quantity}× {part['sku']} für {order.get('auftragsnummer','')} verbaut.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -599,6 +759,12 @@ async def remove_used_part(order_id: str, part_id: str, current=Depends(get_curr
          "$set": {"parts_cost": new_parts_cost, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     await log_audit(order_id, "ERSATZTEIL", f"Entfernt: {part['sku']} (Bestand zurückgebucht)", current["name"])
+    await push_notification(
+        kind="ERSATZTEIL", title="Ersatzteil entfernt",
+        message=f"{current['name']} hat {part['sku']} von {order.get('auftragsnummer','')} entfernt.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
@@ -630,6 +796,12 @@ async def log_whatsapp(order_id: str, input: WhatsAppLog,
     }
     res = await db.communications.insert_one(entry)
     await log_audit(order_id, "WHATSAPP", "WhatsApp-Nachricht an Kunden gesendet", current["name"])
+    await push_notification(
+        kind="WHATSAPP", title="WhatsApp-Nachricht gesendet",
+        message=f"{current['name']} hat eine WhatsApp-Nachricht zu {order.get('auftragsnummer','')} gesendet.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     digits = "".join(c for c in phone if c.isdigit())
     if digits.startswith("0"):
         digits = "49" + digits[1:]
@@ -731,6 +903,12 @@ async def upload_media(order_id: str, media_type: str = Form("intake"),
     await db.orders.update_one({"_id": ObjectId(order_id)},
                               {"$push": {"media": media_item},
                                "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
+    await push_notification(
+        kind="MEDIEN", title="Neue Medien hochgeladen",
+        message=f"{current['name']} hat {media_type}-Medien zu {order.get('auftragsnummer','')} hinzugefügt.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
     return media_item
 
 
@@ -812,3 +990,122 @@ async def stats(current=Depends(get_current_user)):
                 by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + compute_costs(o)["gross"], 2)
         result["by_branch"] = list(by_branch.values())
     return result
+
+
+# ==================== IMEI (late fill-in) ====================
+@router.patch("/orders/{order_id}/imei")
+async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
+        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
+    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+    imei = (input.imei or "").strip()
+    if not imei:
+        raise HTTPException(status_code=400, detail="IMEI darf nicht leer sein")
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"imei": imei, "imei_unreadable": False,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    await log_audit(order_id, "IMEI", f"IMEI nachgetragen: {imei}", current["name"])
+    await push_notification(
+        kind="IMEI", title="IMEI nachgetragen",
+        message=f"{current['name']} hat die IMEI für {order.get('auftragsnummer','')} nachgetragen.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
+
+
+# ==================== DIGITAL SIGNATURES ====================
+@router.post("/orders/{order_id}/signature")
+async def add_signature(order_id: str, input: SignatureInput,
+                        current=Depends(require_roles("admin", "mitarbeiter"))):
+    if input.type not in ("intake", "pickup"):
+        raise HTTPException(status_code=400, detail="Ungültiger Signaturtyp")
+    if not input.signature or not input.signature.startswith("data:image"):
+        raise HTTPException(status_code=400, detail="Ungültige Signatur")
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    now = datetime.now(timezone.utc).isoformat()
+    prefix = input.type
+    updates = {
+        f"{prefix}_signature": input.signature,
+        f"{prefix}_signed_name": input.signer_name or "",
+        f"{prefix}_signed_at": now,
+        "updated_at": now,
+    }
+    await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})
+    label = "Abgabe (Abholschein)" if input.type == "intake" else "Abholung/Übergabe"
+    await log_audit(order_id, "UNTERSCHRIFT", f"Digitale Unterschrift erfasst: {label}", current["name"])
+    await push_notification(
+        kind="UNTERSCHRIFT", title="Unterschrift erfasst",
+        message=f"{current['name']} hat eine Unterschrift ({label}) für {order.get('auftragsnummer','')} erfasst.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
+
+
+# ==================== GLOBAL SEARCH ====================
+@router.get("/search")
+async def global_search(q: str = Query(..., min_length=1), current=Depends(get_current_user)):
+    term = q.strip()
+    if not term:
+        return []
+    import re
+    safe = re.escape(term)
+    rx = {"$regex": safe, "$options": "i"}
+    base = await _order_query_for_user(current)
+    or_clauses = [
+        {"auftragsnummer": rx},
+        {"imei": rx},
+        {"customer_phone": rx},
+    ]
+    # Only non-technicians can search by customer name (PII)
+    if current["role"] != "techniker":
+        or_clauses.append({"customer_name": rx})
+    query = {"$and": [base, {"$or": or_clauses}]} if base else {"$or": or_clauses}
+    orders = await db.orders.find(query).sort("created_at", -1).to_list(50)
+    bmap, umap = await _name_maps()
+    return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
+
+
+# ==================== ADMIN NOTIFICATIONS ====================
+@router.get("/notifications")
+async def list_notifications(limit: int = 50, current=Depends(require_roles("admin"))):
+    items = await db.notifications.find().sort("at", -1).to_list(limit)
+    unread = await db.notifications.count_documents({"read": False})
+    return {
+        "unread": unread,
+        "items": [{
+            "id": str(n["_id"]),
+            "kind": n.get("kind"),
+            "title": n.get("title"),
+            "message": n.get("message"),
+            "by": n.get("by"),
+            "by_role": n.get("by_role"),
+            "order_id": n.get("order_id"),
+            "auftragsnummer": n.get("auftragsnummer"),
+            "read": n.get("read", False),
+            "at": n.get("at"),
+        } for n in items],
+    }
+
+
+@router.post("/notifications/read")
+async def mark_notifications_read(current=Depends(require_roles("admin"))):
+    await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
+    return {"message": "Alle Benachrichtigungen als gelesen markiert"}
+
+
+@router.delete("/notifications")
+async def clear_notifications(current=Depends(require_roles("admin"))):
+    await db.notifications.delete_many({})
+    return {"message": "Benachrichtigungen gelöscht"}
