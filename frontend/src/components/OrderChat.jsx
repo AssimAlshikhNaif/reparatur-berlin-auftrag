@@ -7,7 +7,7 @@ export default function OrderChat({ orderId }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
-  const endRef = useRef(null);
+  const listRef = useRef(null);
 
   // جلب الرسائل عند تحميل المكون أو تغيير رقم العقد، مع تحديث تلقائي كل 3 ثوانٍ (Polling)
   useEffect(() => {
@@ -34,7 +34,11 @@ export default function OrderChat({ orderId }) {
   }, [orderId]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll only the chat's own message list to the bottom — never the page/window.
+    const el = listRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages]);
 
   const send = async (e) => {
@@ -69,7 +73,7 @@ export default function OrderChat({ orderId }) {
         </span>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-center text-xs font-mono text-muted-foreground/70 py-8">
             Noch keine Nachrichten. Starten Sie die Kommunikation.
@@ -97,7 +101,6 @@ export default function OrderChat({ orderId }) {
             </div>
           );
         })}
-        <div ref={endRef} />
       </div>
 
       <form onSubmit={send} className="flex gap-2 p-3 border-t border-border">
