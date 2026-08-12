@@ -1,0 +1,90 @@
+[94m============================================================[0m
+[94mGerman Repair Shop ERP - Backend Feature Tests[0m
+[94mTesting 7 newly added production features[0m
+[94m============================================================[0m
+Backend URL: https://shop-management-pro-12.preview.emergentagent.com/api
+Test Credentials: admin@repair.de, mohini@repair.de, chris@repair.de
+Password: Repair2026!
+
+[94m============================================================[0m
+[94mTEST 1: Techniker Cost Privacy[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 1.1 Mitarbeiter login
+[92m✓ PASS[0m: 1.2 Get technicians list
+[92m✓ PASS[0m: 1.3 Create order
+[92m✓ PASS[0m: 1.4 Assign order to techniker
+[92m✓ PASS[0m: 1.5 Techniker login
+[92m✓ PASS[0m: 1.6 GET /orders as techniker - cost hidden
+[92m✓ PASS[0m: 1.6 GET /orders - cost_hidden flag
+[92m✓ PASS[0m: 1.7 GET /orders/{id} - cost hidden
+[92m✓ PASS[0m: 1.7 GET /orders/{id} - parts pricing hidden
+[92m✓ PASS[0m: 1.8 Admin sees cost with net/tax/gross
+[92m✓ PASS[0m: 1.9 Techniker search by customer name blocked
+[92m✓ PASS[0m: 1.10 Techniker search by auftragsnummer works
+
+[94m============================================================[0m
+[94mTEST 2: Conditional IMEI Validation[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 2.1 POST order without IMEI (imei_unreadable=false) returns 400
+[92m✓ PASS[0m: 2.2 imei_unreadable flag is True
+[92m✓ PASS[0m: 2.2 imei_reminder flag is True
+[92m✓ PASS[0m: 2.3 IMEI updated correctly
+[92m✓ PASS[0m: 2.3 imei_unreadable cleared to False
+[92m✓ PASS[0m: 2.3 imei_reminder cleared to False
+
+[94m============================================================[0m
+[94mTEST 3: External Parts Procurement[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 3.1 POST /purchases with status ANGEFRAGT
+[92m✓ PASS[0m: 3.1 order_timestamp set
+[92m✓ PASS[0m: 3.2 GET /purchases/order/{order_id} returns purchase
+[92m✓ PASS[0m: 3.3 Status updated to ANGEKOMMEN
+[92m✓ PASS[0m: 3.3 actual_arrival auto-populated
+[92m✓ PASS[0m: 3.4 Techniker price hidden
+[92m✓ PASS[0m: 3.5 Admin sees price
+[92m✓ PASS[0m: 3.6 DELETE as techniker returns 403
+[92m✓ PASS[0m: 3.7 DELETE as mitarbeiter returns 200
+
+[94m============================================================[0m
+[94mTEST 4: Admin Notifications[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 4.1 GET /notifications initial state
+[92m✓ PASS[0m: 4.2 Mitarbeiter action creates notification
+[92m✓ PASS[0m: 4.2 Notification contains mitarbeiter action
+[92m✓ PASS[0m: 4.3 Admin action does NOT create notification
+[92m✓ PASS[0m: 4.4 POST /notifications/read clears unread count
+
+[94m============================================================[0m
+[94mTEST 5: Digital Signatures[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 5.1 POST intake signature successful
+[92m✓ PASS[0m: 5.1 intake_signature data present
+[92m✓ PASS[0m: 5.2 POST pickup signature successful
+[92m✓ PASS[0m: 5.3 Invalid signature returns 400
+[92m✓ PASS[0m: 5.4 Invalid type returns 400
+[92m✓ PASS[0m: 5.5 Techniker signature returns 403
+
+[94m============================================================[0m
+[94mTEST 6: Warranty Tracking & Automated Communications[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 6.1 Order created with warranty_months=6
+[92m✓ PASS[0m: 6.2 Automated communication created for IN_BEARBEITUNG
+[92m✓ PASS[0m: 6.3 under_warranty is True after ABGEHOLT
+[92m✓ PASS[0m: 6.3 warranty_until is set
+[92m✓ PASS[0m: 6.3 warranty_start is set
+[92m✓ PASS[0m: 6.4 Automated communication for ABGEHOLT
+
+[94m============================================================[0m
+[94mTEST 7: Global Search[0m
+[94m============================================================[0m
+[92m✓ PASS[0m: 7.1 Search by auftragsnummer prefix returns results
+[92m✓ PASS[0m: 7.2 Search by auftragsnummer finds order
+[92m✓ PASS[0m: 7.3 Search by IMEI finds order
+[92m✓ PASS[0m: 7.4 Search by customer_phone finds order
+
+[94m============================================================[0m
+[94mTEST SUMMARY[0m
+[94m============================================================[0m
+[92mPassed: 48[0m
+[91mFailed: 0[0m
+[93mWarnings: 0[0m
