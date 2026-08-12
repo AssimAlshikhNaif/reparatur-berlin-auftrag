@@ -1,0 +1,142 @@
+{
+  "project_context": {
+    "app_type": "Hybrid Fullstack ERP / SaaS Dashboard",
+    "theme": "Dark Mode Only (Berlin Industrial Tech)",
+    "primary_language": "German",
+    "core_vibe": "Industrial, High-Contrast, Swiss Precision, Functional"
+  },
+  "typography": {
+    "strategy": "Swiss Brutalist meets Tech",
+    "fonts": {
+      "headings": "IBM Plex Sans (font-semibold, tracking-tight)",
+      "body": "Inter (for standard legibility in forms and dense text)",
+      "data_and_ids": "IBM Plex Mono (for Auftragsnummer, QR Codes, and Inventory SKUs)"
+    },
+    "hierarchy": {
+      "h1": "text-4xl md:text-5xl tracking-tighter uppercase font-bold text-white",
+      "h2": "text-2xl md:text-3xl tracking-tight text-white/90",
+      "h3": "text-xl tracking-tight text-white/80",
+      "data_metric": "text-4xl font-mono tracking-tighter text-white",
+      "body": "text-sm md:text-base leading-relaxed text-zinc-400",
+      "labels": "text-xs font-mono uppercase tracking-[0.2em] text-zinc-500"
+    },
+    "anti_patterns": [
+      "Do NOT use Inter for headings.",
+      "Do NOT center-align dense content.",
+      "Do NOT use Space Grotesk."
+    ]
+  },
+  "colors": {
+    "archetype": "ARCHETYPE 4: Swiss & High-Contrast",
+    "palette": {
+      "background": "#09090B",
+      "foreground": "#FAFAFA",
+      "card": "#09090B",
+      "card_foreground": "#FAFAFA",
+      "border": "rgba(255, 255, 255, 0.15)",
+      "primary": "#FAFAFA",
+      "primary_foreground": "#09090B",
+      "muted": "#27272A",
+      "muted_foreground": "#A1A1AA",
+      "accent": "#007AFF",
+      "accent_foreground": "#FAFAFA",
+      "destructive": "#EF4444",
+      "destructive_foreground": "#FAFAFA",
+      "warning": "#F59E0B"
+    },
+    "rules": [
+      "Strictly dark theme base. No soft gray gradients.",
+      "Primary actions (e.g., 'Auftrag erstellen') use high-contrast White/Black.",
+      "SLA Alerts (3-Day SLA) use stark Red (#EF4444) with neon/pulsing 1px borders.",
+      "Teal Green / Teal Blue (#1B93A4) is STRICTLY FORBIDDEN.",
+      "Tint all neutral grays slightly cool to avoid 'dead' grays."
+    ]
+  },
+  "visual_enhancers": {
+    "surface_strategy": "Grid Borders (The 'Technical' Look)",
+    "implementation": [
+      "Use strict rectangular structures. Avoid excessive border-radius (`rounded-sm` max).",
+      "Dashboard containers should use `border-collapse` style layouts.",
+      "Items inside grids get `border-r border-b border-border/40`.",
+      "Use Glassmorphism (bg-black/80 backdrop-blur-xl border-b border-white/10) ONLY for sticky navs and dialogs. NO purely transparent backgrounds over content."
+    ],
+    "shadows": [
+      "Avoid soft shadows. Rely on 1px solid strokes or 2px 'Inner Glow' highlights to separate layers."
+    ]
+  },
+  "grids_and_layouts": {
+    "strategy": "High Density Grid (For Dashboards/Analytics)",
+    "spacing_scale": "Use generous internal padding. p-6 or p-8 inside bordered containers.",
+    "dashboard_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 or gap-6",
+    "widget_spans": {
+      "summary_metric": "col-span-1 border-r border-b",
+      "primary_data": "col-span-2 row-span-2 or col-span-3",
+      "activity_feed": "col-span-1 row-span-2"
+    },
+    "alignment": "Left-align dense text and tables. Only center metrics if isolated in a square widget."
+  },
+  "components": {
+    "strategy": "Shadcn UI + Flat, Rectangular Modifications",
+    "specifics": {
+      "forms": "Use Shadcn Form, Input, Select. Labels must be uppercase mono.",
+      "tables": "Dense, full-width data tables for Inventory (Ersatzteile) and Orders (Aufträge). Use sticky headers.",
+      "buttons": "Sharp corners (`rounded-none` or `rounded-sm`). High contrast hover states.",
+      "badges": "For status (z.B., 'In Bearbeitung', 'Abgeschlossen'). Flat bg with bright text.",
+      "receipt_print": "Create a specific `@media print` layout or a clean minimalist component for the 80mm thermal 'Abholschein'. Must be monochrome, sans-serif, high legibility.",
+      "chat": "Real-time chat widget embedded inside the Order Details panel. Differentiate Techniker vs Mitarbeiter bubbles clearly."
+    },
+    "libraries_to_install": [
+      "@phosphor-icons/react (for high-end duotone/regular technical icons)",
+      "lucide-react (fallback)",
+      "sonner (for toast notifications)",
+      "date-fns",
+      "react-day-picker (Shadcn Calendar requirement)",
+      "qrcode.react (for QR Code generation)",
+      "recharts (for Admin stats)"
+    ]
+  },
+  "motion": {
+    "rules": [
+      "Minimalist. Micro-interactions for feedback only.",
+      "Hover states on table rows: `hover:bg-zinc-900 transition-colors duration-150`.",
+      "Do NOT use universal `transition: all`. Use specific `transition-colors` or `transition-transform`.",
+      "SLA Alerts: Use `animate-pulse` or a CSS keyframe border-glow for tickets older than 3 days."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "All interactive elements MUST include a `data-testid` attribute (e.g., `data-testid=\"btn-create-order\"`).",
+      "Hover states must explicitly set text color (e.g., `hover:bg-white hover:text-black`).",
+      "Contrast ratio for text must be at least 4.5:1."
+    ]
+  },
+  "images": {
+    "strategy": "Minimal. ERP systems rely on data, not photography.",
+    "assets": [
+      {
+        "category": "Login Background / Header Graphic",
+        "description": "Subtle gray concrete monolith representing Berlin industrial tech.",
+        "url": "https://images.unsplash.com/photo-1522743791393-522312deeebf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxiZXJsaW4lMjBtb2Rlcm4lMjBidWlsZGluZyUyMGFic3RyYWN0fGVufDB8fHx8MTc4NTczOTAyNXww&ixlib=rb-4.1.0&q=85"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: The entire UI MUST be in German (z.B. Auftrag, Techniker, Mitarbeiter, Abholschein, Ersatzteile, Filialen).",
+    "CRITICAL: Implement Role-based routing/views. Admin sees everything. Mitarbeiter sees front-desk tools. Techniker sees assigned tasks WITHOUT customer PII (DSGVO compliance).",
+    "Use Phosphor Icons for all technical pictograms (`yarn add @phosphor-icons/react`).",
+    "Replace Shadcn's default variables in index.css with a stark black/white/zinc palette.",
+    "Do NOT center align the app container. No `.App { text-align: center; }`.",
+    "Implement an 80mm thermal receipt view ('Abholschein') that is printable.",
+    "Embed a chat section inside the Order detail view.",
+    "Ensure all buttons, inputs, and list items have `data-testid`."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Avoid this.",
+    "Create depth through layered design elements with z-index hierarchy, NOT drop shadows.",
+    "Use glass-morphism effects (backdrop-blur-xl bg-black/80) ONLY for sticky/floating overlays. NO purely transparent backgrounds over content.",
+    "NEVER use universal transition. Eg: `transition: all`. Always specify properties.",
+    "NEVER use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Prioritize using pre-existing components from src/components/ui. Customize Shadcn primitives (like changing border radii to be sharper).",
+    "Use `sonner` for toasts."
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "summary": "Iteration 2 testing complete. Added 16 new pytest cases (test_iteration2.py) for costs, used parts + stock deduction, manual status by mitarbeiter, admin revenue stats, techniker DSGVO — all 16 PASS. Full frontend Playwright covered every new data-testid across MITARBEITER (mohini), TECHNIKER (chris), ADMIN roles: live cost calc, cost save/status badges, used-part add/remove with inventory deduction, manual-status-select, assign-technician, Abholschein modal + print/download-pdf buttons, live camera modal open/close on both create + detail, techniker DSGVO (no PII leak), full status flow ANGENOMMEN → IN_BEARBEITUNG → WARTEN_ERSATZTEIL → resume → FERTIG, and admin metric-revenue + revenue-chart + SLA. Combined backend suite: 41/41 tests green.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "WebSocket chat",
+        "issue": "Console warning 'WebSocket is closed before the connection is established' — carryover from iteration_1, caused by React StrictMode double-mount. Chat still functional. Non-blocker.",
+        "affected_selectors": ["chat-status"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Dashboard (Admin) - revenue chart",
+        "issues": [
+          "Recharts prints console warning 'width(-1) and height(-1) of chart should be greater than 0' on initial mount (h-64 container width is -1 during first paint). Chart still renders correctly after layout settles. Cosmetic only.",
+          "metric-revenue currently shows '0 €' because none of the 2 completed (ABGEHOLT) seed orders have cost breakdown (diagnosis_fee/labor_cost/parts_cost = 0). Bar chart bars are therefore empty. Expected behaviour but user may want seeded revenue data for a nicer demo."
+        ]
+      }
+    ]
+  },
+  "verified_features": [
+    "MITARBEITER order create with diagnosis 50 + labor 120 + parts 80 → live cost-net=250.00€, cost-tax=47.50€, cost-gross=297.50€ (19% MwSt correct)",
+    "Order detail: cost-diagnosis-input/cost-labor-input/cost-parts-input editable; save-costs persists; detail-cost-net/tax/gross recompute; cost-status-badge updates via cost-approve (Bestätigt) and cost-reject (Abgelehnt)",
+    "add-part with qty=2 creates used-part row, decrements inventory quantity by 2 (verified via /api/inventory before/after), and increases parts_cost by unit_price*2; remove-part restores stock and reduces parts_cost — verified in backend pytest",
+    "manual-status-select as MITARBEITER changes status to WARTEN_ERSATZTEIL and FERTIG (200); rejected for ZUGEWIESEN (403)",
+    "TECHNIKER accept → start-repair → wait-part (WARTEN_ERSATZTEIL) → resume-repair → mark-ready (FERTIG) full flow works",
+    "TECHNIKER cannot see customer_name/phone/email/address (dsgvo_masked=true confirmed both API + Playwright text-scan of body)",
+    "TECHNIKER CAN add/remove used parts (part-select visible; API 200)",
+    "Abholschein modal opens with print-receipt-button and download-pdf-button; PDF click does not throw JS error",
+    "Live camera modal opens on order-open-camera (create) and open-camera (detail) with camera-mode-photo/video/shutter/record/close; graceful close on getUserMedia denial",
+    "ADMIN dashboard: metric-revenue rendered, revenue-chart (recharts) renders with 5 branches, SLA metric + list render without errors",
+    "Backend compute_costs: 30+100+20 → net=150, tax=28.5, gross=178.5 (19%) — exact",
+    "Backend stats.revenue_by_branch returns exactly 5 branch objects with {branch, revenue, orders, completed}",
+    "Regression: admin/mitarbeiter/techniker login with Repair2026! still works; /api/auth/register absent"
+  ],
+  "test_report_links": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iter2.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (design polish): Seed the 2 ABGEHOLT demo orders with realistic diagnosis_fee/labor_cost so metric-revenue and revenue-chart show non-zero values out of the box.",
+    "OPTIONAL (cosmetic): Wrap Recharts <ResponsiveContainer> with a defined min-height/min-width or add aspect prop to silence 'width(-1) height(-1)' console warning on first mount.",
+    "OPTIONAL (dev): The '<span> cannot be a child of <option>' hydration warning originates from a dev-tooling annotator (x-source-* attributes injecting <span style=display:contents> into <option> tags). Not present in production build, but if it comes from the app's build system consider disabling that source-map inspector in dev to reduce noise."
+  ],
+  "critical_code_review_comments": [
+    "routes.py compute_costs()/serialize_order() correctly computes net/tax/gross and always attaches o['cost']; cost_status default WARTET; validated set COST_STATES={WARTET,BESTAETIGT,ABGELEHNT}.",
+    "routes.py add_used_part/remove_used_part correctly $inc quantity on inventory and recomputes parts_cost. Insufficient-stock path returns 400 with German message.",
+    "routes.py update_status expanded mitarbeiter allow-list to include WARTEN_ERSATZTEIL/IN_BEARBEITUNG/FERTIG — matches requirement. Techniker restricted to IN_BEARBEITUNG/WARTEN_ERSATZTEIL/FERTIG.",
+    "Techniker PII masking still enforced in serialize_order for the added cost/used_parts responses (verified via GET /orders/{id} as chris) — DSGVO intact.",
+    "MongoDB _id → id conversion consistent across all serializers; no ObjectId leaks. All routes ≤ ~670 lines in single file (routes.py); acceptable but could be split into orders_routes.py / costs_routes.py / inventory_routes.py if it grows further.",
+    "Frontend live totals in OrderCreate use inline useMemo; matches backend rounding (2 decimals * 1.19). Consistent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration2.py (new file, 16 new tests)"
+  ],
+  "success_rate": { "backend": "100% (16/16 new + 25/25 regression)", "frontend": "100% (all iteration-2 flows)" },
+  "test_credentials": "admin@repair.de / mohini@repair.de / chris@repair.de — password Repair2026!",
+  "seed_data_creation": "One test order was created via mitarbeiter UI flow (device: iPhone 14 Pro Test, customer 'Testkunde IT2') and taken through cost update, used part add/remove, manual status changes, and techniker completion (FERTIG). Additional 1 order created via backend fixture in test_iteration2.py.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression suite = /app/backend/tests/*.py (pytest -v runs all 41 tests). Iteration 2 features (Kostenaufschlüsselung with 19% MwSt, cost_status WARTET/BESTAETIGT/ABGELEHNT, used_parts with automatic Lagerabzug, mitarbeiter manual status incl WARTEN_ERSATZTEIL, Abholschein modal + jsPDF download, CameraCapture getUserMedia, admin revenue + revenue_by_branch, techniker WARTEN_ERSATZTEIL flow) all validated. Camera flow verified in modal-open/modal-close only (headless has no camera hardware — as expected). No blockers."
+}

@@ -1,0 +1,31 @@
+{
+  "summary": "Frontend-only iteration 4 validation (Slate Navy theme, Light/Dark toggle, Login demo panel, redesigned Mitarbeiter dashboard, Users copy buttons, receipt regression). All major flows work in the new theme. Verified for admin@repair.de, mohini@repair.de and chris@repair.de using demo login panel.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "OrderDetail (part-select)", "issue": "React hydration warning: <span> cannot be a child of <option>. A dynamic-instrumentation <span> is being injected inside <option> elements of the part-select dropdown (line ~342). Visual functionality unaffected, but noisy console error on every order detail page.", "selector": "[data-testid=\"part-select\"] option", "priority": "LOW"},
+      {"component": "OrderDetail", "issue": "data-testid `cost-breakdown` and `used-parts` NOT present on order detail page (visibility check failed). Testing spec expected them. Please add them to the cost breakdown and used-parts sections so future regression tests can target them.", "selector": "[data-testid=cost-breakdown], [data-testid=used-parts]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix React hydration warning caused by <span> being rendered inside <option> in OrderDetail.jsx (part-select). Likely due to a dev-only injection wrapping option children; ensure options only render plain string content.",
+    "Add missing data-testid attributes `cost-breakdown` and `used-parts` on OrderDetail sections."
+  ],
+  "critical_code_review_comments": [
+    "ThemeContext + ThemeToggle implementation is clean; correctly toggles `dark` class on <html>, persists to localStorage `rb_theme`, defaults to dark.",
+    "Login demo panel is well structured with data-testid for every row, use-, copy-, copy-password buttons. Password hint uses shared DEMO_PW constant.",
+    "Abholschein correctly forced to white background + black text via inline style (verified computed style rgb(255,255,255) / rgb(0,0,0)), shows Auftrag + Druckdatum in Europe/Berlin.",
+    "MitarbeiterDashboard reuses api.get('/orders') and derives all KPIs client-side; slicing to 12 is fine for the widget."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped)", "frontend": "~97% (all critical flows PASS; 2 minor missing testids + 1 hydration warning)"},
+  "test_credentials": "admin@repair.de / Repair2026!, mohini@repair.de / Repair2026!, chris@repair.de / Repair2026! (from demo panel)",
+  "seed_data_creation": "None; used existing seed (29 orders, 11 users incl. TEST users, 5 branches).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 4 was frontend theme+UX. Verified: (1) Demo login panel expand + use-<email> fills form + login works, (2) theme-toggle switches `dark` class on <html>, persists to localStorage rb_theme, both modes render without layout break, (3) Mitarbeiter dashboard for mohini shows kpi-total=19, kpi-inprogress=3, kpi-ready=2, kpi-waiting=15, qa-new-order/qa-scan/qa-whatsapp buttons, see-all-orders link, and 12 ma-order-<num> rows; row-click navigates to order detail, qa-new-order goes to /auftrag/neu, see-all to /auftraege, (4) Admin dashboard renders metric-total/active/sla/revenue + revenue-chart in themed style, (5) Techniker (chris) dashboard renders (AdminTechDashboard variant) with metrics 19/15/0/2, no errors, works in both light and dark, (6) /benutzer shows 11 copy-user-<email> buttons + Repair2026! password hint, (7) /auftraege 29 rows with Filiale/Mitarbeiter/Techniker columns, order detail shows whatsapp-fab, audit-list, open-receipt; open-receipt opens modal with print-receipt-button + download-pdf-button and #abholschein is white/black with dates. Minor issues: (a) React hydration warning on part-select option children (dev instrumentation adds <span> inside <option>); (b) data-testid `cost-breakdown` and `used-parts` are not present on order detail page despite being in spec.",
+  "rca of the issue": "N/A - no blocking issues. Hydration warning stems from a dev-only x-source instrumentation injecting <span style=display:contents> into <option> children in OrderDetail.jsx part-select (line 342). HTML spec disallows any element besides text inside <option>, hence the warning. Fix: ensure part options render only string values (e.g. {`${p.brand} ${p.name}`} as a single string expression) so instrumentation doesn't wrap children."
+}

@@ -1,0 +1,249 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { PageHeader } from "@/components/PageHeader";
+import { DEVICE_BRANDS } from "@/lib/constants";
+import CameraCapture from "@/components/CameraCapture";
+import { toast } from "sonner";
+import { Camera, X, SpinnerGap, FloppyDisk, VideoCamera, Receipt } from "@phosphor-icons/react";
+
+const inputCls = "w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent transition-colors";
+const labelCls = "block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2";
+
+export default function OrderCreate() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isMitarbeiter = user.role === "mitarbeiter";
+  const [branches, setBranches] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [form, setForm] = useState({
+    branch_id: "", device_brand: "Apple", device_model: "", imei: "",
+    device_passcode: "", // <--- تمت إضافة حقل كلمة السر هنا
+    issue_description: "", customer_name: "", customer_phone: "",
+    customer_email: "", customer_address: "", estimated_price: "",
+    diagnosis_fee: "", labor_cost: "", parts_cost: "",
+    assigned_techniker_id: "",
+  });
+
+  const netTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
+  const taxTotal = netTotal * 0.19;
+  const grossTotal = netTotal + taxTotal;
+
+  useEffect(() => {
+    (async () => {
+      const [b, t] = await Promise.all([api.get("/branches"), api.get("/technicians")]);
+      setBranches(b.data);
+      setTechnicians(t.data);
+      if (isMitarbeiter && user.branch_id) {
+        setForm((f) => ({ ...f, branch_id: user.branch_id }));
+      } else if (b.data.length) {
+        setForm((f) => ({ ...f, branch_id: b.data[0].id }));
+      }
+    })();
+  }, []);
+
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const addFiles = (e) => {
+    const chosen = Array.from(e.target.files || []);
+    setFiles((prev) => [...prev, ...chosen.map((f) => ({ file: f, url: URL.createObjectURL(f) }))]);
+  };
+  const removeFile = (i) => setFiles((prev) => prev.filter((_, idx) => idx !== i));
+
+  const addCapturedFile = (file) => {
+    setFiles((prev) => [...prev, { file, url: URL.createObjectURL(file) }]);
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload = {
+        ...form,
+        estimated_price: form.estimated_price ? parseFloat(form.estimated_price) : null,
+        diagnosis_fee: parseFloat(form.diagnosis_fee) || 0,
+        labor_cost: parseFloat(form.labor_cost) || 0,
+        parts_cost: parseFloat(form.parts_cost) || 0,
+        assigned_techniker_id: form.assigned_techniker_id || null,
+      };
+      const { data } = await api.post("/orders", payload);
+      // upload media
+      for (const f of files) {
+        const fd = new FormData();
+        fd.append("file", f.file);
+        fd.append("media_type", "intake");
+        await api.post(`/orders/${data.id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      }
+      toast.success(`Auftrag ${data.auftragsnummer} erstellt`);
+      navigate(`/auftrag/${data.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Fehler beim Erstellen");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader label="Auftragserstellung" title="Neuer Auftrag" />
+      <form onSubmit={submit} className="p-6 md:p-8 max-w-4xl space-y-8">
+        {/* Geräte + Filiale */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2">Gerät & Filiale</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className={labelCls}>Filiale</label>
+              <select data-testid="order-branch" required value={form.branch_id} onChange={set("branch_id")} disabled={isMitarbeiter}
+                className={`${inputCls} ${isMitarbeiter ? "opacity-70 cursor-not-allowed" : ""}`}>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              {isMitarbeiter && (
+                <p className="text-[10px] font-mono text-muted-foreground mt-1">Fest Ihrer Filiale zugeordnet (schreibgeschützt).</p>
+              )}
+            </div>
+            <div>
+              <label className={labelCls}>Marke</label>
+              <select data-testid="order-brand" value={form.device_brand} onChange={set("device_brand")} className={inputCls}>
+                {DEVICE_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Modell</label>
+              <input data-testid="order-model" required value={form.device_model} onChange={set("device_model")} placeholder="z.B. iPhone 14 Pro" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>IMEI / Seriennr.</label>
+              <input data-testid="order-imei" value={form.imei} onChange={set("imei")} placeholder="Optional" className={`${inputCls} font-mono`} />
+            </div>
+            {/* --- تم إضافة حقل كلمة سر الجهاز هنا --- */}
+            <div>
+              <label className={labelCls}>Geräte-Passcode / PIN</label>
+              <input data-testid="order-device-passcode" value={form.device_passcode} onChange={set("device_passcode")} placeholder="z.B. 1234 أو رمز القفل" className={`${inputCls} font-mono`} />
+            </div>
+          </div>
+          <div className="mt-5">
+            <label className={labelCls}>Fehlerbeschreibung</label>
+            <textarea data-testid="order-issue" required value={form.issue_description} onChange={set("issue_description")} rows={3} placeholder="z.B. Display gesprungen, Touch reagiert nicht…" className={inputCls} />
+          </div>
+        </section>
+
+        {/* Kunde */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2">Kundendaten</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className={labelCls}>Name</label>
+              <input data-testid="order-customer-name" required value={form.customer_name} onChange={set("customer_name")} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Telefon</label>
+              <input data-testid="order-customer-phone" required value={form.customer_phone} onChange={set("customer_phone")} className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls}>E-Mail</label>
+              <input data-testid="order-customer-email" type="email" value={form.customer_email} onChange={set("customer_email")} placeholder="Optional" className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Adresse</label>
+              <input data-testid="order-customer-address" value={form.customer_address} onChange={set("customer_address")} placeholder="Optional" className={inputCls} />
+            </div>
+          </div>
+        </section>
+
+        {/* Zuweisung */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2">Zuweisung</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className={labelCls}>Techniker (optional)</label>
+              <select data-testid="order-technician" value={form.assigned_techniker_id} onChange={set("assigned_techniker_id")} className={inputCls}>
+                <option value="">— Später zuweisen —</option>
+                {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {/* Kostenaufschlüsselung */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2 flex items-center gap-2">
+            <Receipt size={18} className="text-accent" /> Kostenaufschlüsselung
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label className={labelCls}>Diagnosegebühr (€)</label>
+              <input data-testid="order-diagnosis-fee" type="number" step="0.01" value={form.diagnosis_fee} onChange={set("diagnosis_fee")} placeholder="0.00" className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls}>Arbeitslohn (€)</label>
+              <input data-testid="order-labor-cost" type="number" step="0.01" value={form.labor_cost} onChange={set("labor_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+            </div>
+            <div>
+              <label className={labelCls}>Ersatzteilkosten (€)</label>
+              <input data-testid="order-parts-cost" type="number" step="0.01" value={form.parts_cost} onChange={set("parts_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+            </div>
+          </div>
+          <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">
+            <div className="flex justify-between text-muted-foreground"><span>Netto</span><span data-testid="cost-net">{netTotal.toFixed(2)} €</span></div>
+            <div className="flex justify-between text-muted-foreground"><span>MwSt. (19%)</span><span data-testid="cost-tax">{taxTotal.toFixed(2)} €</span></div>
+            <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>Gesamt</span><span data-testid="cost-gross">{grossTotal.toFixed(2)} €</span></div>
+          </div>
+        </section>
+
+        {/* Zustandsprotokoll Media */}
+        <section>
+          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2">Zustandsprotokoll (Fotos / Videos)</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label data-testid="order-media-input-label" className="flex flex-col items-center justify-center border border-dashed border-border py-8 cursor-pointer hover:border-accent transition-colors">
+              <Camera size={28} className="text-muted-foreground mb-2" />
+              <span className="text-sm text-muted-foreground">Datei hochladen</span>
+              <span className="text-[11px] font-mono text-muted-foreground/70 mt-1">Fotos / Videos auswählen</span>
+              <input data-testid="order-media-input" type="file" accept="image/*,video/*" multiple onChange={addFiles} className="hidden" />
+            </label>
+            <button type="button" data-testid="order-open-camera" onClick={() => setShowCamera(true)}
+              className="flex flex-col items-center justify-center border border-dashed border-accent/50 py-8 hover:border-accent hover:bg-accent/5 transition-colors">
+              <VideoCamera size={28} className="text-accent mb-2" />
+              <span className="text-sm text-foreground/80">Live-Kameraaufnahme</span>
+              <span className="text-[11px] font-mono text-muted-foreground/70 mt-1">Foto / Video direkt aufnehmen</span>
+            </button>
+          </div>
+          {files.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-4">
+              {files.map((f, i) => (
+                <div key={i} className="relative group border border-border aspect-square overflow-hidden bg-background">
+                  {f.file.type.startsWith("video") ? (
+                    <video src={f.url} className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={f.url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  <button type="button" data-testid={`remove-media-${i}`} onClick={() => removeFile(i)}
+                    className="absolute top-1 right-1 bg-background/80 text-foreground p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div className="flex gap-3 pt-2">
+          <button data-testid="order-submit" type="submit" disabled={busy}
+            className="flex items-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider px-6 py-3 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors disabled:opacity-50">
+            {busy ? <><SpinnerGap size={16} className="animate-spin" /> Speichern…</> : <><FloppyDisk size={16} /> Auftrag erstellen</>}
+          </button>
+          <button type="button" onClick={() => navigate("/auftraege")}
+            className="px-6 py-3 text-sm font-head uppercase tracking-wider border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors rounded-lg">
+            Abbrechen
+          </button>
+        </div>
+      </form>
+      {showCamera && (
+        <CameraCapture onCapture={addCapturedFile} onClose={() => setShowCamera(false)} />
+      )}
+    </div>
+  );
+}
