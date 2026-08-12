@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { jsPDF } from "jspdf";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
@@ -7,6 +8,20 @@ const WAIVER_SLIP = "Haftungsausschluss: Keine Haftung fuer Datenverlust (Datens
 
 export default function Abholschein({ order, branchName, onClose }) {
   const printTs = berlinNow();
+
+  // Close the modal cleanly once the browser print dialog is dismissed,
+  // so the user is never left stuck on the print screen.
+  useEffect(() => {
+    const handleAfterPrint = () => { if (onClose) onClose(); };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, [onClose]);
+
+  const handlePrint = () => {
+    // Trigger the native print dialog; the afterprint listener closes the modal.
+    window.print();
+  };
+
   const downloadPdf = () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrData = canvas ? canvas.toDataURL("image/png") : null;
@@ -67,7 +82,7 @@ export default function Abholschein({ order, branchName, onClose }) {
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h3 className="font-head font-semibold text-sm">Abholschein · 80mm</h3>
           <div className="flex items-center gap-2">
-            <button data-testid="print-receipt-button" onClick={() => window.print()}
+            <button data-testid="print-receipt-button" onClick={handlePrint}
               className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
               <Printer size={14} /> Drucken
             </button>
@@ -75,7 +90,11 @@ export default function Abholschein({ order, branchName, onClose }) {
               className="flex items-center gap-2 border border-border text-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
               <FilePdf size={14} /> PDF
             </button>
-            <button data-testid="close-receipt-button" onClick={onClose} className="text-muted-foreground hover:text-primary-foreground">
+            <button data-testid="close-receipt-text-button" onClick={onClose}
+              className="flex items-center gap-2 border border-border text-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
+              <X size={14} /> Schließen
+            </button>
+            <button data-testid="close-receipt-button" onClick={onClose} aria-label="Schließen" className="text-muted-foreground hover:text-primary-foreground">
               <X size={20} />
             </button>
           </div>
@@ -142,6 +161,18 @@ export default function Abholschein({ order, branchName, onClose }) {
               Vielen Dank für Ihren Auftrag!
             </div>
           </div>
+        </div>
+
+        {/* Footer actions (hidden when printing via @media print) */}
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
+          <button data-testid="footer-print-button" onClick={handlePrint}
+            className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
+            <Printer size={14} /> Drucken
+          </button>
+          <button data-testid="footer-close-button" onClick={onClose}
+            className="flex items-center gap-2 border border-border text-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 rounded-lg hover:bg-muted transition-colors">
+            <X size={14} /> Schließen
+          </button>
         </div>
       </div>
     </div>

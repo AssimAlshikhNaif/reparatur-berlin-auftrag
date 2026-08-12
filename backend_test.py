@@ -892,10 +892,277 @@ def test_global_search():
         else:
             results.add_fail("7.4 Search by phone", "Order not found")
 
+def test_chat_feature():
+    """Test 8: Chat POST endpoint and admin notifications"""
+    print(f"\n{BLUE}{'='*60}{RESET}")
+    print(f"{BLUE}TEST 8: Chat Feature (POST /orders/{'{order_id}'}/messages){RESET}")
+    print(f"{BLUE}{'='*60}{RESET}")
+    
+    # Login as mitarbeiter (Mohini)
+    mitarbeiter_token = login(MITARBEITER_EMAIL, PASSWORD)
+    if not mitarbeiter_token:
+        results.add_fail("8.1 Mitarbeiter login", "Failed to login as mitarbeiter")
+        return None
+    results.add_pass("8.1 Mitarbeiter login (Mohini)")
+    
+    # Create an order with valid IMEI
+    order_data = {
+        "branch_id": "branch_1",
+        "device_brand": "Apple",
+        "device_model": "iPhone 13",
+        "imei": "123456789012345",
+        "device_passcode": "0000",
+        "customer_name": "Chat Test Customer",
+        "customer_phone": "+491701234567",
+        "customer_email": "chattest@example.com",
+        "issue_description": "Screen broken - chat test order",
+        "estimated_price": 150.0
+    }
+    resp = requests.post(f"{BASE_URL}/orders", json=order_data, headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 200:
+        results.add_fail("8.2 Create order for chat test", f"Status {resp.status_code}: {resp.text}")
+        return None
+    order = resp.json()
+    order_id = order["id"]
+    results.add_pass("8.2 Create order with valid IMEI")
+    
+    # Scenario 1: Basic send/receive (mitarbeiter)
+    # POST a message
+    message_data = {"message": "Hello, this is a test message from Mohini"}
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json=message_data, headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 200:
+        results.add_fail("8.3 POST message (mitarbeiter)", f"Status {resp.status_code}: {resp.text}")
+        return None
+    msg = resp.json()
+    if not all(k in msg for k in ["id", "sender_id", "sender_name", "sender_role", "message", "created_at"]):
+        results.add_fail("8.3 POST message response", f"Missing required fields: {msg}")
+        return None
+    if msg["sender_name"] != "Mohini" or msg["sender_role"] != "mitarbeiter":
+        results.add_fail("8.3 POST message sender", f"Expected Mohini/mitarbeiter, got {msg['sender_name']}/{msg['sender_role']}")
+        return None
+    results.add_pass("8.3 POST message returns correct structure (mitarbeiter)")
+    
+    # GET messages to verify it's persisted
+    resp = requests.get(f"{BASE_URL}/orders/{order_id}/messages", headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 200:
+        results.add_fail("8.4 GET messages", f"Status {resp.status_code}")
+        return None
+    messages = resp.json()
+    if not isinstance(messages, list) or len(messages) == 0:
+        results.add_fail("8.4 GET messages", "No messages returned")
+        return None
+    if messages[0]["message"] != "Hello, this is a test message from Mohini":
+        results.add_fail("8.4 GET messages content", f"Message mismatch: {messages[0]['message']}")
+        return None
+    results.add_pass("8.4 GET messages returns posted message")
+    
+    # Scenario 2: Empty message validation
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": "   "}, headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 400:
+        results.add_fail("8.5 Empty message validation (spaces)", f"Expected 400, got {resp.status_code}")
+    else:
+        results.add_pass("8.5 Empty message (spaces) returns 400")
+    
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": ""}, headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 400:
+        results.add_fail("8.6 Empty message validation (empty)", f"Expected 400, got {resp.status_code}")
+    else:
+        results.add_pass("8.6 Empty message (empty string) returns 400")
+    
+    # Scenario 3: Techniker access control
+    # Login as admin to assign order to Chris
+    admin_token = login(ADMIN_EMAIL, PASSWORD)
+    if not admin_token:
+        results.add_fail("8.7 Admin login", "Failed to login as admin")
+        return None
+    results.add_pass("8.7 Admin login")
+    
+    # Get technicians list to find Chris's ID
+    resp = requests.get(f"{BASE_URL}/technicians", headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.8 Get technicians", f"Status {resp.status_code}")
+        return None
+    technicians = resp.json()
+    chris = next((t for t in technicians if t.get("name") == "Chris"), None)
+    if not chris:
+        results.add_fail("8.8 Find Chris technician", "Chris not found in technicians list")
+        return None
+    chris_id = chris["id"]
+    results.add_pass("8.8 Get Chris technician ID")
+    
+    # Assign order to Chris
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/assign", 
+                        json={"techniker_id": chris_id}, headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.9 Assign order to Chris", f"Status {resp.status_code}: {resp.text}")
+        return None
+    results.add_pass("8.9 Assign order to Chris")
+    
+    # Login as Chris
+    techniker_token = login(TECHNIKER_EMAIL, PASSWORD)
+    if not techniker_token:
+        results.add_fail("8.10 Techniker login", "Failed to login as Chris")
+        return None
+    results.add_pass("8.10 Techniker login (Chris)")
+    
+    # Chris posts a message to assigned order -> should succeed
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": "Chris here, working on this repair"}, 
+                        headers=get_headers(techniker_token))
+    if resp.status_code != 200:
+        results.add_fail("8.11 POST message (techniker assigned)", f"Status {resp.status_code}: {resp.text}")
+        return None
+    msg = resp.json()
+    if msg["sender_role"] != "techniker":
+        results.add_fail("8.11 POST message sender_role", f"Expected techniker, got {msg['sender_role']}")
+        return None
+    results.add_pass("8.11 POST message to assigned order (techniker) returns 200")
+    
+    # Create another order NOT assigned to Chris
+    resp = requests.post(f"{BASE_URL}/orders", json={
+        "branch_id": "branch_1",
+        "device_brand": "Samsung",
+        "device_model": "Galaxy S21",
+        "customer_name": "Another Customer",
+        "customer_phone": "+491709999999",
+        "customer_email": "other@example.com",
+        "imei": "999888777666555",
+        "device_passcode": "1111",
+        "issue_description": "Battery issue",
+        "estimated_price": 100.0
+    }, headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 200:
+        results.add_fail("8.12 Create unassigned order", f"Status {resp.status_code}")
+        return None
+    unassigned_order_id = resp.json()["id"]
+    results.add_pass("8.12 Create unassigned order")
+    
+    # Chris tries to post to unassigned order -> should fail with 403
+    resp = requests.post(f"{BASE_URL}/orders/{unassigned_order_id}/messages", 
+                        json={"message": "Trying to access unassigned order"}, 
+                        headers=get_headers(techniker_token))
+    if resp.status_code != 403:
+        results.add_fail("8.13 POST to unassigned order (techniker)", f"Expected 403, got {resp.status_code}")
+    else:
+        results.add_pass("8.13 POST to unassigned order returns 403 (techniker)")
+    
+    # Scenario 4: Admin notification on chat
+    # Clear admin notifications
+    resp = requests.post(f"{BASE_URL}/notifications/read", headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.14 Clear admin notifications", f"Status {resp.status_code}")
+        return None
+    results.add_pass("8.14 Clear admin notifications")
+    
+    # Get initial unread count (should be 0)
+    resp = requests.get(f"{BASE_URL}/notifications", headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.15 GET notifications", f"Status {resp.status_code}")
+        return None
+    notif_data = resp.json()
+    initial_unread = notif_data.get("unread", 0)
+    if initial_unread != 0:
+        results.add_warning("8.15 Initial unread count", f"Expected 0, got {initial_unread}")
+    results.add_pass("8.15 GET notifications (initial state)")
+    
+    # Mohini (mitarbeiter) posts a chat message
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": "This should trigger admin notification"}, 
+                        headers=get_headers(mitarbeiter_token))
+    if resp.status_code != 200:
+        results.add_fail("8.16 POST message for notification test", f"Status {resp.status_code}")
+        return None
+    results.add_pass("8.16 POST message (mitarbeiter) for notification test")
+    
+    # Check admin notifications - unread should increase by 1
+    resp = requests.get(f"{BASE_URL}/notifications", headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.17 GET notifications after chat", f"Status {resp.status_code}")
+        return None
+    notif_data = resp.json()
+    new_unread = notif_data.get("unread", 0)
+    if new_unread != initial_unread + 1:
+        results.add_fail("8.17 Notification unread count", f"Expected {initial_unread + 1}, got {new_unread}")
+        return None
+    results.add_pass("8.17 Admin notification unread count increased by 1")
+    
+    # Check that the newest notification has kind "CHAT"
+    items = notif_data.get("items", [])
+    if not items:
+        results.add_fail("8.18 Notification items", "No notification items found")
+        return None
+    latest = items[0]  # Assuming items are sorted by newest first
+    if latest.get("kind") != "CHAT":
+        results.add_fail("8.18 Notification kind", f"Expected CHAT, got {latest.get('kind')}")
+        return None
+    if "Mohini" not in latest.get("message", ""):
+        results.add_fail("8.18 Notification message", f"Expected Mohini in message, got: {latest.get('message')}")
+        return None
+    results.add_pass("8.18 Notification has kind=CHAT and mentions sender")
+    
+    # Admin posts a chat message -> should NOT create notification
+    resp = requests.post(f"{BASE_URL}/notifications/read", headers=get_headers(admin_token))
+    resp = requests.get(f"{BASE_URL}/notifications", headers=get_headers(admin_token))
+    admin_unread_before = resp.json().get("unread", 0)
+    
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": "Admin message - should not notify"}, 
+                        headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.19 POST message (admin)", f"Status {resp.status_code}")
+        return None
+    results.add_pass("8.19 POST message (admin)")
+    
+    resp = requests.get(f"{BASE_URL}/notifications", headers=get_headers(admin_token))
+    admin_unread_after = resp.json().get("unread", 0)
+    if admin_unread_after != admin_unread_before:
+        results.add_fail("8.20 Admin action notification", f"Admin action should not notify, unread changed from {admin_unread_before} to {admin_unread_after}")
+    else:
+        results.add_pass("8.20 Admin action does NOT create notification")
+    
+    # Scenario 5: Regression - message ordering
+    # Post a second message from a different user
+    resp = requests.post(f"{BASE_URL}/orders/{order_id}/messages", 
+                        json={"message": "Second message from Chris"}, 
+                        headers=get_headers(techniker_token))
+    if resp.status_code != 200:
+        results.add_fail("8.21 POST second message", f"Status {resp.status_code}")
+        return None
+    results.add_pass("8.21 POST second message (techniker)")
+    
+    # GET messages and verify ordering
+    resp = requests.get(f"{BASE_URL}/orders/{order_id}/messages", headers=get_headers(admin_token))
+    if resp.status_code != 200:
+        results.add_fail("8.22 GET messages for ordering test", f"Status {resp.status_code}")
+        return None
+    messages = resp.json()
+    if len(messages) < 2:
+        results.add_fail("8.22 Message count", f"Expected at least 2 messages, got {len(messages)}")
+        return None
+    
+    # Verify messages are sorted by created_at ascending
+    for i in range(len(messages) - 1):
+        if messages[i]["created_at"] > messages[i+1]["created_at"]:
+            results.add_fail("8.22 Message ordering", f"Messages not sorted by created_at ascending")
+            return None
+    results.add_pass("8.22 Messages sorted by created_at ascending")
+    
+    # Verify different senders
+    senders = set(m["sender_role"] for m in messages)
+    if len(senders) < 2:
+        results.add_fail("8.23 Multiple senders", f"Expected messages from different users, got: {senders}")
+    else:
+        results.add_pass("8.23 Messages from multiple users present")
+    
+    return order_id
+
 def main():
     print(f"{BLUE}{'='*60}{RESET}")
     print(f"{BLUE}German Repair Shop ERP - Backend Feature Tests{RESET}")
-    print(f"{BLUE}Testing 7 newly added production features{RESET}")
+    print(f"{BLUE}Testing 7 newly added production features + Chat{RESET}")
     print(f"{BLUE}{'='*60}{RESET}")
     print(f"Backend URL: {BASE_URL}")
     print(f"Test Credentials: {ADMIN_EMAIL}, {MITARBEITER_EMAIL}, {TECHNIKER_EMAIL}")
@@ -909,6 +1176,7 @@ def main():
     test_digital_signatures()
     test_warranty_and_communications()
     test_global_search()
+    test_chat_feature()  # NEW: Chat feature tests
     
     # Print summary
     success = results.summary()

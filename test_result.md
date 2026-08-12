@@ -270,8 +270,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.1"
-  test_sequence: 1
+  version: "2.2"
+  test_sequence: 2
   run_ui: true
 
 test_plan:
@@ -464,3 +464,176 @@ agent_communication:
         The 401/405 console errors are unrelated to the scroll fix and do not prevent core functionality. These are minor issues that can be addressed separately if needed.
         
         Screenshots saved in .screenshots/ directory for verification.
+
+# ===== Iteration 5: Three bug fixes (chat POST, Abholschein close, chat->admin notification) =====
+backend:
+  - task: "Chat POST endpoint /orders/{id}/messages"
+    implemented: true
+    working: true
+    file: "backend/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Root cause of broken chat: POST /orders/{id}/messages did not exist (frontend got 405). Added POST that validates role access (techniker only if assigned; mitarbeiter same branch; admin all), inserts into chat_messages, returns message shape matching GET, and calls push_notification(kind=CHAT) so admin is alerted. Smoke-tested: POST 200, GET shows message, admin sees CHAT notification."
+        - working: true
+          agent: "testing"
+          comment: "✅ ALL TESTS PASSED (23/23). Verified: (1) Basic send/receive: Mitarbeiter (Mohini) creates order with valid IMEI, POSTs message, receives 200 with correct structure (id, sender_id, sender_name='Mohini', sender_role='mitarbeiter', message, created_at), GET /messages returns posted message. (2) Empty message validation: POST with empty string or spaces returns 400. (3) Techniker access control: Order assigned to Chris (techniker), Chris POSTs to assigned order returns 200 with sender_role='techniker', Chris POSTs to unassigned order returns 403 (forbidden). (4) Admin notification on chat: Mitarbeiter sends chat message -> admin unread count increases by 1, notification has kind='CHAT' and mentions sender (Mohini) and order; Admin sends chat message -> unread count does NOT increase (admin actions not notified by design). (5) Regression: GET /messages returns list sorted by created_at ascending, multiple messages from different users (mitarbeiter, techniker, admin) present in correct order. Chat feature fully functional with proper role-based access control and admin notifications."
+
+frontend:
+  - task: "Abholschein close button + auto-close after print"
+    implemented: true
+    working: true
+    file: "frontend/src/components/Abholschein.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added a labeled 'Schließen' button in header AND a footer with Drucken + Schließen buttons. Added window afterprint listener that calls onClose so the user is not stuck on the print screen. Footer is outside #abholschein so it is hidden by @media print."
+        - working: true
+          agent: "testing"
+          comment: "✅ BUG 1 PASSED - ALL TESTS PASSED. Verified: (1) Modal opens successfully when clicking 'Abholschein' button [data-testid='open-receipt'], (2) All required buttons present and visible: header 'Schließen' [data-testid='close-receipt-text-button'], footer 'Schließen' [data-testid='footer-close-button'], header 'Drucken' [data-testid='print-receipt-button'], footer 'Drucken' [data-testid='footer-print-button'], (3) Footer close button closes modal correctly and returns to order detail page, (4) Header close button closes modal correctly and returns to order detail page, (5) User is NOT stuck on any screen after closing modal, (6) Modal can be reopened and closed multiple times without issues. Close functionality working perfectly."
+  - task: "OrderChat send/receive works via new POST"
+    implemented: true
+    working: true
+    file: "frontend/src/components/OrderChat.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Backend POST endpoint added; existing frontend posts to /orders/{id}/messages and polls every 3s. Should now send/receive/display smoothly."
+        - working: true
+          agent: "testing"
+          comment: "✅ BUG 2 PASSED - ALL TESTS PASSED. Verified: (1) Mitarbeiter (Mohini) can send chat messages successfully (POST /api/orders/{id}/messages returns 200, NO 405 errors), (2) Messages appear immediately in chat with correct sender name 'Mohini' and role badge 'MA', (3) Messages persist after page reload, (4) Order can be assigned to techniker (Chris) successfully, (5) Techniker (Chris) can see all previous messages from mitarbeiter, (6) Techniker can send reply messages (POST returns 200, NO 405 errors), (7) Techniker messages appear with sender name 'Chris' and role badge 'TECH', (8) Full bidirectional communication working between mitarbeiter and techniker. Chat feature fully functional with proper role-based access and real-time updates via 3s polling."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Iteration 5 fixes to verify. BACKEND: new POST /api/orders/{id}/messages (chat send). Test: as mitarbeiter (mohini@repair.de) and techniker (chris@repair.de, only on an order assigned to Chris) POST a message -> 200; GET returns it; empty message -> 400; techniker posting to an unassigned order -> 403. Confirm each chat POST creates an admin notification of kind CHAT (GET /api/notifications as admin, unread increases; admin's own posts do NOT notify). FRONTEND (test after backend): (1) Abholschein modal shows a clear 'Schließen' button (header [data-testid=close-receipt-text-button] and footer [data-testid=footer-close-button]) that closes the modal; Drucken triggers print. (2) Order chat: open an order as mitarbeiter, type + send a message, it appears immediately and persists on reload; open same order as the assigned techniker and confirm the message is visible and a reply sends. (3) Admin notification bell increments + toast when a techniker/mitarbeiter sends a chat message or performs any action. Do NOT break existing features.
+    - agent: "testing"
+      message: |
+        ✅ ALL THREE BUG FIXES VERIFIED AND WORKING CORRECTLY
+        
+        Comprehensive frontend testing completed for all 3 bug fixes specified in the review request. All tests passed successfully with detailed verification.
+        
+        FRONTEND TEST RESULTS SUMMARY:
+        
+        ✅ BUG 1: Abholschein (Receipt) Modal Close Button - PASSED
+           - Modal opens successfully via 'Abholschein' button [data-testid='open-receipt']
+           - All required buttons present and functional:
+             * Header 'Schließen' button [data-testid='close-receipt-text-button'] ✅
+             * Footer 'Schließen' button [data-testid='footer-close-button'] ✅
+             * Header 'Drucken' button [data-testid='print-receipt-button'] ✅
+             * Footer 'Drucken' button [data-testid='footer-print-button'] ✅
+           - Both close buttons successfully close the modal
+           - User remains on order detail page after closing (NOT stuck)
+           - Modal can be reopened and closed multiple times
+           - No React errors or console warnings
+        
+        ✅ BUG 2: Internal Order Chat Send/Receive - PASSED
+           - Mitarbeiter (Mohini) can send messages successfully
+           - POST /api/orders/{id}/messages returns 200 (NO 405 errors)
+           - Messages appear immediately with sender name and role badge
+           - Messages persist after page reload
+           - Order assignment to techniker (Chris) works correctly
+           - Techniker can see all previous mitarbeiter messages
+           - Techniker can send reply messages (200 status, NO 405 errors)
+           - Full bidirectional communication working
+           - Real-time updates via 3s polling functional
+           - Chat UI displays correctly with role-based styling
+        
+        ✅ BUG 3: Admin Notifications for Actions (Including Chat) - PASSED
+           - Notification bell [data-testid='notification-bell'] visible for admin role
+           - Notification panel [data-testid='notification-panel'] opens correctly
+           - CHAT notifications present (found 16 notifications)
+           - Staff member mentions present (Mohini: 47, Chris: 6)
+           - Notification count badge [data-testid='notification-count'] displays when unread
+           - Notifications created for mitarbeiter/techniker actions
+           - Polling system working correctly (5s interval, no console errors)
+           - Multi-context testing confirmed notifications appear within ~5 seconds
+           - Notification structure includes: kind (CHAT), title, message, staff member name, order number
+        
+        NO CRITICAL ISSUES FOUND. All three bug fixes are production-ready.
+        
+        REGRESSION CHECK:
+        - No React runtime errors detected
+        - No breaking changes to existing features
+        - Order detail page, status actions, and navigation all working correctly
+        - Console logs clean (no critical errors)
+        
+        Test artifacts:
+        - Screenshots saved in .screenshots/ directory
+        - Console logs: /root/.emergent/automation_output/*/console_*.log
+        
+        RECOMMENDATION: All three bug fixes are verified and ready for production. No further testing required.
+    - agent: "testing"
+      message: |
+        ✅ BACKEND CHAT FEATURE TESTING COMPLETE - ALL TESTS PASSED (23/23)
+        
+        Comprehensive testing completed for the newly added chat POST endpoint and admin notification integration. Created comprehensive test suite in backend_test.py covering all 5 scenarios specified in the review request.
+        
+        TEST RESULTS SUMMARY:
+        
+        ✅ Scenario 1: Basic Send/Receive (Mitarbeiter) - 4 tests passed
+           - Mitarbeiter (Mohini) login successful
+           - Order created with valid IMEI (branch_id, device_brand, device_model required)
+           - POST /api/orders/{order_id}/messages returns 200 with correct structure:
+             * Fields present: id, sender_id, sender_name, sender_role, message, created_at
+             * sender_name = "Mohini", sender_role = "mitarbeiter"
+           - GET /api/orders/{order_id}/messages returns posted message (persistence verified)
+        
+        ✅ Scenario 2: Empty Message Validation - 2 tests passed
+           - POST with {"message": "   "} (spaces only) returns 400
+           - POST with {"message": ""} (empty string) returns 400
+           - Error message: "Nachricht darf nicht leer sein"
+        
+        ✅ Scenario 3: Techniker Access Control - 6 tests passed
+           - Admin assigns order to techniker "Chris" successfully
+           - Chris (techniker) login successful
+           - Chris POSTs message to ASSIGNED order → 200, sender_role = "techniker"
+           - Created second order NOT assigned to Chris
+           - Chris POSTs message to UNASSIGNED order → 403 (forbidden)
+           - Access control working correctly: techniker can only chat on assigned orders
+        
+        ✅ Scenario 4: Admin Notification on Chat - 7 tests passed
+           - Admin clears notifications (POST /api/notifications/read)
+           - Initial unread count = 0
+           - Mitarbeiter (Mohini) POSTs chat message
+           - Admin GET /api/notifications → unread increased by 1
+           - Newest notification has kind = "CHAT"
+           - Notification message mentions sender "Mohini" and order auftragsnummer
+           - Admin POSTs chat message → unread count does NOT increase (by design)
+           - Verified: Admin actions are intentionally not notified (notify.py filters by_role)
+        
+        ✅ Scenario 5: Regression - Message Ordering - 4 tests passed
+           - Techniker (Chris) POSTs second message to same order
+           - GET /api/orders/{order_id}/messages returns all messages
+           - Messages sorted by created_at in ASCENDING order (verified)
+           - Multiple senders present: mitarbeiter, techniker, admin (verified)
+           - Message ordering and multi-user chat working correctly
+        
+        IMPLEMENTATION DETAILS VERIFIED:
+        - POST /api/orders/{order_id}/messages endpoint exists and functional
+        - Role-based access control: techniker restricted to assigned orders, mitarbeiter to same branch
+        - Empty message validation: strips whitespace and rejects empty messages (400)
+        - Admin notification integration: push_notification(kind="CHAT") called on every message
+        - Notification filtering: only mitarbeiter/techniker actions create notifications (admin excluded)
+        - Message persistence: chat_messages collection stores all messages
+        - Message retrieval: GET endpoint returns messages sorted by created_at ascending
+        
+        NO CRITICAL ISSUES FOUND. Chat feature is production-ready.
+        
+        Test artifacts:
+        - /app/backend_test.py (updated with 23 new chat tests)
+        - /app/chat_test_output.log (detailed test execution log)
+        
+        NEXT STEPS:
+        - Frontend testing NOT performed (as per instructions: backend only)
+        - Main agent should test frontend components: Abholschein close button, OrderChat send/receive, notification bell
+        - All backend APIs for chat feature are working correctly

@@ -945,6 +945,42 @@ async def get_messages(order_id: str, current=Depends(get_current_user)):
              "created_at": m["created_at"]} for m in msgs]
 
 
+class ChatMessageInput(BaseModel):
+    message: str
+
+
+@router.post("/orders/{order_id}/messages")
+async def post_message(order_id: str, input: ChatMessageInput, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
+        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
+    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+    text = (input.message or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "order_id": order_id,
+        "sender_id": str(current["_id"]),
+        "sender_name": current["name"],
+        "sender_role": current["role"],
+        "message": text,
+        "created_at": now,
+    }
+    res = await db.chat_messages.insert_one(doc)
+    await push_notification(
+        kind="CHAT", title="Neue Chat-Nachricht",
+        message=f"{current['name']} ({current['role']}) im Auftrag {order.get('auftragsnummer','')}: {text[:80]}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    return {"id": str(res.inserted_id), "sender_id": doc["sender_id"], "sender_name": doc["sender_name"],
+            "sender_role": doc["sender_role"], "message": doc["message"], "created_at": doc["created_at"]}
+
+
 # ==================== STATS ====================
 @router.get("/stats")
 async def stats(current=Depends(get_current_user)):
