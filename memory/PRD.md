@@ -38,3 +38,15 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 
 ## Next Tasks
 - Gather feedback on order workflow; consider notifications and inventory-order linkage.
+
+## Iteration 4 (2026-08-12) — Production feature pack (all preserved + added)
+- **External Parts Procurement & Tracking** (`purchases.py` rewritten; was crashing): per-Auftrag CRUD with Part Name, external URL, order timestamp, expected/actual arrival, status (ANGEFRAGT→BESTELLT→UNTERWEGS→ANGEKOMMEN→EINGEBAUT/STORNIERT); ANGEKOMMEN auto-stamps arrival; admin alerts + audit; price hidden from Techniker. New `OrderPurchasesTab.jsx`.
+- **Conditional IMEI**: IMEI mandatory unless "Gerät defekt / IMEI nicht lesbar" toggle; persistent reminder badge across Orders list + OrderDetail; `PATCH /orders/{id}/imei` late fill-in.
+- **Digital Signatures + Legal Waiver**: canvas `SignaturePad.jsx`; intake signature at OrderCreate with German liability waiver (data loss / uncollected items / pre-existing damage); intake + pickup signatures on OrderDetail; both rendered on Abholschein print + PDF. `POST /orders/{id}/signature`.
+- **Real-time Admin Notifications**: `notify.py` + `/notifications` (5s polling); `NotificationBell.jsx` with unread badge, toast, and Web Audio beep. Every Mitarbeiter/Techniker action (create/assign/accept/reject/status/costs/parts/media/whatsapp/imei/signature/procurement) notifies admin; admin's own actions excluded by design.
+- **Strict Techniker Cost Privacy**: `serialize_order` strips cost/fees/estimated_price and used-part prices for role=techniker (cost_hidden=true); frontend hides cost section + prices; global search excludes customer_name for techniker.
+- **Warranty Tracking**: warranty_months (default 6) → warranty_start/until set on ABGEHOLT; under_warranty + warranty_days_left computed; Garantie badges in list/detail/search.
+- **Automated Status Notifications**: German auto-messages logged to communications on status change (WhatsApp-style, "System (automatisch)").
+- **Global Search** (`/search`, `GlobalSearch.jsx`): by auftragsnummer / IMEI / phone (+name for non-techniker), role-scoped, in top bar.
+- Tested: backend 48/48, frontend 5/5 across all 3 roles. No existing functionality removed.
+
