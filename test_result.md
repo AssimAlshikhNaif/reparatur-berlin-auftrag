@@ -768,3 +768,22 @@ agent_communication:
     - agent: "main"
       message: |
         Verify Procurement Arrival Alerts. Test data already seeded via API for mohini's branch: an 'Overdue Part' (2 days overdue) and a 'Today Part'. (1) Login admin@repair.de -> Dashboard shows [data-testid=procurement-alerts] section titled 'Ersatzteile: Fällig heute / Überfällig' listing overdue (red badge, 'XT überfällig') and today (amber 'heute') items, NOT future ones. Counts [data-testid=alerts-overdue-count]/[alerts-today-count] show. (2) Quick status update: change [data-testid=alert-status-<id>] of an alert row to 'Angekommen' -> success toast; the row disappears from alerts (since arrived) after refresh. (3) /beschaffung page also shows the same alerts section at top. (4) Login mohini@repair.de: sees alerts for her branch. Login chris@repair.de (techniker): Dashboard shows NO procurement-alerts section (endpoint 403 -> component renders nothing). (5) Confirm no console errors. Also a mitarbeiter status change should create an admin BESCHAFFUNG notification.
+
+# ===== Iteration 11: Rechnung (Invoice) generation & printing =====
+frontend:
+  - task: "Invoice (Rechnung) modal + trigger on ABGEHOLT"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/Invoice.jsx, pages/OrderDetail.jsx, lib/constants.js, index.css"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New Invoice.jsx (A4 HTML layout + jsPDF download). Trigger button [data-testid=open-invoice] 'Rechnung drucken' shown in OrderDetail status bar only when status ABGEHOLT and canManage (admin/mitarbeiter). Invoice shows SHOP_INFO (name/address/contact/Steuernr/USt-IdNr), Auftragsnummer, customer, device, IMEI, line items (Diagnose/Arbeitslohn/used_parts), Netto/19% MwSt/Brutto from order.cost, and German Gewährleistung + full-payment note. Print isolates #rechnung via @media print. Data comes from existing GET /orders/{id} (cost, used_parts, cost_status). testids: invoice-number, invoice-items, invoice-net, invoice-tax, invoice-gross, invoice-print-button, invoice-pdf-button, invoice-close-button."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify Rechnung (invoice) feature. Login admin@repair.de. Open /auftraege, filter status = 'Abgeholt' and open an ABGEHOLT order (seeded abgeholt orders exist with costs). Confirm a 'Rechnung drucken' button [data-testid=open-invoice] appears in the status/actions bar (it must NOT appear for non-ABGEHOLT orders). Click it -> invoice modal opens showing: shop header (Reparatur Berlin GmbH, address, Steuernr/USt-IdNr), [data-testid=invoice-number] = the Auftragsnummer, customer name, device + IMEI, an items table [data-testid=invoice-items], and totals [data-testid=invoice-net]/[invoice-tax]/[invoice-gross] where tax = 19% of net and gross = net+tax (matching the order's saved cost). A German Gewährleistung/warranty + full-payment note is present. Buttons: Drucken [invoice-print-button], PDF [invoice-pdf-button], Schließen [invoice-close-button] which closes the modal. (Do not invoke the OS print dialog.) Regression: techniker chris@repair.de must NOT see the Rechnung button (no cost access); no console errors.

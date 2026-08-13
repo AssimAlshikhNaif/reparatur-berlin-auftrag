@@ -7,6 +7,7 @@ import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
 import OrderChat from "@/components/OrderChat";
 import OrderPurchasesTab from "@/components/OrderPurchasesTab";
 import Abholschein from "@/components/Abholschein";
+import Invoice from "@/components/Invoice";
 import CameraCapture from "@/components/CameraCapture";
 import SignaturePad from "@/components/SignaturePad";
 import WhatsAppFab from "@/components/WhatsAppFab";
@@ -50,6 +51,7 @@ export default function OrderDetail() {
   const [branches, setBranches] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showInvoice, setShowInvoice] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -226,6 +228,12 @@ export default function OrderDetail() {
           <button data-testid="open-receipt" onClick={() => setShowReceipt(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
             <Printer size={14} /> Abholschein
+          </button>
+        )}
+        {canManage && order.status === "ABGEHOLT" && (
+          <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
+            <Printer size={14} /> Rechnung drucken
           </button>
         )}
         {canManage && order.status === "FERTIG" && (
@@ -659,6 +667,7 @@ export default function OrderDetail() {
       )}
 
       {showReceipt && <Abholschein order={order} branchName={branchName} onClose={() => setShowReceipt(false)} />}
+      {showInvoice && <Invoice order={order} branchName={branchName} onClose={() => setShowInvoice(false)} />}
       {showCamera && <CameraCapture onCapture={uploadCaptured} onClose={() => setShowCamera(false)} />}
       {canManage && order.customer_phone && <WhatsAppFab order={order} onLogged={loadComms} />}
 

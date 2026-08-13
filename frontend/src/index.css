@@ -103,12 +103,18 @@ h1, h2, h3, .font-head {
 /* 80mm Thermal Receipt Print */
 @media print {
     body * { visibility: hidden; }
-    #abholschein, #abholschein * { visibility: visible; }
+    #abholschein, #abholschein *,
+    #rechnung, #rechnung * { visibility: visible; }
     #abholschein {
         position: absolute; left: 0; top: 0;
         width: 80mm; padding: 4mm;
         background: #fff !important; color: #000 !important;
         font-family: 'IBM Plex Mono', monospace;
     }
-    @page { size: 80mm auto; margin: 0; }
+    #rechnung {
+        position: absolute; left: 0; top: 0;
+        width: 100%;
+        background: #fff !important; color: #000 !important;
+    }
+    @page { size: auto; margin: 8mm; }
 }

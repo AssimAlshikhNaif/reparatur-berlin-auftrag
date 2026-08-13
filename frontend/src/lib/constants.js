@@ -79,3 +79,20 @@ export const PICKUP_WAIVER = `Übernahmebestätigung:
 
 Mit meiner Unterschrift bestätige ich den Erhalt des oben genannten Geräts in ordnungsgemäßem Zustand. Die durchgeführten Arbeiten wurden mir erläutert und der Endbetrag wurde beglichen bzw. anerkannt.`;
 
+// ===== Invoice (Rechnung) configuration =====
+export const SHOP_INFO = {
+  name: "Reparatur Berlin GmbH",
+  addressLine1: "Musterstraße 12",
+  addressLine2: "10115 Berlin",
+  phone: "+49 30 1234567",
+  email: "info@reparatur-berlin.de",
+  taxNumber: "USt-IdNr.: DE123456789",
+  steuernummer: "Steuernr.: 30/123/45678",
+  website: "www.reparatur-berlin.de",
+};
+
+export const INVOICE_WARRANTY = `Gewährleistung: Auf durchgeführte Reparaturen gewähren wir 6 Monate Gewährleistung gemäß den gesetzlichen Bestimmungen. Ausgenommen sind Folgeschäden durch unsachgemäße Behandlung, Sturz- oder Feuchtigkeitsschäden sowie Verschleißteile. Für Datenverluste wird keine Haftung übernommen (Datensicherung ist Sache des Kunden).
+
+Der Rechnungsbetrag wurde bei Abholung vollständig beglichen. Vielen Dank für Ihren Auftrag!`;
+
+
