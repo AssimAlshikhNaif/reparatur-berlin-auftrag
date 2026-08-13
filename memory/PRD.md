@@ -50,3 +50,9 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - **Global Search** (`/search`, `GlobalSearch.jsx`): by auftragsnummer / IMEI / phone (+name for non-techniker), role-scoped, in top bar.
 - Tested: backend 48/48, frontend 5/5 across all 3 roles. No existing functionality removed.
 
+## Iteration 5 (2026-08-13) — Verification pass + Invoice completion
+- **Verified (testing_agent, iteration_5.json)** the previously-untested backlog: reassign-after-ABGELEHNT, i18n DE/EN/AR switcher, Global Procurement Dashboard (/beschaffung), Procurement Arrival Alerts on admin dashboard, GoBD per-branch invoice numbering (RE-YYYY-XXXX-##### idempotent), and dynamic branch branding.
+- **Completed Invoice.jsx gaps** (were coded incompletely): invoice header now uses live branch data from GET /branches (name/address/phone/email/tax + optional logo), "Ort, Datum" auto-filled with branch city + invoice date (DD.MM.YYYY), embedded customer signature image (pickup/intake), and a real SECOND printable page + PDF page with the FULL extended AGB (§1–§8) and DSGVO (points 1–6). testids: invoice-shop-name, invoice-branch-address, invoice-logo, invoice-ort-datum, invoice-customer-signature, invoice-legal-page2, invoice-agb-full, invoice-dsgvo-full.
+- **Bug fixed (HIGH, privacy)**: serialize_order now strips intake_signature/pickup_signature for role=techniker (were leaking base64 biometric PII). Verified via curl.
+- Result: backend 9/9, frontend invoice UI 100%. No functionality removed.
+

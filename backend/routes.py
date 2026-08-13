@@ -112,6 +112,9 @@ def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
         for f in PII_FIELDS:
             o.pop(f, None)
         o["dsgvo_masked"] = True
+        # Signatures are customer PII/biometric — never expose to technicians
+        o.pop("intake_signature", None)
+        o.pop("pickup_signature", None)
         # Strict cost privacy: technicians must not see any pricing/costs
         o.pop("cost", None)
         for f in ("diagnosis_fee", "labor_cost", "parts_cost", "estimated_price"):
@@ -185,6 +188,20 @@ async def next_auftragsnummer() -> str:
     )
     seq = res["seq"] if res else 1
     return f"RB-{year}-{seq:05d}"
+
+
+async def next_invoice_number(branch_id: str) -> str:
+    """GoBD: unique, gapless invoice number sequenced PER BRANCH per year."""
+    year = datetime.now(timezone.utc).year
+    branch_short = (branch_id or "0000")[-4:].upper()
+    res = await db.counters.find_one_and_update(
+        {"_id": f"invoice-{branch_id}-{year}"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    seq = res["seq"] if res else 1
+    return f"RE-{year}-{branch_short}-{seq:05d}"
 
 
 # ---- Models ----
@@ -271,10 +288,35 @@ class InventoryUpdate(BaseModel):
 
 
 # ==================== BRANCHES ====================
+# Per-branch branding/config defaults (DB values override these when present).
+BRANCH_CONFIG = {
+    "Smartphone Apotheke": {"city": "Berlin", "address": "Kantstraße 12, 10623 Berlin", "phone": "+49 30 1110001", "email": "apotheke@reparatur-berlin.de"},
+    "Phone Store": {"city": "Berlin", "address": "Frankfurter Allee 88, 10247 Berlin", "phone": "+49 30 1110002", "email": "phonestore@reparatur-berlin.de"},
+    "Media Technik": {"city": "Berlin", "address": "Turmstraße 5, 10559 Berlin", "phone": "+49 30 1110003", "email": "media@reparatur-berlin.de"},
+    "Schönenhause": {"city": "Berlin", "address": "Schönhauser Allee 120, 10437 Berlin", "phone": "+49 30 1110004", "email": "schoenhauser@reparatur-berlin.de"},
+    "Hauptwerkstatt Berlin": {"city": "Berlin", "address": "Musterstraße 12, 10115 Berlin", "phone": "+49 30 1234567", "email": "info@reparatur-berlin.de"},
+}
+
+
 @router.get("/branches")
 async def list_branches(current=Depends(get_current_user)):
     branches = await db.branches.find().to_list(100)
-    return [{"id": str(b["_id"]), "name": b["name"]} for b in branches]
+    out = []
+    for b in branches:
+        name = b.get("name", "")
+        defaults = BRANCH_CONFIG.get(name, {"city": "Berlin", "address": "Berlin", "phone": "+49 30 0000000", "email": "info@reparatur-berlin.de"})
+        out.append({
+            "id": str(b["_id"]),
+            "name": name,
+            "city": b.get("city") or defaults["city"],
+            "address": b.get("address") or defaults["address"],
+            "phone": b.get("phone") or defaults["phone"],
+            "email": b.get("email") or defaults["email"],
+            "logo_url": b.get("logo_url") or "",
+            "tax_number": b.get("tax_number") or "USt-IdNr.: DE123456789",
+            "steuernummer": b.get("steuernummer") or "Steuernr.: 30/123/45678",
+        })
+    return out
 
 
 # ==================== USERS (Admin only) ====================
@@ -1151,3 +1193,32 @@ async def mark_notifications_read(current=Depends(require_roles("admin"))):
 async def clear_notifications(current=Depends(require_roles("admin"))):
     await db.notifications.delete_many({})
     return {"message": "Benachrichtigungen gelöscht"}
+
+
+# ==================== INVOICE (Rechnung, GoBD per-branch) ====================
+@router.post("/orders/{order_id}/invoice")
+async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+    if order.get("status") != "ABGEHOLT":
+        raise HTTPException(status_code=400, detail="Rechnung erst nach Abholung (Status 'Abgeholt') möglich")
+    # Idempotent: return existing invoice number if already issued (GoBD: no re-numbering)
+    if not order.get("invoice_number"):
+        inv_no = await next_invoice_number(order.get("branch_id"))
+        now = datetime.now(timezone.utc).isoformat()
+        await db.orders.update_one(
+            {"_id": ObjectId(order_id)},
+            {"$set": {"invoice_number": inv_no, "invoice_date": now, "updated_at": now}},
+        )
+        await log_audit(order_id, "RECHNUNG", f"Rechnung erstellt: {inv_no}", current["name"])
+        await push_notification(
+            kind="RECHNUNG", title="Rechnung erstellt",
+            message=f"{current['name']} hat Rechnung {inv_no} für {order.get('auftragsnummer','')} erstellt.",
+            by=current["name"], by_role=current["role"],
+            order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+        )
+        order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)

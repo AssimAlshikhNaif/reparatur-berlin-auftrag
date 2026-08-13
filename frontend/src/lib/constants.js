@@ -95,4 +95,42 @@ export const INVOICE_WARRANTY = `Gewährleistung: Auf durchgeführte Reparaturen
 
 Der Rechnungsbetrag wurde bei Abholung vollständig beglichen. Vielen Dank für Ihren Auftrag!`;
 
+export const AGB_TEXT = `AGB (Auszug): Es gelten unsere Allgemeinen Geschäftsbedingungen. Nicht abgeholte Geräte werden nach 90 Tagen kostenpflichtig eingelagert oder verwertet. Kostenvoranschläge sind unverbindlich; Mehrkosten werden vor Ausführung abgestimmt.`;
+
+export const DSGVO_CONSENT = `Datenschutz (DSGVO): Ihre personenbezogenen Daten werden ausschließlich zur Auftragsabwicklung gemäß Art. 6 Abs. 1 lit. b DSGVO verarbeitet und nicht an Dritte weitergegeben. Mit Ihrer Unterschrift willigen Sie in die Verarbeitung dieser Daten zum Zweck der Reparaturabwicklung ein.`;
+
+export const AGB_FULL = `Allgemeine Geschäftsbedingungen (AGB)
+
+§1 Geltungsbereich: Diese AGB gelten für alle Reparaturaufträge zwischen dem Kunden und der Werkstatt.
+
+§2 Kostenvoranschlag: Kostenvoranschläge sind unverbindlich. Ergeben sich während der Reparatur Mehrkosten, werden diese vor Ausführung mit dem Kunden abgestimmt.
+
+§3 Datensicherung: Der Kunde ist für die Sicherung seiner Daten selbst verantwortlich. Für den Verlust von Daten wird keine Haftung übernommen.
+
+§4 Gewährleistung: Auf durchgeführte Arbeiten gewähren wir 6 Monate Gewährleistung. Ausgenommen sind Verschleiß, Sturz- und Feuchtigkeitsschäden sowie Folgeschäden bestehender Vorschäden.
+
+§5 Abholung & Lagerung: Nicht innerhalb von 90 Tagen abgeholte Geräte können nach vorheriger Benachrichtigung kostenpflichtig eingelagert, verwertet oder entsorgt werden.
+
+§6 Eigentumsvorbehalt: Bis zur vollständigen Bezahlung bleibt das reparierte Gerät bzw. verbaute Ersatzteile Eigentum der Werkstatt.
+
+§7 Zahlung: Der Rechnungsbetrag ist bei Abholung sofort und ohne Abzug fällig.
+
+§8 Gerichtsstand: Es gilt deutsches Recht; Gerichtsstand ist Berlin, soweit gesetzlich zulässig.`;
+
+export const DSGVO_FULL = `Datenschutzerklärung (DSGVO)
+
+1. Verantwortlicher: Die im Kopf dieser Rechnung genannte Filiale ist verantwortliche Stelle im Sinne der DSGVO.
+
+2. Zwecke der Verarbeitung: Wir verarbeiten personenbezogene Daten (Name, Kontaktdaten, Geräte-/IMEI-Daten) ausschließlich zur Durchführung des Reparaturauftrags gemäß Art. 6 Abs. 1 lit. b DSGVO sowie zur Erfüllung gesetzlicher Aufbewahrungspflichten (Art. 6 Abs. 1 lit. c DSGVO).
+
+3. Speicherdauer: Auftrags- und Rechnungsdaten werden gemäß den handels- und steuerrechtlichen Fristen (GoBD/AO/HGB) für bis zu 10 Jahre aufbewahrt.
+
+4. Weitergabe: Eine Weitergabe an Dritte erfolgt nur, soweit dies zur Auftragsabwicklung (z.B. Ersatzteilbestellung) erforderlich oder gesetzlich vorgeschrieben ist.
+
+5. Ihre Rechte: Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch. Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen.
+
+6. Einwilligung: Mit Ihrer Unterschrift bestätigen Sie die Kenntnisnahme dieser Datenschutzhinweise.`;
+
+
+
 

@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
 
-const WAIVER_SLIP = "Haftungsausschluss: Keine Haftung fuer Datenverlust (Datensicherung ist Kundensache), fuer nicht innerhalb 90 Tagen abgeholte Geraete sowie fuer Folgen bestehender Vorschaeden (z.B. Wasser-/Sturzschaden). Mit Unterschrift Geraeteuebergabe u. Bedingungen akzeptiert.";
+const WAIVER_SLIP = "Haftungsausschluss: Keine Haftung fuer Datenverlust (Datensicherung ist Kundensache), fuer nicht innerhalb 90 Tagen abgeholte Geraete sowie fuer Folgen bestehender Vorschaeden (z.B. Wasser-/Sturzschaden). Mit Unterschrift Geraeteuebergabe u. Bedingungen akzeptiert. DSGVO: Ihre Daten werden ausschliesslich zur Auftragsabwicklung (Art. 6 Abs. 1 lit. b DSGVO) verarbeitet und nicht an Dritte weitergegeben.";
 
 export default function Abholschein({ order, branchName, onClose }) {
   const printTs = berlinNow();

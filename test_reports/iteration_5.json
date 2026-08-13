@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 5 verification of the new features: (1) GoBD per-branch invoice numbering + idempotency, (2) GET /branches shape, (3) /purchases/all + /purchases/alerts role scoping, (4) reassign after ABGELEHNT, (5) techniker cost/signature stripping, (6) Invoice modal UI: branch-branded header, invoice-ort-datum, customer signature <img>, invoice-legal-page2 with FULL AGB/DSGVO, idempotent invoice number on reopen, (7) Beschaffung page + Procurement Arrival Alerts on admin dashboard, (8) Language switcher presence. Backend: 8/9 pytest passing. 1 backend bug found: techniker order-detail response still contains pickup_signature/intake_signature (spec requires stripping). Frontend invoice: ALL 17 required data-testids present, invoice-number = RE-2026-BF84-00002 (correct format), idempotent on reopen, branch header shows 'Phone Store' + 'Frankfurter Allee 88, 10247 Berlin' + phone/email/tax numbers, invoice-customer-signature renders an actual <img> (RB-2026-00048 had intake signature), invoice-legal-page2 exists with FULL AGB §1..§8 and DSGVO points 1..6, totals math verified (0€/0€/0€ for this seed order but relationship consistent).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/orders/{id} (role=techniker)", "issue": "Response still includes 'pickup_signature' and 'intake_signature' base64 payloads. serialize_order() in /app/backend/routes.py only strips PII+cost fields for techniker; it does not remove signature fields. Spec explicitly requires stripping these for techniker. Suggested fix: inside the `if user['role']=='techniker'` block add `o.pop('pickup_signature', None); o.pop('intake_signature', None)` (has_intake_signature/has_pickup_signature booleans can remain).", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Invoice · invoice-ort-datum", "issue": "Date format is '13.8.2026' (no leading zeros) instead of the '13.08.2026' format shown in the spec. Uses berlinDate() which likely relies on toLocaleDateString default. Consider forcing 2-digit day/month.", "selector": "[data-testid=invoice-ort-datum]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iteration5.py", "/app/test_reports/pytest/iter5.xml"],
+  "action_items": [
+    "Strip pickup_signature and intake_signature from serialize_order() when user['role']=='techniker' (backend). This is a HIGH priority privacy regression.",
+    "Optional: force DD.MM.YYYY (leading zeros) in invoice-ort-datum via berlinDate()."
+  ],
+  "critical_code_review_comments": [
+    "routes.py is ~1200 lines - consider splitting orders / invoices / signatures / analytics into separate routers.",
+    "serialize_order signature stripping is inconsistent: `light=True` in list view strips signatures unconditionally, but detail (non-light) leaves them for techniker. Requirement says techniker must never see them.",
+    "Invoice endpoint POST /orders/{id}/invoice is correctly idempotent (checks !order.get('invoice_number') before assigning next_invoice_number). GoBD-compliant.",
+    "Invoice.jsx correctly guards customerSignature with try/catch when passing to jsPDF addImage(); good.",
+    "Invoice.jsx imports @phosphor-icons/react `FilePdf` and `Files`; Files is unused - minor cleanup.",
+    "Assign endpoint correctly resets reject_reason and status to ZUGEWIESEN even after ABGELEHNT; audit log records 'Nach Ablehnung neu zugewiesen an ...' -- good."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration5.py"],
+  "success_rate": {"backend": "89% (8/9)", "frontend": "100% of iter5 UI checks verified (invoice + branding + signature + page-2 AGB/DSGVO + idempotency + Beschaffung + alerts + language switcher present)"},
+  "test_credentials": "admin@repair.de / mohini@repair.de / chris@repair.de -- all Repair2026!",
+  "seed_data_creation": "test_reassign_after_rejected creates one TEST_ order (device_brand=TESTBrand, customer_name=TEST_Reassign) - not cleaned up but harmless.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite: /app/backend/tests/test_iteration5.py has 9 tests covering the iteration-5 scope. Only failing test is test_techniker_cost_and_signature_stripped due to backend bug (signatures not stripped for techniker on GET /api/orders/{id}). Invoice UI is fully working: verified on RB-2026-00048 (Phone Store, branch id ..BF84) => invoice-number 'RE-2026-BF84-00002', invoice-customer-signature <img> renders (intake signature exists), invoice-legal-page2 renders full §1..§8 AGB + DSGVO 1..6, close+reopen keeps same number. Beschaffung page at /beschaffung lists purchases with search, alerts badges (5 offen · 5 gesamt) and Procurement Arrival Alerts also surfaces on admin dashboard (2 überfällig). Language switcher is a custom (non-native) dropdown, present as [data-testid=language-switcher] with 'DE' visible in top bar; interaction via select_option fails because it's not a <select>; test with .click + option click instead if you need functional test.",
+  "rca of the issue": "serialize_order() for role=='techniker' pops PII_FIELDS + cost + parts_pricing but never removes intake_signature/pickup_signature. Since these are heavy base64 blobs of the customer's PII (biometric), they must be stripped for privacy + payload. Fix: add o.pop('intake_signature', None); o.pop('pickup_signature', None) inside the techniker branch of serialize_order (routes.py ~line 111-124). One-line fix."
+}

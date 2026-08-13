@@ -1,12 +1,41 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
 import { jsPDF } from "jspdf";
-import { Printer, X, FilePdf } from "@phosphor-icons/react";
+import { Printer, X, FilePdf, Files } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
-import { SHOP_INFO, INVOICE_WARRANTY } from "@/lib/constants";
+import { SHOP_INFO, INVOICE_WARRANTY, AGB_TEXT, DSGVO_CONSENT, AGB_FULL, DSGVO_FULL } from "@/lib/constants";
+import { berlinDate } from "@/lib/datetime";
 
-export default function Invoice({ order, branchName, onClose }) {
+export default function Invoice({ order: initialOrder, branchName, onClose }) {
+  const [order, setOrder] = useState(initialOrder);
+  const [branch, setBranch] = useState(null);
   const cost = order.cost || {};
   const parts = order.used_parts || [];
+  const invoiceNo = order.invoice_number || order.auftragsnummer;
+  const shop = {
+    name: branch?.name || SHOP_INFO.name,
+    address: branch?.address || `${SHOP_INFO.addressLine1}, ${SHOP_INFO.addressLine2}`,
+    phone: branch?.phone || SHOP_INFO.phone,
+    email: branch?.email || SHOP_INFO.email,
+    taxNumber: branch?.tax_number || SHOP_INFO.taxNumber,
+    steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer,
+    city: branch?.city || "Berlin",
+    logo_url: branch?.logo_url || "",
+  };
+  const ortDatumShort = `${shop.city}, ${order.invoice_date ? berlinDate(order.invoice_date) : berlinDate()}`;
+  const customerSignature = order.pickup_signature || order.intake_signature || null;
+
+  // Issue (or fetch existing) a GoBD per-branch invoice number on open.
+  useEffect(() => {
+    let active = true;
+    api.post(`/orders/${initialOrder.id}/invoice`)
+      .then((r) => { if (active) setOrder(r.data); })
+      .catch(() => {});
+    api.get("/branches")
+      .then((r) => { if (active) setBranch((r.data || []).find((b) => b.id === initialOrder.branch_id) || null); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [initialOrder.id, initialOrder.branch_id]);
 
   useEffect(() => {
     const handleAfterPrint = () => { if (onClose) onClose(); };
@@ -20,16 +49,17 @@ export default function Invoice({ order, branchName, onClose }) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     let y = 16;
     doc.setFont("helvetica", "bold"); doc.setFontSize(16);
-    doc.text(SHOP_INFO.name, 14, y); y += 6;
+    doc.text(shop.name, 14, y); y += 6;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`${SHOP_INFO.addressLine1}, ${SHOP_INFO.addressLine2}`, 14, y); y += 4;
-    doc.text(`${SHOP_INFO.phone} · ${SHOP_INFO.email}`, 14, y); y += 4;
-    doc.text(`${SHOP_INFO.steuernummer} · ${SHOP_INFO.taxNumber}`, 14, y);
+    doc.text(shop.address, 14, y); y += 4;
+    doc.text(`${shop.phone} · ${shop.email}`, 14, y); y += 4;
+    doc.text(`${shop.steuernummer} · ${shop.taxNumber}`, 14, y);
     doc.setFont("helvetica", "bold"); doc.setFontSize(18);
     doc.text("RECHNUNG", 196, 16, { align: "right" });
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`Nr.: ${order.auftragsnummer}`, 196, 22, { align: "right" });
-    doc.text(`Datum: ${berlinNow()}`, 196, 26, { align: "right" });
+    doc.text(`Rechnungs-Nr.: ${invoiceNo}`, 196, 22, { align: "right" });
+    doc.text(`Auftrags-Nr.: ${order.auftragsnummer}`, 196, 26, { align: "right" });
+    doc.text(`Datum: ${order.invoice_date ? berlinDateTime(order.invoice_date) : berlinNow()}`, 196, 30, { align: "right" });
     y += 10;
     doc.setDrawColor(200); doc.line(14, y, 196, y); y += 8;
     doc.setFont("helvetica", "bold"); doc.text("Rechnungsempfänger:", 14, y);
@@ -62,8 +92,34 @@ export default function Invoice({ order, branchName, onClose }) {
     doc.text("Gesamtbetrag:", 150, y, { align: "right" }); doc.text(`${Number(cost.gross || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 12;
     doc.setFont("helvetica", "normal"); doc.setFontSize(8);
     const wv = doc.splitTextToSize(INVOICE_WARRANTY, 182);
-    doc.text(wv, 14, y);
-    doc.save(`Rechnung_${order.auftragsnummer}.pdf`);
+    doc.text(wv, 14, y); y += wv.length * 3.4 + 8;
+
+    // Ort/Datum + customer signature line
+    doc.setFontSize(9);
+    doc.text(ortDatumShort, 14, y - 2);
+    if (customerSignature) {
+      try { doc.addImage(customerSignature, "PNG", 120, y - 16, 60, 16); } catch (e) { /* ignore invalid image */ }
+    }
+    doc.setDrawColor(0);
+    doc.line(14, y + 2, 80, y + 2);
+    doc.line(120, y + 2, 190, y + 2);
+    doc.setFontSize(8); doc.setTextColor(90);
+    doc.text("Ort, Datum", 14, y + 6);
+    doc.text("Unterschrift Kunde", 120, y + 6);
+
+    // Page 2: extended AGB & DSGVO
+    doc.addPage();
+    doc.setTextColor(0); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("Anlage: Allgemeine Geschäftsbedingungen & Datenschutz", 14, 18);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(110);
+    doc.text(`Zur Rechnung Nr. ${invoiceNo} · ${shop.name}`, 14, 24);
+    let y2 = 34; doc.setTextColor(40); doc.setFontSize(8);
+    const agbFull = doc.splitTextToSize(AGB_FULL, 182);
+    doc.text(agbFull, 14, y2); y2 += agbFull.length * 3.6 + 8;
+    if (y2 > 250) { doc.addPage(); y2 = 18; }
+    const dsgvoFull = doc.splitTextToSize(DSGVO_FULL, 182);
+    doc.text(dsgvoFull, 14, y2);
+    doc.save(`Rechnung_${invoiceNo}.pdf`);
   };
 
   const cellTh = { textAlign: "left", padding: "6px 8px", fontSize: "11px", borderBottom: "2px solid #000" };
@@ -94,18 +150,25 @@ export default function Invoice({ order, branchName, onClose }) {
           <div id="rechnung" style={{ width: "190mm", padding: "12mm", background: "#fff", color: "#111", fontFamily: "Arial, sans-serif" }}>
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontSize: "18px", fontWeight: 700 }}>{SHOP_INFO.name}</div>
-                <div style={{ fontSize: "11px", color: "#444", marginTop: "4px", lineHeight: 1.5 }}>
-                  {SHOP_INFO.addressLine1}<br />{SHOP_INFO.addressLine2}<br />
-                  {SHOP_INFO.phone} · {SHOP_INFO.email}<br />
-                  {SHOP_INFO.steuernummer} · {SHOP_INFO.taxNumber}
+              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                {shop.logo_url ? (
+                  <img src={shop.logo_url} alt="Logo" data-testid="invoice-logo"
+                    style={{ maxHeight: "56px", maxWidth: "120px", objectFit: "contain" }} />
+                ) : null}
+                <div>
+                  <div style={{ fontSize: "18px", fontWeight: 700 }} data-testid="invoice-shop-name">{shop.name}</div>
+                  <div style={{ fontSize: "11px", color: "#444", marginTop: "4px", lineHeight: 1.5 }} data-testid="invoice-branch-address">
+                    {shop.address}<br />
+                    {shop.phone} · {shop.email}<br />
+                    {shop.steuernummer} · {shop.taxNumber}
+                  </div>
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px" }}>RECHNUNG</div>
-                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Nr.: {order.auftragsnummer}</div>
-                <div style={{ fontSize: "12px" }}>Datum: {berlinNow()}</div>
+                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Rechnungs-Nr.: {invoiceNo}</div>
+                <div style={{ fontSize: "11px", color: "#444" }}>Auftrags-Nr.: {order.auftragsnummer}</div>
+                <div style={{ fontSize: "12px" }}>Datum: {order.invoice_date ? berlinDateTime(order.invoice_date) : berlinNow()}</div>
               </div>
             </div>
 
@@ -167,6 +230,41 @@ export default function Invoice({ order, branchName, onClose }) {
 
             <div style={{ marginTop: "24px", fontSize: "10px", color: "#333", lineHeight: 1.6, whiteSpace: "pre-line", borderTop: "1px solid #ccc", paddingTop: "12px" }}>
               {INVOICE_WARRANTY}
+            </div>
+            <div data-testid="invoice-agb" style={{ marginTop: "10px", fontSize: "9px", color: "#555", lineHeight: 1.5, whiteSpace: "pre-line" }}>
+              {AGB_TEXT}
+            </div>
+            <div data-testid="invoice-dsgvo" style={{ marginTop: "8px", fontSize: "9px", color: "#555", lineHeight: 1.5, whiteSpace: "pre-line" }}>
+              {DSGVO_CONSENT}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "28px", gap: "24px", alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <div data-testid="invoice-ort-datum" style={{ fontSize: "11px", marginBottom: "18px", fontWeight: 600 }}>{ortDatumShort}</div>
+                <div style={{ borderTop: "1px solid #000", paddingTop: "4px", fontSize: "10px" }}>Ort, Datum</div>
+              </div>
+              <div style={{ flex: 1, textAlign: "center" }}>
+                {customerSignature ? (
+                  <img src={customerSignature} alt="Unterschrift Kunde" data-testid="invoice-customer-signature"
+                    style={{ maxHeight: "48px", maxWidth: "180px", objectFit: "contain", margin: "0 auto 2px" }} />
+                ) : (
+                  <div style={{ height: "48px" }} />
+                )}
+                <div style={{ borderTop: "1px solid #000", paddingTop: "4px", fontSize: "10px" }}>Unterschrift Kunde</div>
+              </div>
+            </div>
+
+            {/* ===== Page 2: Extended AGB & DSGVO documentation ===== */}
+            <div data-testid="invoice-legal-page2" style={{ pageBreakBefore: "always", breakBefore: "page", marginTop: "40px", paddingTop: "16px", borderTop: "2px solid #000" }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, marginBottom: "8px" }}>Anlage: Allgemeine Geschäftsbedingungen & Datenschutz</div>
+              <div style={{ fontSize: "11px", color: "#666", marginBottom: "16px" }}>
+                Zur Rechnung Nr. {invoiceNo} · {shop.name}
+              </div>
+              <div data-testid="invoice-agb-full" style={{ fontSize: "9px", color: "#333", lineHeight: 1.6, whiteSpace: "pre-line" }}>
+                {AGB_FULL}
+              </div>
+              <div data-testid="invoice-dsgvo-full" style={{ fontSize: "9px", color: "#333", lineHeight: 1.6, whiteSpace: "pre-line", marginTop: "16px" }}>
+                {DSGVO_FULL}
+              </div>
             </div>
           </div>
         </div>

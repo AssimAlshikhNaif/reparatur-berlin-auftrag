@@ -787,3 +787,34 @@ agent_communication:
     - agent: "main"
       message: |
         Verify Rechnung (invoice) feature. Login admin@repair.de. Open /auftraege, filter status = 'Abgeholt' and open an ABGEHOLT order (seeded abgeholt orders exist with costs). Confirm a 'Rechnung drucken' button [data-testid=open-invoice] appears in the status/actions bar (it must NOT appear for non-ABGEHOLT orders). Click it -> invoice modal opens showing: shop header (Reparatur Berlin GmbH, address, Steuernr/USt-IdNr), [data-testid=invoice-number] = the Auftragsnummer, customer name, device + IMEI, an items table [data-testid=invoice-items], and totals [data-testid=invoice-net]/[invoice-tax]/[invoice-gross] where tax = 19% of net and gross = net+tax (matching the order's saved cost). A German Gewährleistung/warranty + full-payment note is present. Buttons: Drucken [invoice-print-button], PDF [invoice-pdf-button], Schließen [invoice-close-button] which closes the modal. (Do not invoke the OS print dialog.) Regression: techniker chris@repair.de must NOT see the Rechnung button (no cost access); no console errors.
+
+# ===== Iteration 12: Multi-branch GoBD invoice numbering + DSGVO/AGB =====
+backend:
+  - task: "POST /api/orders/{id}/invoice (per-branch GoBD number)"
+    implemented: true
+    working: "NA"
+    file: "backend/routes.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "New endpoint issues a unique per-branch, per-year sequential invoice number (RE-{year}-{branchShort}-{seq}) via db.counters id invoice-{branch_id}-{year}. Idempotent (returns existing invoice_number, no re-numbering). Requires status ABGEHOLT (else 400); mitarbeiter restricted to own branch; admin/mitarbeiter only. Stores invoice_number+invoice_date; audit RECHNUNG + admin notification. Smoke: RE-2026-BF84-00001, idempotent same no, non-ABGEHOLT 400."
+frontend:
+  - task: "Invoice enhanced: GoBD number, IMEI, DSGVO/AGB, signature line"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/Invoice.jsx, Abholschein.jsx, lib/constants.js, backend routes"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Invoice modal now POSTs /orders/{id}/invoice on open to fetch/issue the per-branch number, displays it in [data-testid=invoice-number] (Rechnungs-Nr.) plus Auftrags-Nr, IMEI, cost breakdown, and adds [data-testid=invoice-agb] (AGB) + [data-testid=invoice-dsgvo] (DSGVO consent) + signature line. PDF filename uses invoice no. Abholschein slip also carries a DSGVO note."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Verify GoBD invoice number + DSGVO/AGB. Login admin@repair.de, open an ABGEHOLT order, click [data-testid=open-invoice]. The invoice modal must show [data-testid=invoice-number] in format RE-YYYY-XXXX-00001 (per-branch), plus IMEI, customer, device, totals (net/tax/gross; tax=19% of net), and sections [data-testid=invoice-agb] and [data-testid=invoice-dsgvo] with German AGB + DSGVO consent text, and a customer signature line. Close and reopen the SAME order -> the invoice number MUST be identical (idempotent, GoBD). Confirm two different orders in DIFFERENT branches get different branch-prefixed sequences. Techniker chris@repair.de must NOT see the invoice button. No console errors.
