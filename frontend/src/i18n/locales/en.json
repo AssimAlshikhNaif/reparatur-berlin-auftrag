@@ -10,7 +10,8 @@
     "parts": "Spare Parts",
     "analytics": "Analytics",
     "users": "Users",
-    "procurement": "Procurement"
+    "procurement": "Procurement",
+    "activity": "Activity"
   },
   "common": {
     "logout": "Log out",
@@ -36,7 +37,7 @@
     "techniker": "Technician"
   },
   "status": {
-    "ANGENOMMEN": "Received",
+    "ANGENOMMEN": "Diagnosis",
     "ZUGEWIESEN": "Assigned",
     "AKZEPTIERT": "Accepted",
     "IN_BEARBEITUNG": "In Progress",
@@ -78,6 +79,75 @@
     "colStatus": "Status",
     "colCreated": "Created",
     "newOrder": "New Order"
+  },
+  "inspection": {
+    "title": "Final Inspection / QC Sheet",
+    "subtitle": "Please complete before marking as 'Ready'",
+    "saved": "Inspection saved",
+    "save": "Save inspection",
+    "statusOK": "OK",
+    "statusNOK": "Not OK",
+    "statusNV": "N/A",
+    "notePlaceholder": "Note…",
+    "displayType": "Display type",
+    "batteryHealth": "Battery health (%)",
+    "notes": "Repair notes",
+    "notesPlaceholder": "e.g. In-cell display fitted, device warms up normally…",
+    "cat": {
+      "charging": "Charging & Battery",
+      "audio": "Audio & Microphones",
+      "network": "Networks & Connectivity",
+      "sensors": "Sensors & Security",
+      "buttons": "Buttons & Housing"
+    },
+    "item": {
+      "charge_port": "Charging port / charging",
+      "battery": "Battery status",
+      "wireless_charge": "Wireless charging",
+      "speaker": "Loudspeaker",
+      "earpiece": "Earpiece",
+      "mic": "Microphones",
+      "wifi": "Wi-Fi",
+      "mobile": "Mobile / SIM",
+      "bluetooth": "Bluetooth",
+      "gps": "GPS",
+      "fingerprint": "Fingerprint",
+      "faceid": "Face ID",
+      "proximity": "Proximity sensor",
+      "gyro": "Gyroscope / orientation",
+      "power_btn": "Power button",
+      "volume_btn": "Volume buttons",
+      "housing": "Housing / frame",
+      "cameras": "Cameras (front/rear)"
+    }
+  },
+  "print": {
+    "komplett": "Full Print",
+    "quickPrint": "Print contract",
+    "contractTitle": "Repair Order / Contract",
+    "customerData": "Customer data",
+    "deviceData": "Device data",
+    "termsTitle": "Liability Waiver & Terms",
+    "signatureCustomer": "Customer signature",
+    "signatureShop": "Shop signature"
+  },
+  "reklamation": {
+    "title": "Complaints & Warranty",
+    "subtitle": "Devices under warranty / complaint status",
+    "empty": "No open complaints or warranty cases.",
+    "badgeReclamation": "Complaint",
+    "badgeWarranty": "Warranty",
+    "refOriginal": "Ref. to"
+  },
+  "activity": {
+    "title": "Activity Log",
+    "subtitle": "System-wide history of all orders",
+    "empty": "No activity.",
+    "colOrder": "Order",
+    "colAction": "Action",
+    "colDetail": "Detail",
+    "colBy": "By",
+    "colWhen": "When"
   },
   "langNames": {
     "de": "Deutsch",

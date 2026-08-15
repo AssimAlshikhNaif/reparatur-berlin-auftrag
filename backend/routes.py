@@ -242,6 +242,18 @@ class SignatureInput(BaseModel):
     signer_name: Optional[str] = ""
 
 
+class InspectionItem(BaseModel):
+    status: str = "NV"   # OK | NOK | NV
+    note: Optional[str] = ""
+
+
+class InspectionInput(BaseModel):
+    checklist: dict = {}          # {itemKey: {status, note}}
+    display_type: Optional[str] = ""   # Original | In-Cell | OLED | Service-Pack
+    battery_health: Optional[str] = "" # percentage as string
+    notes: Optional[str] = ""
+
+
 class CostUpdate(BaseModel):
     diagnosis_fee: Optional[float] = None
     labor_cost: Optional[float] = None
@@ -695,6 +707,9 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         if not has_repair_media:
             raise HTTPException(status_code=400,
                                 detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
+        if not order.get("inspection"):
+            raise HTTPException(status_code=400,
+                                detail="Bitte zuerst das Abschluss-Prüfprotokoll (Endkontrolle) ausfüllen, bevor der Auftrag als 'Fertig' markiert wird.")
     extra = {"reject_reason": input.reason} if input.reason else None
     # Start warranty period when the device is handed back (delivered)
     if input.status == "ABGEHOLT":
@@ -1302,3 +1317,64 @@ async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "m
         )
         order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
+
+
+
+# ==================== POST-REPAIR INSPECTION (Endkontrolle / QC) ====================
+@router.post("/orders/{order_id}/inspection")
+async def save_inspection(order_id: str, input: InspectionInput, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    await _assert_order_access(order, current)
+    now = datetime.now(timezone.utc).isoformat()
+    inspection = {
+        "checklist": input.checklist or {},
+        "display_type": input.display_type or "",
+        "battery_health": input.battery_health or "",
+        "notes": input.notes or "",
+        "by": current["name"],
+        "at": now,
+    }
+    await db.orders.update_one({"_id": ObjectId(order_id)},
+                               {"$set": {"inspection": inspection, "updated_at": now}})
+    await log_audit(order_id, "PRUEFPROTOKOLL", "Endkontrolle / Prüfprotokoll gespeichert", current["name"])
+    await push_notification(
+        kind="PRUEFPROTOKOLL", title="Prüfprotokoll gespeichert",
+        message=f"{current['name']} hat das Endkontroll-Protokoll für {order.get('auftragsnummer','')} gespeichert.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
+
+
+# ==================== GLOBAL ACTIVITY FEED (Admin) ====================
+@router.get("/activity")
+async def global_activity(limit: int = 200, current=Depends(require_roles("admin"))):
+    entries = await db.audit_log.find().sort("at", -1).to_list(limit)
+    orders = await db.orders.find({}, {"auftragsnummer": 1}).to_list(5000)
+    amap = {str(o["_id"]): o.get("auftragsnummer", "") for o in orders}
+    return [{
+        "id": str(e["_id"]), "order_id": e.get("order_id"),
+        "auftragsnummer": amap.get(e.get("order_id"), "—"),
+        "action": e.get("action"), "detail": e.get("detail"),
+        "by": e.get("by"), "at": e.get("at"),
+    } for e in entries]
+
+
+# ==================== REKLAMATION / GARANTIE OVERVIEW ====================
+@router.get("/reklamationen")
+async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter"))):
+    base = await _order_query_for_user(current)
+    cond = {"$or": [{"is_reclamation": True}, {"warranty_until": {"$ne": None}}]}
+    query = {"$and": [base, cond]} if base else cond
+    orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
+    bmap, umap = await _name_maps()
+    out = []
+    for o in orders:
+        s = attach_names(serialize_order(o, current, light=True), bmap, umap)
+        # keep reclamation cases and currently-active warranties
+        if s.get("is_reclamation") or s.get("under_warranty"):
+            out.append(s)
+    return out

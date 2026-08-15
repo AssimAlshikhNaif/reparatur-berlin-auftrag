@@ -15,6 +15,7 @@ import Users from "@/pages/Users";
 import Scan from "@/pages/Scan";
 import Analytics from "@/pages/Analytics";
 import Procurement from "@/pages/Procurement";
+import Activity from "@/pages/Activity";
 
 function Protected({ children, roles }) {
   const { user, loading } = useAuth();
@@ -43,6 +44,7 @@ function AppRoutes() {
 
       <Route path="/benutzer" element={<Protected roles={["admin"]}><Users /></Protected>} />
       <Route path="/analyse" element={<Protected roles={["admin"]}><Analytics /></Protected>} />
+      <Route path="/aktivitaet" element={<Protected roles={["admin"]}><Activity /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

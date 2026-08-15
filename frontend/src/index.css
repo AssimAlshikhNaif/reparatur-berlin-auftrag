@@ -104,7 +104,8 @@ h1, h2, h3, .font-head {
 @media print {
     body * { visibility: hidden; }
     #abholschein, #abholschein *,
-    #rechnung, #rechnung * { visibility: visible; }
+    #rechnung, #rechnung *,
+    #vertrag, #vertrag * { visibility: visible; }
     #abholschein {
         position: absolute; left: 0; top: 0;
         width: 80mm; padding: 4mm;
@@ -112,6 +113,11 @@ h1, h2, h3, .font-head {
         font-family: 'IBM Plex Mono', monospace;
     }
     #rechnung {
+        position: absolute; left: 0; top: 0;
+        width: 100%;
+        background: #fff !important; color: #000 !important;
+    }
+    #vertrag {
         position: absolute; left: 0; top: 0;
         width: 100%;
         background: #fff !important; color: #000 !important;

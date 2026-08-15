@@ -10,7 +10,8 @@
     "parts": "قطع الغيار",
     "analytics": "التحليلات",
     "users": "المستخدمون",
-    "procurement": "المشتريات"
+    "procurement": "المشتريات",
+    "activity": "النشاط"
   },
   "common": {
     "logout": "تسجيل الخروج",
@@ -36,7 +37,7 @@
     "techniker": "فني"
   },
   "status": {
-    "ANGENOMMEN": "مُستلم",
+    "ANGENOMMEN": "تشخيص",
     "ZUGEWIESEN": "مُسند",
     "AKZEPTIERT": "مقبول",
     "IN_BEARBEITUNG": "قيد التنفيذ",
@@ -78,6 +79,75 @@
     "colStatus": "الحالة",
     "colCreated": "أُنشئ",
     "newOrder": "طلب جديد"
+  },
+  "inspection": {
+    "title": "الفحص النهائي / قائمة الجودة",
+    "subtitle": "يرجى الإكمال قبل وضع الحالة 'جاهز'",
+    "saved": "تم حفظ الفحص",
+    "save": "حفظ الفحص",
+    "statusOK": "سليم",
+    "statusNOK": "غير سليم",
+    "statusNV": "لا ينطبق",
+    "notePlaceholder": "ملاحظة…",
+    "displayType": "نوع الشاشة",
+    "batteryHealth": "صحة البطارية (%)",
+    "notes": "ملاحظات الإصلاح",
+    "notesPlaceholder": "مثال: شاشة In-Cell مركبة، الجهاز يسخن بشكل طبيعي…",
+    "cat": {
+      "charging": "الشحن والبطارية",
+      "audio": "الصوت والميكروفونات",
+      "network": "الشبكات والاتصال",
+      "sensors": "المستشعرات والأمان",
+      "buttons": "الأزرار والهيكل"
+    },
+    "item": {
+      "charge_port": "منفذ الشحن / الشحن",
+      "battery": "حالة البطارية",
+      "wireless_charge": "الشحن اللاسلكي",
+      "speaker": "السماعة الخارجية",
+      "earpiece": "سماعة الأذن",
+      "mic": "الميكروفونات",
+      "wifi": "واي فاي",
+      "mobile": "الشبكة / SIM",
+      "bluetooth": "بلوتوث",
+      "gps": "GPS",
+      "fingerprint": "بصمة الإصبع",
+      "faceid": "التعرف على الوجه",
+      "proximity": "مستشعر القرب",
+      "gyro": "الجيروسكوب / الاتجاه",
+      "power_btn": "زر التشغيل",
+      "volume_btn": "أزرار الصوت",
+      "housing": "الهيكل / الإطار",
+      "cameras": "الكاميرات (أمامية/خلفية)"
+    }
+  },
+  "print": {
+    "komplett": "طباعة كاملة",
+    "quickPrint": "طباعة العقد",
+    "contractTitle": "أمر الإصلاح / العقد",
+    "customerData": "بيانات العميل",
+    "deviceData": "بيانات الجهاز",
+    "termsTitle": "إخلاء المسؤولية والشروط",
+    "signatureCustomer": "توقيع العميل",
+    "signatureShop": "توقيع الورشة"
+  },
+  "reklamation": {
+    "title": "الشكاوى والضمان",
+    "subtitle": "الأجهزة تحت الضمان / حالة الشكوى",
+    "empty": "لا توجد شكاوى أو حالات ضمان مفتوحة.",
+    "badgeReclamation": "شكوى",
+    "badgeWarranty": "ضمان",
+    "refOriginal": "مرجع إلى"
+  },
+  "activity": {
+    "title": "سجل النشاط",
+    "subtitle": "سجل شامل لجميع الطلبات",
+    "empty": "لا يوجد نشاط.",
+    "colOrder": "الطلب",
+    "colAction": "الإجراء",
+    "colDetail": "التفاصيل",
+    "colBy": "بواسطة",
+    "colWhen": "الوقت"
   },
   "langNames": {
     "de": "Deutsch",

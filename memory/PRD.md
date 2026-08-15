@@ -67,3 +67,14 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - Tested: backend 12/12, frontend 40/42 (2 false-alarm assertions). No functionality removed.
 - NOTE: Twilio + Resend keys are EMPTY in backend/.env; comms are logged but not delivered until the user adds credentials.
 
+## Iteration 7 (2026-08-15) — Status/Terminology, Printing, QC Inspection, Activity, Reklamation, Nginx
+- **Status label**: 'Angenommen' → **'Diagnose'** everywhere (key `ANGENOMMEN` unchanged) — DE/EN/AR + constants.
+- **Komplett-Druck**: `ContractPrint.jsx` full contract (customer+device+Haftungsausschluss+AGB, signatures) via `open-contract` in OrderDetail; **quick-print** icon per row in Orders table (`quick-print-<nr>`, stopPropagation).
+- **Technician QC inspection**: `InspectionForm.jsx` (Laden&Akku, Audio, Netzwerk, Sensoren, Tasten — each OK/Nicht OK/N.V.+note; Display-Typ, Akku-Gesundheit %, Notizen). Backend `POST /orders/{id}/inspection`; **FERTIG now gated** on inspection + repair media.
+- **Global Activity feed**: `GET /activity` (admin) + `/aktivitaet` page + nav link.
+- **Reklamation dashboard**: `GET /reklamationen` + `ReklamationPanel.jsx` on admin dashboard (is_reclamation OR under_warranty).
+- **i18n**: expanded DE/EN/AR namespaces (inspection/print/reklamation/activity) + RTL for Arabic; new components fully trilingual.
+- **Nginx SPA**: `/app/frontend/nginx.conf` with `try_files $uri /index.html` for deployment (fixes 404-on-refresh).
+- Tested: backend 10/10, frontend 100%. 
+- REMAINING i18n: legacy hardcoded-German admin screens (Inventory, Users, Analytics, Procurement) and many OrderDetail/OrderCreate body strings still need full EN/AR conversion — dedicated follow-up pass.
+

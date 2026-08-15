@@ -10,7 +10,8 @@
     "parts": "Ersatzteile",
     "analytics": "Analyse",
     "users": "Benutzer",
-    "procurement": "Beschaffung"
+    "procurement": "Beschaffung",
+    "activity": "Aktivität"
   },
   "common": {
     "logout": "Abmelden",
@@ -36,7 +37,7 @@
     "techniker": "Techniker"
   },
   "status": {
-    "ANGENOMMEN": "Angenommen",
+    "ANGENOMMEN": "Diagnose",
     "ZUGEWIESEN": "Zugewiesen",
     "AKZEPTIERT": "Akzeptiert",
     "IN_BEARBEITUNG": "In Bearbeitung",
@@ -78,6 +79,75 @@
     "colStatus": "Status",
     "colCreated": "Erstellt",
     "newOrder": "Neuer Auftrag"
+  },
+  "inspection": {
+    "title": "Endkontrolle / Prüfprotokoll",
+    "subtitle": "Bitte vor 'Fertig melden' ausfüllen",
+    "saved": "Prüfprotokoll gespeichert",
+    "save": "Prüfprotokoll speichern",
+    "statusOK": "OK",
+    "statusNOK": "Nicht OK",
+    "statusNV": "N.V.",
+    "notePlaceholder": "Anmerkung…",
+    "displayType": "Display-Typ",
+    "batteryHealth": "Akku-Gesundheit (%)",
+    "notes": "Reparaturnotizen",
+    "notesPlaceholder": "z.B. In-Cell-Display verbaut, Gerät erwärmt sich normal…",
+    "cat": {
+      "charging": "Laden & Akku",
+      "audio": "Audio & Mikrofone",
+      "network": "Netzwerk & Konnektivität",
+      "sensors": "Sensoren & Sicherheit",
+      "buttons": "Tasten & Gehäuse"
+    },
+    "item": {
+      "charge_port": "Ladebuchse / Laden",
+      "battery": "Akku-Status",
+      "wireless_charge": "Kabelloses Laden",
+      "speaker": "Lautsprecher",
+      "earpiece": "Hörmuschel",
+      "mic": "Mikrofone",
+      "wifi": "WLAN",
+      "mobile": "Mobilfunk / SIM",
+      "bluetooth": "Bluetooth",
+      "gps": "GPS",
+      "fingerprint": "Fingerabdruck",
+      "faceid": "Face ID",
+      "proximity": "Näherungssensor",
+      "gyro": "Gyroskop / Lage",
+      "power_btn": "Ein/Aus-Taste",
+      "volume_btn": "Lautstärketasten",
+      "housing": "Gehäuse / Rahmen",
+      "cameras": "Kameras (Front/Rück)"
+    }
+  },
+  "print": {
+    "komplett": "Komplett-Druck",
+    "quickPrint": "Vertrag drucken",
+    "contractTitle": "Reparaturauftrag / Vertrag",
+    "customerData": "Kundendaten",
+    "deviceData": "Gerätedaten",
+    "termsTitle": "Haftungsausschluss & AGB",
+    "signatureCustomer": "Unterschrift Kunde",
+    "signatureShop": "Unterschrift Werkstatt"
+  },
+  "reklamation": {
+    "title": "Reklamationen & Garantie",
+    "subtitle": "Geräte unter Garantie / Reklamationsstatus",
+    "empty": "Keine offenen Reklamationen oder Garantiefälle.",
+    "badgeReclamation": "Reklamation",
+    "badgeWarranty": "Garantie",
+    "refOriginal": "Bezug zu"
+  },
+  "activity": {
+    "title": "Aktivitätsprotokoll",
+    "subtitle": "Systemweite Historie aller Aufträge",
+    "empty": "Keine Aktivitäten.",
+    "colOrder": "Auftrag",
+    "colAction": "Aktion",
+    "colDetail": "Detail",
+    "colBy": "Bearbeiter",
+    "colWhen": "Zeitpunkt"
   },
   "langNames": {
     "de": "Deutsch",

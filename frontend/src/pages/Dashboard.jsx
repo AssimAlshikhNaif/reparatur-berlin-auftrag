@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
 import ProcurementAlerts from "@/components/ProcurementAlerts";
+import ReklamationPanel from "@/components/ReklamationPanel";
 import { STATUS_LABELS } from "@/lib/constants";
 import MitarbeiterDashboard from "@/pages/MitarbeiterDashboard";
 import { toast } from "sonner";
@@ -106,6 +107,9 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
 
       {/* Procurement arrival alerts (admin & staff) */}
       {(user?.role === "admin" || user?.role === "mitarbeiter") && <ProcurementAlerts />}
+
+      {/* Reklamationen & Garantie overview (admin & staff) */}
+      {(user?.role === "admin" || user?.role === "mitarbeiter") && <ReklamationPanel />}
 
       {/* Revenue chart section */}
       {user?.role === "admin" && stats.revenue_by_branch?.length > 0 && (

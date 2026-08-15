@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api, { fileUrl } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -12,6 +13,8 @@ import CameraCapture from "@/components/CameraCapture";
 import SignaturePad from "@/components/SignaturePad";
 import WhatsAppFab from "@/components/WhatsAppFab";
 import CommunicationPanel from "@/components/CommunicationPanel";
+import InspectionForm from "@/components/InspectionForm";
+import ContractPrint from "@/components/ContractPrint";
 import { PatternDisplay } from "@/components/PatternLock";
 import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
@@ -21,7 +24,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
-  Warning, Signature, ArrowsClockwise, ChatCircleDots,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText,
 } from "@phosphor-icons/react";
 
 const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" };
@@ -50,12 +53,14 @@ function Field({ label, value }) {
 export default function OrderDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [branches, setBranches] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+  const [showContract, setShowContract] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -239,6 +244,12 @@ export default function OrderDetail() {
             <Printer size={14} /> Abholschein
           </button>
         )}
+        {canManage && (
+          <button data-testid="open-contract" onClick={() => setShowContract(true)}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
+            <ClipboardText size={14} /> Komplett-Druck
+          </button>
+        )}
         {canManage && order.status === "ABGEHOLT" && (
           <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
@@ -286,8 +297,8 @@ export default function OrderDetail() {
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-orange-600 text-foreground px-4 py-2 hover:bg-orange-500 transition-colors">
               <Package size={14} /> Warten auf Ersatzteil
             </button>
-            <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0}
-              title={repairMedia.length === 0 ? "Erst Reparatur-Fotos/Videos aufnehmen" : ""}
+            <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0 || !order.inspection}
+              title={repairMedia.length === 0 ? "Erst Reparatur-Fotos/Videos aufnehmen" : (!order.inspection ? "Erst Prüfprotokoll ausfüllen" : "")}
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-foreground px-4 py-2 hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
               <CheckCircle size={14} /> Fertig melden
             </button>
@@ -415,7 +426,7 @@ export default function OrderDetail() {
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Material</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Materialkosten</label>
                       <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
                         onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
@@ -558,6 +569,22 @@ export default function OrderDetail() {
                 </div>
               )}
             </Section>
+
+            {/* Endkontrolle / Prüfprotokoll (QC) */}
+            {(isTech || canManage) && (
+              <Section title={t("inspection.title")} icon={ClipboardText}>
+                {order.inspection && order.status === "ABGEHOLT" ? (
+                  <InspectionForm order={order} readOnly onSaved={load} />
+                ) : (isTech || canManage) ? (
+                  <>
+                    <p className="text-[11px] font-mono text-amber-300 mb-3">{t("inspection.subtitle")}</p>
+                    <InspectionForm order={order} onSaved={load} />
+                  </>
+                ) : (
+                  <InspectionForm order={order} readOnly />
+                )}
+              </Section>
+            )}
 
             {/* Digitale Unterschriften */}
             {canManage && (
@@ -703,6 +730,7 @@ export default function OrderDetail() {
 
       {showReceipt && <Abholschein order={order} branchName={branchName} onClose={() => setShowReceipt(false)} />}
       {showInvoice && <Invoice order={order} branchName={branchName} onClose={() => setShowInvoice(false)} />}
+      {showContract && <ContractPrint order={order} branchName={branchName} onClose={() => setShowContract(false)} />}
       {showCamera && <CameraCapture onCapture={uploadCaptured} onClose={() => setShowCamera(false)} />}
       {canManage && order.customer_phone && <WhatsAppFab order={order} onLogged={loadComms} />}
 

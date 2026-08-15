@@ -9,7 +9,7 @@ import GlobalSearch from "@/components/GlobalSearch";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   Gauge, Wrench, Package, Users, QrCode, PlusCircle,
-  SignOut, List, X, Wall, ChartBar, ShoppingCart,
+  SignOut, List, X, Wall, ChartBar, ShoppingCart, ListChecks,
 } from "@phosphor-icons/react";
 
 const NAV = [
@@ -20,6 +20,7 @@ const NAV = [
   { to: "/ersatzteile", key: "parts", icon: Package, roles: ["admin", "mitarbeiter", "techniker"] },
   { to: "/beschaffung", key: "procurement", icon: ShoppingCart, roles: ["admin", "mitarbeiter"] },
   { to: "/analyse", key: "analytics", icon: ChartBar, roles: ["admin"] },
+  { to: "/aktivitaet", key: "activity", icon: ListChecks, roles: ["admin"] },
   { to: "/benutzer", key: "users", icon: Users, roles: ["admin"] },
 ];
 

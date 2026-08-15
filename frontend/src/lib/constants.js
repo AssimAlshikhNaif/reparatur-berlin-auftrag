@@ -5,7 +5,7 @@ export const ROLE_LABELS = {
 };
 
 export const STATUS_LABELS = {
-  ANGENOMMEN: "Angenommen",
+  ANGENOMMEN: "Diagnose",
   ZUGEWIESEN: "Zugewiesen",
   AKZEPTIERT: "Akzeptiert",
   IN_BEARBEITUNG: "In Bearbeitung",

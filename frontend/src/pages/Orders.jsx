@@ -5,8 +5,9 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
+import ContractPrint from "@/components/ContractPrint";
 import { STATUS_LABELS } from "@/lib/constants";
-import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck, ArrowsClockwise } from "@phosphor-icons/react";
+import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck, ArrowsClockwise, Printer } from "@phosphor-icons/react";
 
 export default function Orders() {
   const { user } = useAuth();
@@ -16,6 +17,8 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [printOrder, setPrintOrder] = useState(null);
+  const canManage = user.role === "admin" || user.role === "mitarbeiter";
 
   const load = async () => {
     setLoading(true);
@@ -162,13 +165,26 @@ export default function Orders() {
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(o.created_at).toLocaleDateString("de-DE")}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-accent">Öffnen →</td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-accent whitespace-nowrap">
+                    {canManage && (
+                      <button
+                        data-testid={`quick-print-${o.auftragsnummer}`}
+                        onClick={(e) => { e.stopPropagation(); setPrintOrder(o); }}
+                        title={t("print.quickPrint")}
+                        className="inline-flex items-center gap-1 border border-border rounded px-2 py-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <Printer size={13} />
+                      </button>
+                    )}
+                    {t("common.open")} →
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </div>
+      {printOrder && <ContractPrint order={printOrder} branchName={printOrder.branch_name} onClose={() => setPrintOrder(null)} />}
     </div>
   );
 }
