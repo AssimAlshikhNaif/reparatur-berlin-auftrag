@@ -1,19 +1,22 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { DEVICE_BRANDS, LIABILITY_WAIVER } from "@/lib/constants";
 import CameraCapture from "@/components/CameraCapture";
 import SignaturePad from "@/components/SignaturePad";
+import PatternLock from "@/components/PatternLock";
 import { toast } from "sonner";
-import { Camera, X, SpinnerGap, FloppyDisk, VideoCamera, Receipt, Warning, ShieldCheck, Signature, CheckCircle } from "@phosphor-icons/react";
+import { Camera, X, SpinnerGap, FloppyDisk, VideoCamera, Receipt, Warning, ShieldCheck, Signature, CheckCircle, LockKey } from "@phosphor-icons/react";
 
 const inputCls = "w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent transition-colors";
 const labelCls = "block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2";
 
 export default function OrderCreate() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const reclamationSource = location.state?.reclamationOf || null;
   const { user } = useAuth();
   const isMitarbeiter = user.role === "mitarbeiter";
   const [branches, setBranches] = useState([]);
@@ -23,13 +26,18 @@ export default function OrderCreate() {
   const [showCamera, setShowCamera] = useState(false);
   const [intakeSignature, setIntakeSignature] = useState(null);
   const [signerName, setSignerName] = useState("");
+  const [errors, setErrors] = useState({});
   const [form, setForm] = useState({
-    branch_id: "", device_brand: "Apple", device_model: "", imei: "",
+    branch_id: reclamationSource?.branch_id || "", device_brand: reclamationSource?.device_brand || "Apple",
+    device_model: reclamationSource?.device_model || "", imei: reclamationSource?.imei || "",
     imei_unreadable: false,
-    device_passcode: "", // <--- تمت إضافة حقل كلمة السر هنا
-    issue_description: "", customer_name: "", customer_phone: "",
-    customer_email: "", customer_address: "", estimated_price: "",
-    diagnosis_fee: "", labor_cost: "", parts_cost: "",
+    device_passcode: "",
+    device_lock_type: "none", // none | pattern | pin | password
+    issue_description: reclamationSource ? `Reklamation zu ${reclamationSource.auftragsnummer}: ` : "",
+    customer_name: reclamationSource?.customer_name || "", customer_phone: reclamationSource?.customer_phone || "",
+    customer_email: reclamationSource?.customer_email || "", customer_address: reclamationSource?.customer_address || "",
+    estimated_price: "",
+    diagnosis_fee: reclamationSource ? "0" : "", labor_cost: reclamationSource ? "0" : "", parts_cost: reclamationSource ? "0" : "",
     warranty_months: 6,
     assigned_techniker_id: "",
   });
@@ -46,12 +54,32 @@ export default function OrderCreate() {
       if (isMitarbeiter && user.branch_id) {
         setForm((f) => ({ ...f, branch_id: user.branch_id }));
       } else if (b.data.length) {
-        setForm((f) => ({ ...f, branch_id: b.data[0].id }));
+        setForm((f) => ({ ...f, branch_id: f.branch_id || b.data[0].id }));
       }
     })();
   }, []);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  // Strict validation: block save until all required fields are complete.
+  const validate = () => {
+    const e = {};
+    if (!form.branch_id) e.branch_id = "Filiale erforderlich";
+    if (!form.device_model.trim()) e.device_model = "Modell erforderlich";
+    if (!form.issue_description.trim()) e.issue_description = "Fehlerbeschreibung erforderlich";
+    if (!form.imei.trim() && !form.imei_unreadable) e.imei = "IMEI erforderlich (oder 'nicht lesbar' aktivieren)";
+    if (!form.customer_name.trim()) e.customer_name = "Kundenname erforderlich";
+    if (!form.customer_phone.trim()) e.customer_phone = "Telefon erforderlich";
+    // Pricing must be fully completed (fields may be 0, but not left blank)
+    ["diagnosis_fee", "labor_cost", "parts_cost"].forEach((k) => {
+      if (form[k] === "" || form[k] === null || form[k] === undefined) e[k] = "Pflichtfeld";
+    });
+    if (form.device_lock_type !== "none" && !form.device_passcode.trim()) {
+      e.device_passcode = "Sperrwert erforderlich";
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
 
   const addFiles = (e) => {
     const chosen = Array.from(e.target.files || []);
@@ -65,9 +93,8 @@ export default function OrderCreate() {
 
   const submit = async (e) => {
     e.preventDefault();
-    // Conditional IMEI validation
-    if (!form.imei.trim() && !form.imei_unreadable) {
-      toast.error("IMEI ist erforderlich. Falls das Gerät defekt / die IMEI nicht lesbar ist, bitte die Option aktivieren.");
+    if (!validate()) {
+      toast.error("Bitte alle Pflichtfelder vollständig ausfüllen (Kunde, Gerät, Preise).");
       return;
     }
     setBusy(true);
@@ -82,6 +109,9 @@ export default function OrderCreate() {
         assigned_techniker_id: form.assigned_techniker_id || null,
         intake_signature: intakeSignature || null,
         intake_signed_name: signerName || form.customer_name,
+        is_reclamation: !!reclamationSource,
+        reclamation_of: reclamationSource?.id || null,
+        reclamation_of_number: reclamationSource?.auftragsnummer || null,
       };
       const { data } = await api.post("/orders", payload);
       // upload media
@@ -102,8 +132,17 @@ export default function OrderCreate() {
 
   return (
     <div>
-      <PageHeader label="Auftragserstellung" title="Neuer Auftrag" />
+      <PageHeader label={reclamationSource ? "Reklamation / Garantiefall" : "Auftragserstellung"} title={reclamationSource ? "Neue Reklamation" : "Neuer Auftrag"} />
       <form onSubmit={submit} className="p-6 md:p-8 max-w-4xl space-y-8">
+        {reclamationSource && (
+          <div data-testid="reclamation-banner" className="border border-amber-700 bg-amber-950/30 rounded-lg px-4 py-3 flex items-center gap-3">
+            <ShieldCheck size={20} className="text-amber-400 shrink-0" />
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-wider text-amber-300">Reklamation / Garantiefall</div>
+              <div className="text-sm text-foreground/90">Bezug: Auftrag <span className="font-mono">{reclamationSource.auftragsnummer}</span> · Gerätedaten & Kundendaten wurden übernommen, Preise auf 0,00 € gesetzt.</div>
+            </div>
+          </div>
+        )}
         {/* Geräte + Filiale */}
         <section>
           <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2">Gerät & Filiale</h2>
@@ -127,6 +166,7 @@ export default function OrderCreate() {
             <div>
               <label className={labelCls}>Modell</label>
               <input data-testid="order-model" required value={form.device_model} onChange={set("device_model")} placeholder="z.B. iPhone 14 Pro" className={inputCls} />
+              {errors.device_model && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.device_model}</p>}
             </div>
             <div>
               <label className={labelCls}>IMEI / Seriennr. <span className="text-red-400">*</span></label>
@@ -144,10 +184,33 @@ export default function OrderCreate() {
                 <p className="text-[10px] font-mono text-amber-400/80 mt-1">Ein Erinnerungshinweis wird im Auftrag angezeigt, bis die IMEI nachgetragen wird.</p>
               )}
             </div>
-            {/* --- تم إضافة حقل كلمة سر الجهاز هنا --- */}
+            {/* --- Geräte-Sperre: Muster / PIN / Passwort --- */}
             <div>
-              <label className={labelCls}>Geräte-Passcode / PIN</label>
-              <input data-testid="order-device-passcode" value={form.device_passcode} onChange={set("device_passcode")} placeholder="z.B. 1234 أو رمز القفل" className={`${inputCls} font-mono`} />
+              <label className={labelCls}><LockKey size={12} className="inline mb-0.5 mr-1" />Geräte-Sperre</label>
+              <select data-testid="order-lock-type" value={form.device_lock_type}
+                onChange={(e) => setForm({ ...form, device_lock_type: e.target.value, device_passcode: "" })}
+                className={inputCls}>
+                <option value="none">Keine Sperre</option>
+                <option value="pattern">Muster (zeichnen)</option>
+                <option value="pin">PIN (numerisch)</option>
+                <option value="password">Passwort (alphanumerisch)</option>
+              </select>
+              {form.device_lock_type === "pin" && (
+                <input data-testid="order-lock-pin" inputMode="numeric" value={form.device_passcode}
+                  onChange={set("device_passcode")} placeholder="z.B. 1234 / 123456"
+                  className={`${inputCls} font-mono mt-2`} />
+              )}
+              {form.device_lock_type === "password" && (
+                <input data-testid="order-lock-password" value={form.device_passcode}
+                  onChange={set("device_passcode")} placeholder="Alphanumerisches Passwort"
+                  className={`${inputCls} font-mono mt-2`} />
+              )}
+              {form.device_lock_type === "pattern" && (
+                <div className="mt-3">
+                  <PatternLock value={form.device_passcode} onChange={(seq) => setForm((f) => ({ ...f, device_passcode: seq }))} />
+                </div>
+              )}
+              {errors.device_passcode && <p data-testid="err-device-passcode" className="text-[10px] font-mono text-red-400 mt-1">{errors.device_passcode}</p>}
             </div>
             <div>
               <label className={labelCls}>Garantie (Monate)</label>
@@ -159,6 +222,7 @@ export default function OrderCreate() {
           <div className="mt-5">
             <label className={labelCls}>Fehlerbeschreibung</label>
             <textarea data-testid="order-issue" required value={form.issue_description} onChange={set("issue_description")} rows={3} placeholder="z.B. Display gesprungen, Touch reagiert nicht…" className={inputCls} />
+            {errors.issue_description && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.issue_description}</p>}
           </div>
         </section>
 
@@ -169,10 +233,12 @@ export default function OrderCreate() {
             <div>
               <label className={labelCls}>Name</label>
               <input data-testid="order-customer-name" required value={form.customer_name} onChange={set("customer_name")} className={inputCls} />
+              {errors.customer_name && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.customer_name}</p>}
             </div>
             <div>
               <label className={labelCls}>Telefon</label>
               <input data-testid="order-customer-phone" required value={form.customer_phone} onChange={set("customer_phone")} className={`${inputCls} font-mono`} />
+              {errors.customer_phone && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.customer_phone}</p>}
             </div>
             <div>
               <label className={labelCls}>E-Mail</label>
@@ -206,16 +272,19 @@ export default function OrderCreate() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className={labelCls}>Diagnosegebühr (€)</label>
+              <label className={labelCls}>Diagnosegebühr (€) <span className="text-red-400">*</span></label>
               <input data-testid="order-diagnosis-fee" type="number" step="0.01" value={form.diagnosis_fee} onChange={set("diagnosis_fee")} placeholder="0.00" className={`${inputCls} font-mono`} />
+              {errors.diagnosis_fee && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.diagnosis_fee}</p>}
             </div>
             <div>
-              <label className={labelCls}>Arbeitslohn (€)</label>
+              <label className={labelCls}>Arbeitskosten (€) <span className="text-red-400">*</span></label>
               <input data-testid="order-labor-cost" type="number" step="0.01" value={form.labor_cost} onChange={set("labor_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+              {errors.labor_cost && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.labor_cost}</p>}
             </div>
             <div>
-              <label className={labelCls}>Ersatzteilkosten (€)</label>
+              <label className={labelCls}>Materialkosten (€) <span className="text-red-400">*</span></label>
               <input data-testid="order-parts-cost" type="number" step="0.01" value={form.parts_cost} onChange={set("parts_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+              {errors.parts_cost && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.parts_cost}</p>}
             </div>
           </div>
           <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">

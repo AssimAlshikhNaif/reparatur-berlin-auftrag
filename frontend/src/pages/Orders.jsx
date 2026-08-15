@@ -6,7 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
 import { STATUS_LABELS } from "@/lib/constants";
-import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck } from "@phosphor-icons/react";
+import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck, ArrowsClockwise } from "@phosphor-icons/react";
 
 export default function Orders() {
   const { user } = useAuth();
@@ -52,6 +52,28 @@ export default function Orders() {
           </button>
         )}
       </PageHeader>
+
+      {/* Quick filter tabs */}
+      <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
+        {[
+          { key: "", label: "Alle" },
+          { key: "ANGENOMMEN", label: "Angenommen" },
+          { key: "IN_BEARBEITUNG", label: "In Bearbeitung" },
+          { key: "FERTIG", label: "Fertig" },
+          { key: "ABGEHOLT", label: "Abgeholt" },
+        ].map((tab) => (
+          <button
+            key={tab.key || "all"}
+            data-testid={`filter-tab-${tab.key ? tab.key.toLowerCase() : "all"}`}
+            onClick={() => setStatusFilter(tab.key)}
+            className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors ${
+              statusFilter === tab.key ? "border-accent bg-accent/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t(`status.${tab.key}`, tab.label)}
+          </button>
+        ))}
+      </div>
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3 px-6 md:px-8 py-4 border-b border-border/60">
@@ -128,6 +150,11 @@ export default function Orders() {
                       {o.under_warranty && (
                         <span data-testid={`list-warranty-${o.auftragsnummer}`} title="Garantiefall" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-emerald-600 bg-emerald-950 text-emerald-300 rounded">
                           <ShieldCheck size={10} weight="fill" /> Garantie
+                        </span>
+                      )}
+                      {o.is_reclamation && (
+                        <span data-testid={`list-reclamation-${o.auftragsnummer}`} title="Reklamation" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
+                          <ArrowsClockwise size={10} weight="fill" /> Reklamation
                         </span>
                       )}
                     </div>

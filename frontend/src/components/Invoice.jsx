@@ -82,9 +82,9 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
       doc.text(amount, 194, y, { align: "right" }); y += 6;
     };
     if (Number(cost.diagnosis_fee)) row("Diagnosegebühr", "1", `${Number(cost.diagnosis_fee).toFixed(2)} EUR`);
-    if (Number(cost.labor_cost)) row("Arbeitslohn", "1", `${Number(cost.labor_cost).toFixed(2)} EUR`);
+    if (Number(cost.labor_cost)) row("Arbeitskosten", "1", `${Number(cost.labor_cost).toFixed(2)} EUR`);
     parts.forEach((p) => row(p.name || p.sku, p.quantity, `${Number(p.total || 0).toFixed(2)} EUR`));
-    if (!parts.length && Number(cost.parts_cost)) row("Ersatzteile", "1", `${Number(cost.parts_cost).toFixed(2)} EUR`);
+    if (!parts.length && Number(cost.parts_cost)) row("Materialkosten", "1", `${Number(cost.parts_cost).toFixed(2)} EUR`);
     y += 2; doc.line(120, y, 196, y); y += 6;
     doc.text("Nettobetrag:", 150, y, { align: "right" }); doc.text(`${Number(cost.net || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 5;
     doc.text("zzgl. 19% MwSt.:", 150, y, { align: "right" }); doc.text(`${Number(cost.tax || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 5;
@@ -206,13 +206,13 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
                   <tr><td style={cellTd}>Diagnosegebühr</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.diagnosis_fee).toFixed(2)} €</td></tr>
                 )}
                 {Number(cost.labor_cost) > 0 && (
-                  <tr><td style={cellTd}>Arbeitslohn</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.labor_cost).toFixed(2)} €</td></tr>
+                  <tr><td style={cellTd}>Arbeitskosten</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.labor_cost).toFixed(2)} €</td></tr>
                 )}
                 {parts.map((p) => (
                   <tr key={p.id}><td style={cellTd}>{p.name || p.sku}</td><td style={{ ...cellTd, textAlign: "center" }}>{p.quantity}</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(p.total || 0).toFixed(2)} €</td></tr>
                 ))}
                 {parts.length === 0 && Number(cost.parts_cost) > 0 && (
-                  <tr><td style={cellTd}>Ersatzteile</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.parts_cost).toFixed(2)} €</td></tr>
+                  <tr><td style={cellTd}>Materialkosten</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.parts_cost).toFixed(2)} €</td></tr>
                 )}
               </tbody>
             </table>

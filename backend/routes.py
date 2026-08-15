@@ -12,6 +12,7 @@ from db import db
 from auth import get_current_user, require_roles, decode_user_from_token
 from storage import put_object, get_object, APP_NAME
 from notify import push_notification
+import messaging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -212,6 +213,7 @@ class OrderCreate(BaseModel):
     imei: Optional[str] = ""
     imei_unreadable: Optional[bool] = False
     device_passcode: Optional[str] = ""
+    device_lock_type: Optional[str] = "none"  # none | pattern | pin | password
     issue_description: str
     customer_name: str
     customer_phone: str
@@ -225,6 +227,9 @@ class OrderCreate(BaseModel):
     assigned_techniker_id: Optional[str] = None
     intake_signature: Optional[str] = None
     intake_signed_name: Optional[str] = None
+    is_reclamation: Optional[bool] = False
+    reclamation_of: Optional[str] = None          # original order id
+    reclamation_of_number: Optional[str] = None   # original auftragsnummer
 
 
 class ImeiUpdate(BaseModel):
@@ -547,6 +552,7 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "imei": input.imei or "",
         "imei_unreadable": bool(input.imei_unreadable),
         "device_passcode": input.device_passcode or "",
+        "device_lock_type": input.device_lock_type or "none",
         "issue_description": input.issue_description,
         "customer_name": input.customer_name,
         "customer_phone": input.customer_phone,
@@ -572,6 +578,9 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "reject_reason": "",
         "media": [],
         "status_history": [{"status": status, "at": now, "by": current["name"]}],
+        "is_reclamation": bool(input.is_reclamation),
+        "reclamation_of": input.reclamation_of or None,
+        "reclamation_of_number": input.reclamation_of_number or None,
         "created_by": str(current["_id"]),
         "created_by_name": current["name"],
         "created_at": now,
@@ -579,9 +588,12 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
     }
     res = await db.orders.insert_one(doc)
     order = await db.orders.find_one({"_id": res.inserted_id})
+    if input.is_reclamation:
+        await log_audit(str(res.inserted_id), "REKLAMATION",
+                        f"Reklamation/Garantiefall zu {input.reclamation_of_number or '—'} angelegt", current["name"])
     await push_notification(
-        kind="AUFTRAG", title="Neuer Auftrag angelegt",
-        message=f"{current['name']} hat Auftrag {auftragsnummer} angelegt.",
+        kind="AUFTRAG", title=("Neue Reklamation angelegt" if input.is_reclamation else "Neuer Auftrag angelegt"),
+        message=f"{current['name']} hat {'Reklamation' if input.is_reclamation else 'Auftrag'} {auftragsnummer} angelegt.",
         by=current["name"], by_role=current["role"],
         order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
     )
@@ -861,7 +873,75 @@ async def log_whatsapp(order_id: str, input: WhatsAppLog,
 async def get_communications(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):
     items = await db.communications.find({"order_id": order_id}).sort("at", -1).to_list(500)
     return [{"id": str(i["_id"]), "channel": i["channel"], "to": i.get("to", ""),
-             "message": i["message"], "by": i["by"], "at": i["at"]} for i in items]
+             "message": i["message"], "by": i["by"], "at": i["at"],
+             "status": i.get("status", "")} for i in items]
+
+
+# ============ CUSTOMER COMMUNICATION: SMS / WhatsApp / Email (real + fallback) ============
+class NotifyInput(BaseModel):
+    channel: str  # "sms" | "whatsapp" | "email"
+    message: str
+    subject: Optional[str] = None
+
+
+@router.get("/communication/status")
+async def communication_status(current=Depends(require_roles("admin", "mitarbeiter"))):
+    """Which channels have credentials configured (drives the UI 'not configured' hints)."""
+    return messaging.channel_status()
+
+
+@router.post("/orders/{order_id}/notify")
+async def notify_customer(order_id: str, input: NotifyInput,
+                          current=Depends(require_roles("admin", "mitarbeiter"))):
+    if input.channel not in ("sms", "whatsapp", "email"):
+        raise HTTPException(status_code=400, detail="Ungültiger Kanal")
+    text = (input.message or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein")
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+
+    phone = order.get("customer_phone", "")
+    email = order.get("customer_email", "")
+    auftrag = order.get("auftragsnummer", "")
+
+    if input.channel == "email":
+        if not email:
+            raise HTTPException(status_code=400, detail="Keine E-Mail-Adresse für diesen Kunden hinterlegt")
+        subject = (input.subject or f"Ihr Reparaturauftrag {auftrag}").strip()
+        html = f"<div style='font-family:Arial,sans-serif;font-size:14px;color:#111'>" \
+               f"<p>Sehr geehrte/r Kunde/in,</p><p>{text}</p>" \
+               f"<p style='color:#666;font-size:12px'>Auftrag: {auftrag}</p></div>"
+        result = await messaging.send_email(email, subject, html)
+        to_val = email
+    else:
+        if not phone:
+            raise HTTPException(status_code=400, detail="Keine Telefonnummer für diesen Kunden hinterlegt")
+        body = f"[Auftrag {auftrag}] {text}"
+        result = await (messaging.send_sms(phone, body) if input.channel == "sms"
+                        else messaging.send_whatsapp(phone, body))
+        to_val = result.get("to", phone)
+
+    status = result.get("status", "unknown")
+    now = datetime.now(timezone.utc).isoformat()
+    entry = {
+        "order_id": order_id, "channel": input.channel, "to": to_val,
+        "message": text, "by": current["name"], "at": now, "status": status,
+    }
+    res = await db.communications.insert_one(entry)
+    entry.pop("_id", None)
+    await log_audit(order_id, "KOMMUNIKATION",
+                    f"{input.channel.upper()} an Kunden ({status})", current["name"])
+    await push_notification(
+        kind="KOMMUNIKATION", title=f"{input.channel.upper()} an Kunden",
+        message=f"{current['name']} hat eine {input.channel.upper()}-Nachricht zu {auftrag} ausgelöst ({status}).",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=auftrag,
+    )
+    return {"id": str(res.inserted_id), **entry, "result": result}
 
 
 # ==================== ANALYTICS ====================

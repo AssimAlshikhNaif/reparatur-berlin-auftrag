@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 6 full test pass: (1) Communication API — GET /communication/status returns {sms:false, whatsapp:false, email:false}; POST /orders/{id}/notify with SMS/WhatsApp returns 200 + result.status='not_configured' + E.164 normalized to (e.g. +4915112345678) + creates communications log entry visible via GET /orders/{id}/communications. Email without customer_email returns 400. Invalid channel and empty message return 400. (2) Order lock fields (device_lock_type, device_passcode, is_reclamation, reclamation_of, reclamation_of_number) accepted and persisted; verified via GET /orders/{id}. (3) IMEI conditional 400 regression holds. (4) Techniker cost/signature/PII fully stripped. Backend pytest: 12/12 PASS. Frontend Playwright: 40/42 PASS (2 non-issues explained below). All 6 feature areas verified: filter tabs incl. filter-tab-fertig, terminology Arbeitskosten/Materialkosten replaces Arbeitslohn/Ersatzteilkosten on /auftrag/neu, 3-mode device lock (none/pattern/pin/password), 3x3 pattern-lock builds sequence + reset works, strict validation blocks submit until all required + pricing fields filled, Reklamation flow (open-reklamation on ABGEHOLT only → banner + prefill customer/device/pricing=0 → creates order with reclamation-badge), CommunicationPanel with 3 channels + not-configured hint + email subject reveal + comms-list append, techniker denied comm-panel/reklamation/invoice/cost.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iter6.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes.py is now ~1300 lines. Time to split into separate routers: orders.py, communication.py, invoice.py, media.py, chat.py. The single-file router is becoming a maintenance risk.",
+    "messaging.py cleanly separates provider config from send functions and always returns a structured result dict with 'status' — good graceful-fallback pattern. Nice.",
+    "CommunicationPanel + PatternLock components have proper data-testid coverage across dots, sequence, reset — testability is excellent.",
+    "OrderCreate.validate() considers empty string as invalid for pricing but accepts '0' — this matches the requirement (0 allowed for reclamation) and is correctly used to prefill reclamation with '0'. Good.",
+    "Minor: notify_customer returns {**entry, 'result': result} where entry contains _id popped — clean. The prior insert_one ObjectId mutation bug (mentioned in agent context) is confirmed fixed.",
+    "Frontend PatternLock displays sequence with ' → ' separator on-screen but sends dash-joined string on submit (via prop callback). Behavioral spec (backend stores '1-2-3-6-9') is honored; test assertion for '1-2-3-6-9' textContent was incorrect (arrow separators used for readability). Not a bug."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration6.py"],
+  "success_rate": { "backend": "100% (12/12)", "frontend": "95% (40/42 — 2 are false alarms in test assertions, not app bugs)" },
+  "test_credentials": "admin@repair.de / mohini@repair.de / chris@repair.de — all Repair2026!",
+  "seed_data_creation": "Backend pytest created TESTBrand / TEST_Iter6 order + one reclamation of it + TEST_NoEmail order. Frontend Playwright created 1 TESTUI Model order (+1 Reklamation of RB-2026-00048). All are harmless and prefixed for future cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 6 fully green. Backend suite at /app/backend/tests/test_iteration6.py (run with REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) prefix — pytest.ini does not load frontend/.env automatically). The two frontend 'failures' were test-assertion nuances, not app bugs: (a) pattern-sequence UI uses ' → ' separator (backend stores dash-joined form correctly). (b) 'Materialkosten' label present in OrderDetail.jsx L428 but conditionally rendered — appears in cost breakdown section which only shows once cost is set/edited. Comm log successful entry verified: 'WHATSAPP → +4915112345678 · not_configured · Testnachricht UI'. Reklamation banner text: 'Reklamation / Garantiefall — Bezug: Auftrag RB-2026-00048'. Newly created reklamation order shows [data-testid=reclamation-badge]. Techniker (chris) correctly denied comm-panel, open-reklamation, open-invoice, detail-cost-gross.",
+  "rca of the issue": "N/A — no issues found this iteration. Prior HIGH bug (insert_one mutating dict with ObjectId in notify endpoint, breaking JSON serialization) is confirmed fixed by the main agent — verified via passing test_notify_whatsapp_not_configured which asserts response contains proper JSON-serializable id and to field."
+}

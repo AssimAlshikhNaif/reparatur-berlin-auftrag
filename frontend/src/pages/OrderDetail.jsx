@@ -11,6 +11,8 @@ import Invoice from "@/components/Invoice";
 import CameraCapture from "@/components/CameraCapture";
 import SignaturePad from "@/components/SignaturePad";
 import WhatsAppFab from "@/components/WhatsAppFab";
+import CommunicationPanel from "@/components/CommunicationPanel";
+import { PatternDisplay } from "@/components/PatternLock";
 import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
@@ -18,9 +20,11 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
-  Receipt, Trash, Plus, VideoCamera, WhatsappLogo, ListChecks, ShoppingCart,
-  Warning, Signature,
+  Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots,
 } from "@phosphor-icons/react";
+
+const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" };
 
 function Section({ title, icon: Icon, children }) {
   return (
@@ -209,6 +213,11 @@ export default function OrderDetail() {
             <ShieldCheck size={13} weight="fill" /> Garantie aktiv{typeof order.warranty_days_left === "number" ? ` · ${order.warranty_days_left} Tage` : ""}
           </span>
         )}
+        {order.is_reclamation && (
+          <span data-testid="reclamation-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg">
+            <ArrowsClockwise size={13} weight="fill" /> Reklamation{order.reclamation_of_number ? ` zu ${order.reclamation_of_number}` : ""}
+          </span>
+        )}
         <div className="flex-1" />
 
         {canManage && (
@@ -234,6 +243,17 @@ export default function OrderDetail() {
           <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
             <Printer size={14} /> Rechnung drucken
+          </button>
+        )}
+        {canManage && order.status === "ABGEHOLT" && (
+          <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", { state: { reclamationOf: {
+              id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
+              device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
+              customer_name: order.customer_name, customer_phone: order.customer_phone,
+              customer_email: order.customer_email, customer_address: order.customer_address,
+            } } })}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-950 transition-colors">
+            <ArrowsClockwise size={14} /> Reklamation
           </button>
         )}
         {canManage && order.status === "FERTIG" && (
@@ -345,7 +365,18 @@ export default function OrderDetail() {
                   </div>
                 </div>
               )}
-              <Field label="Geräte-Passcode / PIN" value={order.device_passcode} />
+              <Field label="Geräte-Sperre" value={LOCK_LABELS[order.device_lock_type] || (order.device_passcode ? "PIN/Passwort" : "Keine Sperre")} />
+              {order.device_lock_type === "pattern" && order.device_passcode ? (
+                <div className="flex justify-between items-center gap-4 py-1.5 border-b border-border/40">
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground shrink-0">Muster</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-foreground">{order.device_passcode.split("-").join(" → ")}</span>
+                    <PatternDisplay value={order.device_passcode} size={72} />
+                  </div>
+                </div>
+              ) : (
+                <Field label="Sperrwert" value={order.device_passcode} />
+              )}
               <Field label="Fehlerbeschreibung" value={order.issue_description} />
               <Field label="Garantie" value={
                 order.warranty_months
@@ -378,13 +409,13 @@ export default function OrderDetail() {
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Arbeitslohn</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Arbeitskosten</label>
                       <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
                         onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Ersatzteile</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Material</label>
                       <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
                         onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
@@ -393,8 +424,8 @@ export default function OrderDetail() {
                 ) : (
                   <div className="font-mono text-sm space-y-1 mb-3">
                     <div className="flex justify-between text-muted-foreground"><span>Diagnosegebühr</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Arbeitslohn</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Ersatzteilkosten</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Arbeitskosten</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Materialkosten</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
                   </div>
                 )}
 
@@ -577,23 +608,27 @@ export default function OrderDetail() {
             {/* Chat */}
             <OrderChat orderId={order.id} />
             {canManage && (
-              <Section title="Kundenkommunikation · WhatsApp" icon={WhatsappLogo}>
-                {comms.length === 0 ? (
-                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">Noch keine Nachrichten an den Kunden. Nutzen Sie den WhatsApp-Button unten rechts.</div>
-                ) : (
-                  <div className="space-y-2" data-testid="comms-list">
-                    {comms.map((c) => (
-                      <div key={c.id} className="border border-border/60 px-3 py-2">
-                        <div className="flex items-center justify-between mb-0.5">
-                          <span className="font-mono text-[10px] uppercase tracking-wider text-[#25D366]">WhatsApp → {c.to}</span>
-                          <span className="font-mono text-[10px] text-muted-foreground">{berlinDateTime(c.at)}</span>
+              <Section title="Kundenkommunikation · WhatsApp / SMS / E-Mail" icon={ChatCircleDots}>
+                <CommunicationPanel order={order} onSent={loadComms} />
+                <div className="mt-4 pt-4 border-t border-border/60">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Verlauf</div>
+                  {comms.length === 0 ? (
+                    <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">Noch keine Nachrichten an den Kunden.</div>
+                  ) : (
+                    <div className="space-y-2" data-testid="comms-list">
+                      {comms.map((c) => (
+                        <div key={c.id} className="border border-border/60 px-3 py-2">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{(c.channel || "nachricht").toUpperCase()} → {c.to}{c.status ? ` · ${c.status}` : ""}</span>
+                            <span className="font-mono text-[10px] text-muted-foreground">{berlinDateTime(c.at)}</span>
+                          </div>
+                          <div className="text-sm text-foreground">{c.message}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">von {c.by}</div>
                         </div>
-                        <div className="text-sm text-foreground">{c.message}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">von {c.by}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Section>
             )}
 

@@ -56,3 +56,14 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - **Bug fixed (HIGH, privacy)**: serialize_order now strips intake_signature/pickup_signature for role=techniker (were leaking base64 biometric PII). Verified via curl.
 - Result: backend 9/9, frontend invoice UI 100%. No functionality removed.
 
+## Iteration 6 (2026-08-15) — Comms + Device Lock + Reklamation + Terminology + Validation
+- **Customer Communication (real + graceful fallback)**: new `messaging.py` (Twilio SMS+WhatsApp via `messages.create`, Resend email) with E.164 normalization; `GET /communication/status` + `POST /orders/{id}/notify` (logs to communications with channel+status, audit, notification). Channels return `not_configured` and still log until keys are added. New `CommunicationPanel.jsx` (3 channels, templates, email subject, not-configured hint). Twilio/Resend env keys added (empty) to backend/.env.
+- **Device Lock modes**: `device_lock_type` (none/pattern/pin/password) + `device_passcode`. New `PatternLock.jsx` 3×3 drawer (drag + tap, dash-joined sequence) and `PatternDisplay` read-only viz on OrderDetail. PIN/Password use text inputs.
+- **Terminology (UI only)**: 'Arbeitslohn'→'Arbeitskosten', 'Ersatzteilkosten'/'Ersatzteile'→'Materialkosten' in OrderCreate, OrderDetail, Invoice (PDF + HTML). DB keys labor_cost/parts_cost unchanged.
+- **Strict validation**: OrderCreate `validate()` blocks save until branch, model, IMEI (conditional), issue, customer name+phone AND all three pricing fields are filled; inline errors + toast.
+- **Reklamation**: `open-reklamation` button on ABGEHOLT orders → navigates to new-order with prefilled device+customer, pricing 0, reclamation banner; backend stores is_reclamation/reclamation_of/reclamation_of_number, adds REKLAMATION audit + notification; reclamation badges on list + detail.
+- **Fertig view**: quick-filter tabs on Orders page incl. `filter-tab-fertig`.
+- Bug fixed: notify endpoint `insert_one` mutated response dict with ObjectId (500) → popped `_id`. Verified.
+- Tested: backend 12/12, frontend 40/42 (2 false-alarm assertions). No functionality removed.
+- NOTE: Twilio + Resend keys are EMPTY in backend/.env; comms are logged but not delivered until the user adds credentials.
+
