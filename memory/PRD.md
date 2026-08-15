@@ -78,3 +78,9 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - Tested: backend 10/10, frontend 100%. 
 - REMAINING i18n: legacy hardcoded-German admin screens (Inventory, Users, Analytics, Procurement) and many OrderDetail/OrderCreate body strings still need full EN/AR conversion — dedicated follow-up pass.
 
+## Iteration 8 (2026-08-15) — Reklamation filter + Billing adjustments
+- **Reklamation filter**: added a 'Reklamation' quick-tab beside ALLE/DIAGNOSE/IN BEARBEITUNG/FERTIG/ABGEHOLT and as an option in the 'Alle Status' dropdown; both load orders via `GET /reklamationen` (is_reclamation OR under_warranty).
+- **Billing**: pricing is now OPTIONAL (removed mandatory validation) — Diagnosekosten & Versuchszeit filled after the repair attempt; 'Materialkosten' relabeled to **'Versuchszeit'** in OrderCreate, OrderDetail and Invoice; diagnosis field labeled 'Diagnosekosten'.
+- **Payment status**: new `diagnosis_payment_status` (PAID/OPEN/NA = Bezahlt/Offen/Nicht zutreffend) on OrderCreate + editable on OrderDetail via `PATCH /orders/{id}/costs`; stored + serialized (default OPEN). Invalid value → 400.
+- Verified: backend via curl (optional pricing create, payment PAID→OPEN patch, invalid 400); frontend via screenshots (Reklamation tab shows 15 items with DIAGNOSE labels; cost section shows optional Diagnosekosten/Versuchszeit + payment select).
+

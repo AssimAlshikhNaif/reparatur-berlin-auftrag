@@ -41,6 +41,18 @@ export const COST_STATUS_STYLES = {
 
 export const DEVICE_BRANDS = ["Apple", "Samsung", "Google", "Xiaomi", "Huawei", "OnePlus", "Sonstige"];
 
+// Diagnosegebühr payment status
+export const PAYMENT_STATUS_LABELS = {
+  PAID: "Bezahlt",
+  OPEN: "Offen",
+  NA: "Nicht zutreffend",
+};
+export const PAYMENT_STATUS_STYLES = {
+  PAID: "bg-emerald-950 text-emerald-300 border-emerald-600",
+  OPEN: "bg-amber-950 text-amber-300 border-amber-600",
+  NA: "bg-zinc-900 text-zinc-300 border-zinc-600",
+};
+
 // ===== External parts procurement =====
 export const PURCHASE_STATUS_LABELS = {
   ANGEFRAGT: "Angefragt",

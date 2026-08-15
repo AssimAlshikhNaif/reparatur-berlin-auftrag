@@ -38,6 +38,7 @@ export default function OrderCreate() {
     customer_email: reclamationSource?.customer_email || "", customer_address: reclamationSource?.customer_address || "",
     estimated_price: "",
     diagnosis_fee: reclamationSource ? "0" : "", labor_cost: reclamationSource ? "0" : "", parts_cost: reclamationSource ? "0" : "",
+    diagnosis_payment_status: "OPEN",
     warranty_months: 6,
     assigned_techniker_id: "",
   });
@@ -70,10 +71,7 @@ export default function OrderCreate() {
     if (!form.imei.trim() && !form.imei_unreadable) e.imei = "IMEI erforderlich (oder 'nicht lesbar' aktivieren)";
     if (!form.customer_name.trim()) e.customer_name = "Kundenname erforderlich";
     if (!form.customer_phone.trim()) e.customer_phone = "Telefon erforderlich";
-    // Pricing must be fully completed (fields may be 0, but not left blank)
-    ["diagnosis_fee", "labor_cost", "parts_cost"].forEach((k) => {
-      if (form[k] === "" || form[k] === null || form[k] === undefined) e[k] = "Pflichtfeld";
-    });
+    // Pricing fields are OPTIONAL (Diagnosekosten & Versuchszeit filled after the repair attempt).
     if (form.device_lock_type !== "none" && !form.device_passcode.trim()) {
       e.device_passcode = "Sperrwert erforderlich";
     }
@@ -272,19 +270,26 @@ export default function OrderCreate() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div>
-              <label className={labelCls}>Diagnosegebühr (€) <span className="text-red-400">*</span></label>
+              <label className={labelCls}>Diagnosekosten (€) <span className="text-muted-foreground/60">(optional)</span></label>
               <input data-testid="order-diagnosis-fee" type="number" step="0.01" value={form.diagnosis_fee} onChange={set("diagnosis_fee")} placeholder="0.00" className={`${inputCls} font-mono`} />
-              {errors.diagnosis_fee && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.diagnosis_fee}</p>}
             </div>
             <div>
-              <label className={labelCls}>Arbeitskosten (€) <span className="text-red-400">*</span></label>
+              <label className={labelCls}>Arbeitskosten (€)</label>
               <input data-testid="order-labor-cost" type="number" step="0.01" value={form.labor_cost} onChange={set("labor_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
-              {errors.labor_cost && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.labor_cost}</p>}
             </div>
             <div>
-              <label className={labelCls}>Materialkosten (€) <span className="text-red-400">*</span></label>
+              <label className={labelCls}>Versuchszeit (€) <span className="text-muted-foreground/60">(optional)</span></label>
               <input data-testid="order-parts-cost" type="number" step="0.01" value={form.parts_cost} onChange={set("parts_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
-              {errors.parts_cost && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.parts_cost}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
+            <div>
+              <label className={labelCls}>Zahlungsstatus Diagnosegebühr</label>
+              <select data-testid="order-diagnosis-payment" value={form.diagnosis_payment_status} onChange={set("diagnosis_payment_status")} className={inputCls}>
+                <option value="OPEN">Offen</option>
+                <option value="PAID">Bezahlt</option>
+                <option value="NA">Nicht zutreffend</option>
+              </select>
             </div>
           </div>
           <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">

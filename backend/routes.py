@@ -101,6 +101,7 @@ def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
     o["cost"] = compute_costs(order)
     o["used_parts"] = order.get("used_parts", [])
     o["imei_unreadable"] = bool(order.get("imei_unreadable", False))
+    o["diagnosis_payment_status"] = order.get("diagnosis_payment_status", "OPEN")
     o["imei_reminder"] = bool(order.get("imei_unreadable", False)) and not (order.get("imei") or "").strip()
     o.update(compute_warranty(order))
     # Signature presence flags (avoid shipping heavy base64 in list views)
@@ -223,6 +224,7 @@ class OrderCreate(BaseModel):
     diagnosis_fee: Optional[float] = 0
     labor_cost: Optional[float] = 0
     parts_cost: Optional[float] = 0
+    diagnosis_payment_status: Optional[str] = "OPEN"  # PAID | OPEN | NA
     warranty_months: Optional[int] = WARRANTY_DEFAULT_MONTHS
     assigned_techniker_id: Optional[str] = None
     intake_signature: Optional[str] = None
@@ -259,6 +261,7 @@ class CostUpdate(BaseModel):
     labor_cost: Optional[float] = None
     parts_cost: Optional[float] = None
     cost_status: Optional[str] = None
+    diagnosis_payment_status: Optional[str] = None  # PAID | OPEN | NA
 
 
 class UsedPartInput(BaseModel):
@@ -574,6 +577,7 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "diagnosis_fee": input.diagnosis_fee or 0,
         "labor_cost": input.labor_cost or 0,
         "parts_cost": input.parts_cost or 0,
+        "diagnosis_payment_status": input.diagnosis_payment_status or "OPEN",
         "cost_status": "WARTET",
         "used_parts": [],
         "warranty_months": warranty_months,
@@ -747,6 +751,10 @@ async def update_costs(order_id: str, input: CostUpdate,
         if input.cost_status not in COST_STATES:
             raise HTTPException(status_code=400, detail="Ungültiger Kostenstatus")
         updates["cost_status"] = input.cost_status
+    if input.diagnosis_payment_status is not None:
+        if input.diagnosis_payment_status not in ("PAID", "OPEN", "NA"):
+            raise HTTPException(status_code=400, detail="Ungültiger Zahlungsstatus")
+        updates["diagnosis_payment_status"] = input.diagnosis_payment_status
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})

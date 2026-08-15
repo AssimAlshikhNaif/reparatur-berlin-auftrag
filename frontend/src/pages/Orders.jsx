@@ -22,6 +22,14 @@ export default function Orders() {
 
   const load = async () => {
     setLoading(true);
+    if (statusFilter === "REKLAMATION") {
+      try {
+        const { data } = await api.get("/reklamationen");
+        setOrders(data);
+      } catch { setOrders([]); }
+      setLoading(false);
+      return;
+    }
     const params = {};
     if (statusFilter) params.status = statusFilter;
     const { data } = await api.get("/orders", { params });
@@ -60,20 +68,23 @@ export default function Orders() {
       <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
         {[
           { key: "", label: "Alle" },
-          { key: "ANGENOMMEN", label: "Angenommen" },
+          { key: "ANGENOMMEN", label: "Diagnose" },
           { key: "IN_BEARBEITUNG", label: "In Bearbeitung" },
           { key: "FERTIG", label: "Fertig" },
           { key: "ABGEHOLT", label: "Abgeholt" },
+          { key: "REKLAMATION", label: "Reklamation" },
         ].map((tab) => (
           <button
             key={tab.key || "all"}
             data-testid={`filter-tab-${tab.key ? tab.key.toLowerCase() : "all"}`}
             onClick={() => setStatusFilter(tab.key)}
             className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors ${
-              statusFilter === tab.key ? "border-accent bg-accent/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+              statusFilter === tab.key
+                ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : "border-accent bg-accent/10 text-foreground")
+                : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : "border-border text-muted-foreground hover:text-foreground")
             }`}
           >
-            {t(`status.${tab.key}`, tab.label)}
+            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : t(`status.${tab.key}`, tab.label)}
           </button>
         ))}
       </div>
@@ -102,6 +113,7 @@ export default function Orders() {
             {Object.keys(STATUS_LABELS).map((k) => (
               <option key={k} value={k}>{t(`status.${k}`, STATUS_LABELS[k])}</option>
             ))}
+            <option value="REKLAMATION">{t("reklamation.badgeReclamation")}</option>
           </select>
         </div>
       </div>

@@ -16,7 +16,7 @@ import CommunicationPanel from "@/components/CommunicationPanel";
 import InspectionForm from "@/components/InspectionForm";
 import ContractPrint from "@/components/ContractPrint";
 import { PatternDisplay } from "@/components/PatternLock";
-import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER } from "@/lib/constants";
+import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_STYLES } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -134,6 +134,7 @@ export default function OrderDetail() {
   }), "Kosten gespeichert");
 
   const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), "Kostenstatus aktualisiert");
+  const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), "Zahlungsstatus aktualisiert");
 
   const addPart = () => {
     if (!partId) { toast.error("Ersatzteil wählen"); return; }
@@ -426,7 +427,7 @@ export default function OrderDetail() {
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Materialkosten</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Versuchszeit</label>
                       <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
                         onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
@@ -436,7 +437,7 @@ export default function OrderDetail() {
                   <div className="font-mono text-sm space-y-1 mb-3">
                     <div className="flex justify-between text-muted-foreground"><span>Diagnosegebühr</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
                     <div className="flex justify-between text-muted-foreground"><span>Arbeitskosten</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Materialkosten</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>Versuchszeit</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
                   </div>
                 )}
 
@@ -444,6 +445,24 @@ export default function OrderDetail() {
                   <div className="flex justify-between text-muted-foreground"><span>Netto</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
                   <div className="flex justify-between text-muted-foreground"><span>MwSt. (19%)</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
                   <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>Gesamt (Brutto)</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
+                </div>
+
+                {/* Diagnosegebühr Zahlungsstatus */}
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Diagnosegebühr:</span>
+                  {canManage ? (
+                    <select data-testid="diagnosis-payment-select" value={order.diagnosis_payment_status || "OPEN"}
+                      onChange={(e) => setDiagnosisPayment(e.target.value)}
+                      className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
+                      <option value="OPEN">Offen</option>
+                      <option value="PAID">Bezahlt</option>
+                      <option value="NA">Nicht zutreffend</option>
+                    </select>
+                  ) : (
+                    <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
+                      {PAYMENT_STATUS_LABELS[order.diagnosis_payment_status] || "Offen"}
+                    </span>
+                  )}
                 </div>
 
                 {canManage && (
