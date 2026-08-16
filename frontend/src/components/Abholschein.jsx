@@ -3,8 +3,7 @@ import { QRCodeCanvas } from "qrcode.react";
 import { jsPDF } from "jspdf";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
-
-const WAIVER_SLIP = "Haftungsausschluss: Keine Haftung fuer Datenverlust (Datensicherung ist Kundensache), fuer nicht innerhalb 90 Tagen abgeholte Geraete sowie fuer Folgen bestehender Vorschaeden (z.B. Wasser-/Sturzschaden). Mit Unterschrift Geraeteuebergabe u. Bedingungen akzeptiert. DSGVO: Ihre Daten werden ausschliesslich zur Auftragsabwicklung (Art. 6 Abs. 1 lit. b DSGVO) verarbeitet und nicht an Dritte weitergegeben.";
+import { WAIVER_BULLETS } from "@/lib/constants";
 
 export default function Abholschein({ order, branchName, onClose }) {
   const printTs = berlinNow();
@@ -57,12 +56,15 @@ export default function Abholschein({ order, branchName, onClose }) {
       doc.setFont("courier", "bold");
       line("GESAMT:", `${Number(order.cost.gross).toFixed(2)} EUR`);
     }
-    // Liability waiver
+    // Liability waiver — concise bullet points (shop protection)
     y += 2; doc.setFont("courier", "bold"); doc.setFontSize(7);
-    doc.text("HAFTUNGSAUSSCHLUSS", 4, y); y += 3;
+    doc.text("HAFTUNGSAUSSCHLUSS", 40, y, { align: "center" }); y += 3;
     doc.setFont("courier", "normal"); doc.setFontSize(6);
-    const wv = doc.splitTextToSize(WAIVER_SLIP, 72);
-    doc.text(wv, 4, y); y += wv.length * 2.6 + 3;
+    WAIVER_BULLETS.forEach((b) => {
+      const wb = doc.splitTextToSize("- " + b, 72);
+      doc.text(wb, 4, y); y += wb.length * 2.6 + 0.6;
+    });
+    y += 2;
     // Signature
     doc.setFontSize(8);
     if (order.intake_signature) {
@@ -141,9 +143,15 @@ export default function Abholschein({ order, branchName, onClose }) {
               </div>
             )}
 
-            <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7px", lineHeight: 1.45 }}>
-              <div style={{ fontWeight: 700, marginBottom: "1mm", fontSize: "8px" }}>HAFTUNGSAUSSCHLUSS</div>
-              <div>{WAIVER_SLIP}</div>
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7px", lineHeight: 1.5 }}>
+              <div style={{ fontWeight: 700, marginBottom: "1.5mm", fontSize: "8px", textAlign: "center", letterSpacing: "0.5px" }}>HAFTUNGSAUSSCHLUSS</div>
+              <ul style={{ listStyle: "none", padding: 0, margin: "0 auto", maxWidth: "68mm" }}>
+                {WAIVER_BULLETS.map((b, i) => (
+                  <li key={i} style={{ display: "flex", gap: "1.5mm", marginBottom: "1mm", justifyContent: "center", textAlign: "left" }}>
+                    <span style={{ fontWeight: 700 }}>•</span><span>{b}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div style={{ paddingTop: "6mm", marginTop: "2mm", fontSize: "9px" }}>

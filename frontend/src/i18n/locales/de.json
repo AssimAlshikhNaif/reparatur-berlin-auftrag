@@ -41,6 +41,7 @@
     "ZUGEWIESEN": "Zugewiesen",
     "AKZEPTIERT": "Akzeptiert",
     "IN_BEARBEITUNG": "In Bearbeitung",
+    "WARTEN_FREIGABE": "Nach Diagnose / Freigabe",
     "WARTEN_ERSATZTEIL": "Warten auf Ersatzteil",
     "FERTIG": "Fertig",
     "ABGEHOLT": "Abgeholt",
@@ -611,6 +612,11 @@
     "cameraError": "Kamera konnte nicht gestartet werden. Bitte Berechtigung prüfen.",
     "photoTaken": "Foto aufgenommen",
     "videoTaken": "Video aufgenommen"
+  },
+  "label": {
+    "title": "Geräte-Etikett (QR)",
+    "hint": "Zum Aufkleben auf Gerät oder Ersatzteil-Karton.",
+    "button": "Etikett"
   },
   "langNames": {
     "de": "Deutsch",

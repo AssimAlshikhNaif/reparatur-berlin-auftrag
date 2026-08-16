@@ -41,6 +41,7 @@
     "ZUGEWIESEN": "Assigned",
     "AKZEPTIERT": "Accepted",
     "IN_BEARBEITUNG": "In Progress",
+    "WARTEN_FREIGABE": "Awaiting Approval",
     "WARTEN_ERSATZTEIL": "Awaiting Part",
     "FERTIG": "Ready",
     "ABGEHOLT": "Collected",
@@ -611,6 +612,11 @@
     "cameraError": "Camera could not be started. Please check permissions.",
     "photoTaken": "Photo captured",
     "videoTaken": "Video captured"
+  },
+  "label": {
+    "title": "Device label (QR)",
+    "hint": "Peel & stick onto the device or spare-part box.",
+    "button": "Label"
   },
   "langNames": {
     "de": "Deutsch",

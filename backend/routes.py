@@ -21,9 +21,11 @@ WARRANTY_DEFAULT_MONTHS = 6
 
 # ---- Status constants ----
 STATUS_FLOW = [
-    "ANGENOMMEN", "ZUGEWIESEN", "AKZEPTIERT", "IN_BEARBEITUNG",
+    "ANGENOMMEN", "ZUGEWIESEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG",
     "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT", "ABGELEHNT",
 ]
+# Technical phases a technician may set (never administrative/final states like ABGEHOLT)
+TECH_ALLOWED_STATUS = {"ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG"}
 COST_STATES = {"WARTET", "BESTAETIGT", "ABGELEHNT"}
 TAX_RATE = 0.19
 FINAL_STATES = {"ABGEHOLT", "ABGELEHNT"}
@@ -152,6 +154,7 @@ async def log_audit(order_id: str, action: str, detail: str, by: str):
 
 
 AUTO_STATUS_MESSAGES = {
+    "WARTEN_FREIGABE": "Die Diagnose ist abgeschlossen. Wir warten auf Ihre Freigabe des Kostenvoranschlags, um mit der Reparatur zu beginnen.",
     "IN_BEARBEITUNG": "Ihr Gerät befindet sich jetzt in Reparatur. Wir halten Sie auf dem Laufenden.",
     "WARTEN_ERSATZTEIL": "Für Ihre Reparatur wird ein Ersatzteil bestellt. Wir informieren Sie, sobald es eingetroffen ist.",
     "FERTIG": "Gute Nachrichten! Ihre Reparatur ist abgeschlossen. Ihr Gerät kann abgeholt werden.",
@@ -701,10 +704,10 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     if role == "techniker":
         if order.get("assigned_techniker_id") != str(current["_id"]):
             raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-        if input.status not in ("IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG"):
+        if input.status not in TECH_ALLOWED_STATUS:
             raise HTTPException(status_code=403, detail="Techniker dürfen diesen Status nicht setzen")
     elif role == "mitarbeiter":
-        if input.status not in ("ANGENOMMEN", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
+        if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
     if input.status == "FERTIG":
         has_repair_media = any(m.get("media_type") == "repair" for m in order.get("media", []))
@@ -726,9 +729,12 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     await _touch_order(order_id, input.status, current["name"], extra)
     # Automated customer status notification (WhatsApp-style log)
     await auto_status_communication(order, input.status, current["name"])
+    fertig = input.status == "FERTIG"
     await push_notification(
-        kind="STATUS", title="Status geändert",
-        message=f"{current['name']}: {order.get('auftragsnummer','')} → {input.status}",
+        kind=("FERTIG" if fertig else "STATUS"),
+        title=("✓ Reparatur fertig – abholbereit" if fertig else "Status geändert"),
+        message=(f"{current['name']}: {order.get('auftragsnummer','')} ist FERTIG – bereit zur Abholung."
+                 if fertig else f"{current['name']}: {order.get('auftragsnummer','')} → {input.status}"),
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )
@@ -1264,11 +1270,24 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
 
 
-# ==================== ADMIN NOTIFICATIONS ====================
+# ==================== NOTIFICATIONS (Admin + branch Reception) ====================
+async def _notif_scope_ids(user: dict):
+    """Return None for admin (sees all), or the set of order_ids belonging to
+    the reception user's branch (so Mitarbeiter only see their branch's alerts)."""
+    if user["role"] == "admin":
+        return None
+    orders = await db.orders.find({"branch_id": user.get("branch_id")}, {"_id": 1}).to_list(10000)
+    return {str(o["_id"]) for o in orders}
+
+
 @router.get("/notifications")
-async def list_notifications(limit: int = 50, current=Depends(require_roles("admin"))):
-    items = await db.notifications.find().sort("at", -1).to_list(limit)
-    unread = await db.notifications.count_documents({"read": False})
+async def list_notifications(limit: int = 50, current=Depends(require_roles("admin", "mitarbeiter"))):
+    scope = await _notif_scope_ids(current)
+    items = await db.notifications.find().sort("at", -1).to_list(1000)
+    if scope is not None:
+        items = [n for n in items if n.get("order_id") in scope]
+    unread = sum(1 for n in items if not n.get("read", False))
+    view = items[:limit]
     return {
         "unread": unread,
         "items": [{
@@ -1282,19 +1301,28 @@ async def list_notifications(limit: int = 50, current=Depends(require_roles("adm
             "auftragsnummer": n.get("auftragsnummer"),
             "read": n.get("read", False),
             "at": n.get("at"),
-        } for n in items],
+        } for n in view],
     }
 
 
 @router.post("/notifications/read")
-async def mark_notifications_read(current=Depends(require_roles("admin"))):
-    await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
+async def mark_notifications_read(current=Depends(require_roles("admin", "mitarbeiter"))):
+    scope = await _notif_scope_ids(current)
+    if scope is None:
+        await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
+    else:
+        await db.notifications.update_many(
+            {"read": False, "order_id": {"$in": list(scope)}}, {"$set": {"read": True}})
     return {"message": "Alle Benachrichtigungen als gelesen markiert"}
 
 
 @router.delete("/notifications")
-async def clear_notifications(current=Depends(require_roles("admin"))):
-    await db.notifications.delete_many({})
+async def clear_notifications(current=Depends(require_roles("admin", "mitarbeiter"))):
+    scope = await _notif_scope_ids(current)
+    if scope is None:
+        await db.notifications.delete_many({})
+    else:
+        await db.notifications.delete_many({"order_id": {"$in": list(scope)}})
     return {"message": "Benachrichtigungen gelöscht"}
 
 

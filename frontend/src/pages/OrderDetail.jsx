@@ -15,8 +15,9 @@ import WhatsAppFab from "@/components/WhatsAppFab";
 import CommunicationPanel from "@/components/CommunicationPanel";
 import InspectionForm from "@/components/InspectionForm";
 import ContractPrint from "@/components/ContractPrint";
+import LabelPrint from "@/components/LabelPrint";
 import { PatternDisplay } from "@/components/PatternLock";
-import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, PAYMENT_STATUS_STYLES } from "@/lib/constants";
+import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, PAYMENT_STATUS_STYLES, TECH_STATUS_FLOW } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
-  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode,
 } from "@phosphor-icons/react";
 
 const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" }; // eslint-disable-line no-unused-vars
@@ -61,6 +62,7 @@ export default function OrderDetail() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const [showContract, setShowContract] = useState(false);
+  const [showLabel, setShowLabel] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -230,13 +232,36 @@ export default function OrderDetail() {
           <select data-testid="manual-status-select" value={order.status}
             onChange={(e) => setStatus(e.target.value)}
             className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-            {["ANGENOMMEN", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].map((s) => (
+            {["ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].map((s) => (
               <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
             ))}
-            {!["ANGENOMMEN", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].includes(order.status) && (
+            {!["ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].includes(order.status) && (
               <option value={order.status} disabled>{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
             )}
           </select>
+        )}
+
+        {/* Technician technical-phase status control (exact 4-step flow) */}
+        {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order.status) && (
+          <select data-testid="tech-status-select"
+            value={TECH_STATUS_FLOW.includes(order.status) ? order.status : ""}
+            onChange={(e) => e.target.value && setStatus(e.target.value)}
+            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
+            {!TECH_STATUS_FLOW.includes(order.status) && (
+              <option value="">{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
+            )}
+            {TECH_STATUS_FLOW.map((s) => (
+              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Device QR/barcode sticker — available to techs & reception */}
+        {(isTech || canManage) && (
+          <button data-testid="open-label" onClick={() => setShowLabel(true)}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
+            <Barcode size={14} /> {t("label.button")}
+          </button>
         )}
 
         {canManage && (
@@ -750,6 +775,7 @@ export default function OrderDetail() {
       {showReceipt && <Abholschein order={order} branchName={branchName} onClose={() => setShowReceipt(false)} />}
       {showInvoice && <Invoice order={order} branchName={branchName} onClose={() => setShowInvoice(false)} />}
       {showContract && <ContractPrint order={order} branchName={branchName} onClose={() => setShowContract(false)} />}
+      {showLabel && <LabelPrint order={order} onClose={() => setShowLabel(false)} />}
       {showCamera && <CameraCapture onCapture={uploadCaptured} onClose={() => setShowCamera(false)} />}
       {canManage && order.customer_phone && <WhatsAppFab order={order} onLogged={loadComms} />}
 

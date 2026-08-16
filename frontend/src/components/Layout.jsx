@@ -119,7 +119,7 @@ export default function Layout({ children }) {
             <GlobalSearch />
           </div>
           <div className="flex-1 sm:hidden" />
-          {user.role === "admin" && <NotificationBell />}
+          {(user.role === "admin" || user.role === "mitarbeiter") && <NotificationBell />}
           <LanguageSwitcher />
           <ThemeToggle />
         </div>

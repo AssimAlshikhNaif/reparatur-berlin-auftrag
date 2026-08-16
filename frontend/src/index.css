@@ -105,7 +105,13 @@ h1, h2, h3, .font-head {
     body * { visibility: hidden; }
     #abholschein, #abholschein *,
     #rechnung, #rechnung *,
+    #geraete-label, #geraete-label *,
     #vertrag, #vertrag * { visibility: visible; }
+    #geraete-label {
+        position: absolute; left: 0; top: 0;
+        background: #fff !important; color: #000 !important;
+        font-family: 'IBM Plex Mono', monospace;
+    }
     #abholschein {
         position: absolute; left: 0; top: 0;
         width: 80mm; padding: 4mm;

@@ -8,6 +8,7 @@ export const STATUS_LABELS = {
   ANGENOMMEN: "Diagnose",
   ZUGEWIESEN: "Zugewiesen",
   AKZEPTIERT: "Akzeptiert",
+  WARTEN_FREIGABE: "Nach Diagnose / Freigabe",
   IN_BEARBEITUNG: "In Bearbeitung",
   WARTEN_ERSATZTEIL: "Warten auf Ersatzteil",
   FERTIG: "Fertig",
@@ -20,12 +21,16 @@ export const STATUS_STYLES = {
   ANGENOMMEN: "bg-zinc-800 text-zinc-200 border-zinc-600",
   ZUGEWIESEN: "bg-blue-950 text-blue-300 border-blue-700",
   AKZEPTIERT: "bg-indigo-950 text-indigo-300 border-indigo-700",
+  WARTEN_FREIGABE: "bg-purple-950 text-purple-300 border-purple-600",
   IN_BEARBEITUNG: "bg-amber-950 text-amber-300 border-amber-600",
   WARTEN_ERSATZTEIL: "bg-orange-950 text-orange-300 border-orange-600",
   FERTIG: "bg-emerald-950 text-emerald-300 border-emerald-600",
   ABGEHOLT: "bg-zinc-900 text-zinc-400 border-zinc-700",
   ABGELEHNT: "bg-red-950 text-red-300 border-red-700",
 };
+
+// Technician technical-phase flow (exact order shown in the tech status control)
+export const TECH_STATUS_FLOW = ["ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "FERTIG"];
 
 export const COST_STATUS_LABELS = {
   WARTET: "Wartet auf Freigabe",
@@ -85,7 +90,18 @@ export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
 
 3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
 
-4. Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
+4. Wasser- & Feuchtigkeitsschutz: Bei geöffneten Geräten kann die werkseitige Wasser-/Staubdichtigkeit (IP-Schutz) nicht garantiert werden und geht in der Regel verloren. Eine Haftung für spätere Feuchtigkeitsschäden ist ausgeschlossen.
+
+5. Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
+
+// Concise shop-protection bullet points for the compact Abholschein (pickup slip)
+export const WAIVER_BULLETS = [
+  "Datenverlust: Keine Haftung – Datensicherung ist Sache des Kunden.",
+  "Nicht abgeholte Geräte: Nach 90 Tagen kostenpflichtige Lagerung/Verwertung.",
+  "Vorschäden: Keine Haftung für Folgen bestehender Wasser-/Sturzschäden.",
+  "Wasserschutz: IP-Dichtigkeit entfällt nach Öffnung des Geräts.",
+  "Bestätigung: Mit Unterschrift Geräteübergabe & Bedingungen akzeptiert.",
+];
 
 export const PICKUP_WAIVER = `Übernahmebestätigung:
 

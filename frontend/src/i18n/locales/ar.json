@@ -41,6 +41,7 @@
     "ZUGEWIESEN": "مُسند",
     "AKZEPTIERT": "مقبول",
     "IN_BEARBEITUNG": "قيد التنفيذ",
+    "WARTEN_FREIGABE": "بانتظار الموافقة",
     "WARTEN_ERSATZTEIL": "بانتظار قطعة",
     "FERTIG": "جاهز",
     "ABGEHOLT": "تم الاستلام",
@@ -611,6 +612,11 @@
     "cameraError": "تعذّر تشغيل الكاميرا. يرجى التحقق من الأذونات.",
     "photoTaken": "تم التقاط الصورة",
     "videoTaken": "تم التقاط الفيديو"
+  },
+  "label": {
+    "title": "ملصق الجهاز (QR)",
+    "hint": "الصقه على الجهاز أو صندوق قطع الغيار.",
+    "button": "ملصق"
   },
   "langNames": {
     "de": "Deutsch",
