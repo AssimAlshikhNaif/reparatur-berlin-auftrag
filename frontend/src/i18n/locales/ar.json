@@ -85,7 +85,8 @@
     "colTech": "الفني",
     "colStatus": "الحالة",
     "colCreated": "أُنشئ",
-    "newOrder": "طلب جديد"
+    "newOrder": "طلب جديد",
+    "colAction": "إجراء"
   },
   "inspection": {
     "title": "الفحص النهائي / قائمة الجودة",

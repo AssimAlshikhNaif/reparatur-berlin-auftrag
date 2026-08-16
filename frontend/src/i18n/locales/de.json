@@ -85,7 +85,8 @@
     "colTech": "Techniker",
     "colStatus": "Status",
     "colCreated": "Erstellt",
-    "newOrder": "Neuer Auftrag"
+    "newOrder": "Neuer Auftrag",
+    "colAction": "Aktion"
   },
   "inspection": {
     "title": "Endkontrolle / Prüfprotokoll",

@@ -85,7 +85,8 @@
     "colTech": "Technician",
     "colStatus": "Status",
     "colCreated": "Created",
-    "newOrder": "New Order"
+    "newOrder": "New Order",
+    "colAction": "Action"
   },
   "inspection": {
     "title": "Final Inspection / QC Sheet",

@@ -136,7 +136,7 @@ export default function Orders() {
                 <th className="px-4 py-3 font-medium">{t("orders.colTech")}</th>
                 <th className="px-4 py-3 font-medium">{t("orders.colStatus")}</th>
                 <th className="px-4 py-3 font-medium">{t("orders.colCreated")}</th>
-                <th className="px-4 py-3 font-medium"></th>
+                <th className="px-4 py-3 font-medium text-right">{t("orders.colAction")}</th>
               </tr>
             </thead>
             <tbody>
@@ -177,18 +177,18 @@ export default function Orders() {
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(o.created_at).toLocaleDateString("de-DE")}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-accent whitespace-nowrap">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
                     {canManage && (
                       <button
                         data-testid={`quick-print-${o.auftragsnummer}`}
                         onClick={(e) => { e.stopPropagation(); setPrintOrder(o); }}
                         title={t("print.quickPrint")}
-                        className="inline-flex items-center gap-1 border border-border rounded px-2 py-1 mr-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        className="inline-flex items-center gap-1.5 border border-accent/60 text-accent bg-accent/10 rounded-lg px-3 py-1.5 mr-2 text-[11px] font-head font-semibold uppercase tracking-wider hover:bg-accent hover:text-primary-foreground transition-colors"
                       >
-                        <Printer size={13} />
+                        <Printer size={14} weight="bold" /> {t("common.print")}
                       </button>
                     )}
-                    {t("common.open")} →
+                    <span className="font-mono text-xs text-accent">{t("common.open")} →</span>
                   </td>
                 </tr>
               ))}

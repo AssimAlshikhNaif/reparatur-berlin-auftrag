@@ -69,7 +69,11 @@ export default function OrderCreate() {
     const e = {};
     if (!form.branch_id) e.branch_id = t("oc.errBranch");
     if (!form.device_model.trim()) e.device_model = t("oc.errModel");
-    if (!form.issue_description.trim()) e.issue_description = t("oc.errIssue");
+    const reclamationPrefix = reclamationSource
+      ? t("oc.reclamationPrefix", { nr: reclamationSource.auftragsnummer }).trim()
+      : "";
+    const issue = form.issue_description.trim();
+    if (!issue || (reclamationSource && issue === reclamationPrefix)) e.issue_description = t("oc.errIssue");
     if (!form.imei.trim() && !form.imei_unreadable) e.imei = t("oc.errImei");
     if (!form.customer_name.trim()) e.customer_name = t("oc.errName");
     if (!form.customer_phone.trim()) e.customer_phone = t("oc.errPhone");
@@ -77,6 +81,24 @@ export default function OrderCreate() {
       e.device_passcode = t("oc.errPasscode");
     }
     setErrors(e);
+    const firstKey = Object.keys(e)[0];
+    if (firstKey) {
+      const testidMap = {
+        branch_id: "order-branch",
+        device_model: "order-model",
+        issue_description: "order-issue",
+        imei: "order-imei",
+        customer_name: "order-customer-name",
+        customer_phone: "order-customer-phone",
+        device_passcode: form.device_lock_type === "pin" ? "order-lock-pin"
+          : form.device_lock_type === "password" ? "order-lock-password" : "order-lock-type",
+      };
+      const el = document.querySelector(`[data-testid="${testidMap[firstKey]}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => { try { el.focus(); } catch (_) { /* noop */ } }, 300);
+      }
+    }
     return Object.keys(e).length === 0;
   };
 
@@ -131,7 +153,7 @@ export default function OrderCreate() {
   return (
     <div>
       <PageHeader label={reclamationSource ? t("oc.labelReclamation") : t("oc.labelCreate")} title={reclamationSource ? t("oc.titleReclamation") : t("oc.titleNew")} />
-      <form onSubmit={submit} className="p-6 md:p-8 max-w-4xl space-y-8">
+      <form onSubmit={submit} noValidate className="p-6 md:p-8 max-w-4xl space-y-8">
         {reclamationSource && (
           <div data-testid="reclamation-banner" className="border border-amber-700 bg-amber-950/30 rounded-lg px-4 py-3 flex items-center gap-3">
             <ShieldCheck size={20} className="text-amber-400 shrink-0" />
@@ -181,6 +203,7 @@ export default function OrderCreate() {
               {form.imei_unreadable && (
                 <p className="text-[10px] font-mono text-amber-400/80 mt-1">{t("oc.imeiReminderNote")}</p>
               )}
+              {errors.imei && <p data-testid="err-imei" className="text-[10px] font-mono text-red-400 mt-1">{errors.imei}</p>}
             </div>
             {/* --- Geräte-Sperre --- */}
             <div>
