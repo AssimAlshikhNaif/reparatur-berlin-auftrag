@@ -256,8 +256,8 @@ export default function OrderDetail() {
           </select>
         )}
 
-        {/* Device QR/barcode sticker — available to techs & reception */}
-        {(isTech || canManage) && (
+        {/* Device QR/barcode sticker — restricted to Admin & Reception (DSGVO / role isolation) */}
+        {canManage && (
           <button data-testid="open-label" onClick={() => setShowLabel(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
             <Barcode size={14} /> {t("label.button")}

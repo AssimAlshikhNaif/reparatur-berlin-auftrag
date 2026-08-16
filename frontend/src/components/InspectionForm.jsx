@@ -6,10 +6,10 @@ import { ClipboardText, CheckCircle, XCircle, MinusCircle, FloppyDisk, SpinnerGa
 
 const CATEGORIES = [
   { key: "charging", items: ["charge_port", "battery", "wireless_charge"] },
-  { key: "audio", items: ["speaker", "earpiece", "mic"] },
-  { key: "network", items: ["wifi", "mobile", "bluetooth", "gps"] },
-  { key: "sensors", items: ["fingerprint", "faceid", "proximity", "gyro"] },
-  { key: "buttons", items: ["power_btn", "volume_btn", "housing", "cameras"] },
+  { key: "audio", items: ["earpiece", "mic"] },
+  { key: "network", items: ["wifi", "mobile"] },
+  { key: "sensors", items: ["fingerprint", "faceid"] },
+  { key: "buttons", items: ["power_btn", "volume_btn", "cameras"] },
 ];
 const DISPLAY_TYPES = ["Original", "In-Cell", "OLED", "Service-Pack"];
 const STATUSES = [
