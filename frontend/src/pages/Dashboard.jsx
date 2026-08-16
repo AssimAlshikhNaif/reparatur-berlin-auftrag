@@ -11,9 +11,83 @@ import { STATUS_LABELS } from "@/lib/constants";
 import MitarbeiterDashboard from "@/pages/MitarbeiterDashboard";
 import { toast } from "sonner";
 import {
-  Wrench, Warning, Package, ClockCountdown, ArrowRight, CheckCircle, Receipt, Storefront
+  Wrench, Warning, Package, ClockCountdown, ArrowRight, CheckCircle, Receipt, Storefront,
+  TrashSimple, SpinnerGap, X, ShieldWarning
 } from "@phosphor-icons/react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+
+function DangerZone({ onReset }) {
+  const { t } = useTranslation();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const doReset = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post("/admin/reset-test-data");
+      toast.success(`${t("danger.success")} (${data.total ?? 0})`);
+      setConfirm(false);
+      onReset && onReset();
+    } catch (err) {
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("danger.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="px-6 md:px-8">
+      <div data-testid="danger-zone" className="border border-red-900/50 bg-red-950/10 rounded-xl p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-red-500/10 text-red-400 shrink-0">
+            <ShieldWarning size={20} weight="fill" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-head font-semibold text-base text-red-200">{t("danger.title")}</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-2xl">{t("danger.desc")}</p>
+          </div>
+          <button
+            data-testid="reset-test-data-button"
+            onClick={() => setConfirm(true)}
+            className="flex items-center gap-2 shrink-0 border border-red-700 bg-red-950/40 text-red-300 text-xs font-head font-semibold uppercase tracking-wider px-4 py-2.5 rounded-lg hover:bg-red-700 hover:text-white transition-colors"
+          >
+            <TrashSimple size={16} weight="bold" /> {t("danger.button")}
+          </button>
+        </div>
+      </div>
+
+      {confirm && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div data-testid="reset-confirm-modal" className="bg-card border border-red-900/60 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2 text-red-300">
+              <ShieldWarning size={22} weight="fill" />
+              <h3 className="font-head font-semibold text-lg">{t("danger.confirmTitle")}</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">{t("danger.confirmText")}</p>
+            <div className="flex gap-3 pt-1">
+              <button
+                data-testid="reset-confirm-button"
+                onClick={doReset}
+                disabled={busy}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {busy ? <><SpinnerGap size={16} className="animate-spin" /> {t("danger.button")}</> : <><TrashSimple size={16} /> {t("danger.confirm")}</>}
+              </button>
+              <button
+                data-testid="reset-cancel-button"
+                onClick={() => setConfirm(false)}
+                disabled={busy}
+                className="px-6 border border-border rounded-lg text-xs font-mono uppercase tracking-wider text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
+              >
+                <X size={14} /> {t("danger.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Metric({ label, value, icon: Icon, accent, testid }) {
   return (
@@ -223,6 +297,9 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
           )}
         </div>
       </div>
+
+      {/* Admin-only danger zone: reset test data for production launch */}
+      {user?.role === "admin" && <DangerZone onReset={() => window.location.reload()} />}
     </div>
   );
 }

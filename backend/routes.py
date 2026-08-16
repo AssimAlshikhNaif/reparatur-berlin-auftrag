@@ -1326,6 +1326,23 @@ async def clear_notifications(current=Depends(require_roles("admin", "mitarbeite
     return {"message": "Benachrichtigungen gelöscht"}
 
 
+# ==================== ADMIN: RESET TEST DATA (production launch) ====================
+@router.post("/admin/reset-test-data")
+async def reset_test_data(current=Depends(require_roles("admin"))):
+    """Admin-only. Wipes transactional/test data and resets the order & invoice
+    counters. Master data (users, branches, inventory) is preserved."""
+    collections = [
+        "orders", "purchases", "chat_messages", "communications",
+        "notifications", "audit_log", "files", "counters",
+    ]
+    deleted = {}
+    for c in collections:
+        res = await db[c].delete_many({})
+        deleted[c] = res.deleted_count
+    total = sum(deleted.values())
+    return {"message": "Testdaten wurden gelöscht. Zähler zurückgesetzt.", "deleted": deleted, "total": total}
+
+
 # ==================== INVOICE (Rechnung, GoBD per-branch) ====================
 @router.post("/orders/{order_id}/invoice")
 async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):

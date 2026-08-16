@@ -613,6 +613,17 @@
     "photoTaken": "Foto aufgenommen",
     "videoTaken": "Video aufgenommen"
   },
+  "danger": {
+    "title": "Datenbereinigung (Produktionsstart)",
+    "desc": "Löscht alle Testdaten – Aufträge, Beschaffungen, Benachrichtigungen, Kommunikationen, Protokolle und setzt die Auftrags-/Rechnungszähler zurück. Stammdaten (Benutzer, Filialen, Lager) bleiben erhalten.",
+    "button": "Testdaten löschen",
+    "confirmTitle": "Testdaten wirklich löschen?",
+    "confirmText": "Diese Aktion kann NICHT rückgängig gemacht werden. Alle Aufträge, Beschaffungen, Benachrichtigungen, Kommunikationen und Zähler werden dauerhaft entfernt. Stammdaten bleiben erhalten.",
+    "confirm": "Ja, endgültig löschen",
+    "cancel": "Abbrechen",
+    "success": "Testdaten gelöscht",
+    "error": "Löschen fehlgeschlagen"
+  },
   "label": {
     "title": "Geräte-Etikett (QR)",
     "hint": "Zum Aufkleben auf Gerät oder Ersatzteil-Karton.",

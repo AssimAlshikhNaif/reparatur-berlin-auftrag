@@ -613,6 +613,17 @@
     "photoTaken": "Photo captured",
     "videoTaken": "Video captured"
   },
+  "danger": {
+    "title": "Data cleanup (production launch)",
+    "desc": "Deletes all test data – orders, procurement, notifications, communications, logs – and resets the order/invoice counters. Master data (users, branches, inventory) is preserved.",
+    "button": "Clear test data",
+    "confirmTitle": "Really delete all test data?",
+    "confirmText": "This action CANNOT be undone. All orders, procurement, notifications, communications and counters will be permanently removed. Master data is preserved.",
+    "confirm": "Yes, delete permanently",
+    "cancel": "Cancel",
+    "success": "Test data cleared",
+    "error": "Deletion failed"
+  },
   "label": {
     "title": "Device label (QR)",
     "hint": "Peel & stick onto the device or spare-part box.",
