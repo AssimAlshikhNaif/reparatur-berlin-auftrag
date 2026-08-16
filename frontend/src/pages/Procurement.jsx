@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -10,15 +11,17 @@ import { PURCHASE_STATUS_LABELS, PURCHASE_STATUS_STYLES, PURCHASE_STATUS_ORDER }
 import { berlinDateTime } from "@/lib/datetime";
 
 function StatusPill({ status }) {
+  const { t } = useTranslation();
   return (
     <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PURCHASE_STATUS_STYLES[status] || "bg-muted text-foreground/80 border-border"}`}>
-      {PURCHASE_STATUS_LABELS[status] || status}
+      {t(`pstatus.${status}`, PURCHASE_STATUS_LABELS[status] || status)}
     </span>
   );
 }
 
 export default function Procurement() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const isTech = user.role === "techniker";
   const [items, setItems] = useState([]);
@@ -32,21 +35,21 @@ export default function Procurement() {
       const { data } = await api.get("/purchases/all");
       setItems(data);
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Laden");
+      toast.error(e.response?.data?.detail || t("toast.loadError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
   const updateStatus = async (id, status) => {
     try {
       await api.patch(`/purchases/${id}`, { status });
-      toast.success("Status aktualisiert");
+      toast.success(t("toast.statusUpdated"));
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Aktualisieren");
+      toast.error(e.response?.data?.detail || t("toast.updateError"));
     }
   };
 
@@ -54,10 +57,10 @@ export default function Procurement() {
     if (!value) return;
     try {
       await api.patch(`/purchases/${id}`, { [field]: value });
-      toast.success("Ankunft aktualisiert");
+      toast.success(t("toast.arrivalUpdated"));
       load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Aktualisieren");
+      toast.error(e.response?.data?.detail || t("toast.updateError"));
     }
   };
 
@@ -78,10 +81,10 @@ export default function Procurement() {
 
   return (
     <div>
-      <PageHeader label="Zentrale Verwaltung" title="Beschaffung & Einkauf">
+      <PageHeader label={t("proc.label")} title={t("proc.title")}>
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground">
           <ShoppingCart size={16} className="text-accent" />
-          <span data-testid="procurement-open-count">{openCount} offen</span> · {items.length} gesamt
+          <span data-testid="procurement-open-count">{openCount} {t("proc.open")}</span> · {items.length} {t("proc.total")}
         </div>
       </PageHeader>
 
@@ -97,7 +100,7 @@ export default function Procurement() {
             data-testid="procurement-search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Teil, Auftragsnr., Kunde, Gerät…"
+            placeholder={t("proc.searchPlaceholder")}
             className="w-full bg-background border border-border pl-9 pr-3 py-2 text-sm rounded-lg outline-none focus:border-accent transition-colors font-mono"
           />
         </div>
@@ -109,9 +112,9 @@ export default function Procurement() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-background border border-border pl-9 pr-8 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono appearance-none"
           >
-            <option value="">Alle Status</option>
+            <option value="">{t("proc.allStatus")}</option>
             {PURCHASE_STATUS_ORDER.map((s) => (
-              <option key={s} value={s}>{PURCHASE_STATUS_LABELS[s]}</option>
+              <option key={s} value={s}>{t(`pstatus.${s}`, PURCHASE_STATUS_LABELS[s])}</option>
             ))}
           </select>
         </div>
@@ -120,22 +123,22 @@ export default function Procurement() {
       {/* Table */}
       <div className="overflow-x-auto">
         {loading ? (
-          <div className="p-8 font-mono text-muted-foreground">Lade Beschaffungen…</div>
+          <div className="p-8 font-mono text-muted-foreground">{t("proc.loading")}</div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center font-mono text-muted-foreground text-sm">Keine Beschaffungen gefunden.</div>
+          <div className="p-12 text-center font-mono text-muted-foreground text-sm">{t("proc.empty")}</div>
         ) : (
           <table className="w-full text-sm" data-testid="procurement-table">
             <thead>
               <tr className="border-b border-border text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                <th className="px-6 md:px-8 py-3 font-medium">Auftrag</th>
-                <th className="px-4 py-3 font-medium">Gerät / Kunde</th>
-                <th className="px-4 py-3 font-medium">Teil</th>
-                <th className="px-4 py-3 font-medium">Link</th>
-                <th className="px-4 py-3 font-medium">Bestellt</th>
-                <th className="px-4 py-3 font-medium">Erwartet</th>
-                <th className="px-4 py-3 font-medium">Angekommen</th>
-                {!isTech && <th className="px-4 py-3 font-medium">Preis</th>}
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-6 md:px-8 py-3 font-medium">{t("proc.colOrder")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colDeviceCustomer")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colPart")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colLink")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colOrdered")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colExpected")}</th>
+                <th className="px-4 py-3 font-medium">{t("proc.colArrived")}</th>
+                {!isTech && <th className="px-4 py-3 font-medium">{t("proc.colPrice")}</th>}
+                <th className="px-4 py-3 font-medium">{t("proc.colStatus")}</th>
               </tr>
             </thead>
             <tbody>
@@ -160,7 +163,7 @@ export default function Procurement() {
                   <td className="px-4 py-3">
                     {p.supplier_url ? (
                       <a href={p.supplier_url} target="_blank" rel="noreferrer" data-testid={`procurement-link-${p.id}`}
-                        className="text-accent hover:underline flex items-center gap-1 text-xs"><LinkIcon size={12} /> Öffnen</a>
+                        className="text-accent hover:underline flex items-center gap-1 text-xs"><LinkIcon size={12} /> {t("proc.openLink")}</a>
                     ) : <span className="text-muted-foreground/60">—</span>}
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">{p.order_timestamp ? berlinDateTime(p.order_timestamp) : "—"}</td>
@@ -180,7 +183,7 @@ export default function Procurement() {
                         onChange={(e) => updateStatus(p.id, e.target.value)}
                         className="bg-background border border-border px-2 py-1 text-[11px] rounded outline-none focus:border-accent font-mono uppercase">
                         {PURCHASE_STATUS_ORDER.map((s) => (
-                          <option key={s} value={s}>{PURCHASE_STATUS_LABELS[s]}</option>
+                          <option key={s} value={s}>{t(`pstatus.${s}`, PURCHASE_STATUS_LABELS[s])}</option>
                         ))}
                       </select>
                     </div>

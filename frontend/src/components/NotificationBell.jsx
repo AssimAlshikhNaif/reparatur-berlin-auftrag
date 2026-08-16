@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { Bell, Check, Trash, X } from "@phosphor-icons/react";
@@ -37,6 +38,7 @@ function playBeep() {
 
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -65,17 +67,17 @@ export default function NotificationBell() {
         toast(top.title, {
           description: top.message,
           action: top.order_id
-            ? { label: "Öffnen", onClick: () => navigate(`/auftrag/${top.order_id}`) }
+            ? { label: t("notif.open"), onClick: () => navigate(`/auftrag/${top.order_id}`) }
             : undefined,
         });
         if (fresh.length > 1) {
-          toast(`+${fresh.length - 1} weitere neue Benachrichtigung(en)`);
+          toast(t("notif.moreNew", { n: fresh.length - 1 }));
         }
       }
     } catch (e) {
       /* ignore poll errors */
     }
-  }, [navigate]);
+  }, [navigate, t]);
 
   useEffect(() => {
     poll();
@@ -110,7 +112,7 @@ export default function NotificationBell() {
         data-testid="notification-bell"
         onClick={() => { setOpen((o) => !o); if (!open && unread > 0) markAllRead(); }}
         className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-muted transition-colors"
-        title="Benachrichtigungen"
+        title={t("notif.title")}
       >
         <Bell size={18} className={unread > 0 ? "text-accent" : "text-muted-foreground"} weight={unread > 0 ? "fill" : "regular"} />
         {unread > 0 && (
@@ -129,17 +131,17 @@ export default function NotificationBell() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Bell size={15} className="text-accent" />
-                <span className="font-head font-semibold text-sm">Benachrichtigungen</span>
+                <span className="font-head font-semibold text-sm">{t("notif.title")}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={markAllRead} title="Alle gelesen" className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Check size={15} /></button>
-                <button onClick={clearAll} title="Alle löschen" className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Trash size={15} /></button>
+                <button onClick={markAllRead} title={t("notif.markAllRead")} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Check size={15} /></button>
+                <button onClick={clearAll} title={t("notif.clearAll")} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Trash size={15} /></button>
                 <button onClick={() => setOpen(false)} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><X size={15} /></button>
               </div>
             </div>
             <div className="overflow-y-auto">
               {items.length === 0 ? (
-                <div className="text-xs font-mono text-muted-foreground/70 py-8 text-center">Keine Benachrichtigungen.</div>
+                <div className="text-xs font-mono text-muted-foreground/70 py-8 text-center">{t("notif.empty")}</div>
               ) : (
                 items.map((n) => (
                   <button key={n.id} onClick={() => openItem(n)}

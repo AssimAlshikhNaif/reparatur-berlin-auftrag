@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend-only i18n verification pass across EN, DE, AR on all major pages (Login, Dashboard, Orders, OrderDetail, OrderCreate, Inventory, Users, Analytics, Procurement, Scan). Verified via automated body-text scan for hardcoded German tokens and raw namespaced translation keys, plus html dir attribute for RTL and localStorage 'rb_lang' persistence.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "OrderCreate (/auftrag/neu) - Customer signature section",
+        "issues": [
+          "The full liability waiver body (LIABILITY_WAIVER constant in /app/frontend/src/lib/constants.js) remains hardcoded German in EN and AR ('Haftungsausschluss & Einverständniserklärung: 1. Datenverlust ...'). Only the section heading and waiverTitle label translate; the actual legal contract body does not. This mirrors the printed-contract policy (Invoice/Abholschein/ContractPrint kept German intentionally), so it is likely a conscious legal-document decision. Flagging for main agent to confirm whether the on-screen waiver copy should also be translated (customer reads it before signing). No functional impact."
+        ]
+      }
+    ]
+  },
+  "verified": {
+    "language_switcher_persistence": "localStorage 'rb_lang' persists across reload; dir attribute correctly toggles between ltr (de/en) and rtl (ar).",
+    "arabic_rtl_layout": "html[dir=rtl] confirmed on Dashboard, Orders, and OrderDetail. Sidebar visually mirrors to the right in Arabic.",
+    "no_raw_i18n_keys": "Regex scan for namespace.key patterns (detail.*, costs.*, actions.*, dashboard.*, mad.*, oc.*, inv.*, usr.*, ana.*, proc.*, palerts.*, purch.*, scan.*, notif.*, comm.*, chat.*, wa.*, sig.*, cam.*, pstatus.*, toast.*, orders.*, status.*, roles.*, login.*, nav.*, common.*, inspection.*, print.*, reklamation.*, activity.*) returned ZERO raw keys on every page tested in EN and AR.",
+    "no_german_leftovers": "Scanned each page for 30+ German tokens (Marke, Modell, Fehlerbeschreibung, Geräte-Sperre, Garantie, Kostenaufschlüsselung, Diagnose, Arbeitskosten, Versuchszeit, Freigabe, Abholschein, Aufträge, Neuer Auftrag, Ersatzteile, Analyse, Benutzer, Beschaffung, Scannen, Historie, Bereit, etc.). Only match on any page was 'Bereit' as a substring inside the German waiver body on OrderCreate (see design_issues above).",
+    "order_detail_translations": "Brand/Model, IMEI, Device lock, Lock value, Fault description, Warranty all translate (EN + AR). Cost breakdown (title, Diagnosis, Labor cost, Attempt time, Net, VAT, Total, Diagnosis fee select, Save costs, Approval: Confirmed/Waiting/Rejected) all translate. Tabs, status badge (Diagnosis), Pickup slip / Full print buttons, QR code section, Assign technician, History all translate.",
+    "orders_page": "Search placeholder, status dropdown 'All statuses', table column headers, badges translate. All tabs / status labels render in EN and AR.",
+    "dashboard_admin": "Metric cards (Total orders, Active orders, SLA breaches, Revenue), SLA section 'Spare parts: due today / overdue', Complaints & Warranty section, status distribution all translate.",
+    "inventory_users_analytics_procurement_scan": "Headers, table columns, buttons, search placeholders, stat cards all translate in EN and AR.",
+    "login_page": "Hero text, form labels, submit, demo accounts panel (title, show/hide, role labels, descriptions) translate. Arabic renders RTL correctly."
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL: Decide whether the on-screen LIABILITY_WAIVER body in OrderCreate should be translated per-locale (currently only the section heading translates). Legal waivers are typically kept in the shop's operating language; if intentional, no action needed. Otherwise, add de/en/ar variants of the waiver constant (or move to i18n resource) and read via t()."
+  ],
+  "critical_code_review_comments": [
+    "de.json/en.json/ar.json (~620 lines each) are well-structured by namespace and complete. Good use of {{interpolation}}.",
+    "applyDirection in i18n/index.js correctly sets html dir on language change - verified.",
+    "LIABILITY_WAIVER in /app/frontend/src/lib/constants.js is hardcoded German - if translation is desired, move to locales."
+  ],
+  "updated_files": [],
+  "success_rate": {"frontend": "100% (all requested i18n coverage passes; only 1 optional design note re legal waiver body)"},
+  "test_credentials": "admin@repair.de / Repair2026! (from review request; /app/memory/test_credentials.md not consulted, credentials worked)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "i18n pass verified across EN/DE/AR on all listed screens with an automated regex scan for raw keys + German-token leftovers. Only outstanding item is the hardcoded German LIABILITY_WAIVER text on OrderCreate customer-signature section - likely intentional (mirrors printed legal docs policy) but worth confirming with product. No React runtime errors observed. Arabic RTL layout confirmed (html[dir=rtl], sidebar mirrored). localStorage 'rb_lang' persistence works."
+}

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import api, { getToken } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PaperPlaneRight, ChatCircleDots } from "@phosphor-icons/react";
 
 export default function OrderChat({ orderId }) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const listRef = useRef(null);
@@ -65,18 +67,18 @@ export default function OrderChat({ orderId }) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
         <div className="flex items-center gap-2">
           <ChatCircleDots size={18} className="text-accent" />
-          <h3 className="font-head font-semibold text-sm">Auftrags-Chat</h3>
+          <h3 className="font-head font-semibold text-sm">{t("chat.title")}</h3>
         </div>
         <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-emerald-400">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-          Aktiv
+          {t("chat.active")}
         </span>
       </div>
 
       <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-center text-xs font-mono text-muted-foreground/70 py-8">
-            Noch keine Nachrichten. Starten Sie die Kommunikation.
+            {t("chat.empty")}
           </div>
         )}
         {messages.map((m) => {
@@ -107,7 +109,7 @@ export default function OrderChat({ orderId }) {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Nachricht schreiben…"
+          placeholder={t("chat.placeholder")}
           className="flex-1 bg-black border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent transition-colors"
         />
         <button type="submit"

@@ -84,3 +84,11 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - **Payment status**: new `diagnosis_payment_status` (PAID/OPEN/NA = Bezahlt/Offen/Nicht zutreffend) on OrderCreate + editable on OrderDetail via `PATCH /orders/{id}/costs`; stored + serialized (default OPEN). Invalid value → 400.
 - Verified: backend via curl (optional pricing create, payment PAID→OPEN patch, invalid 400); frontend via screenshots (Reklamation tab shows 15 items with DIAGNOSE labels; cost section shows optional Diagnosekosten/Versuchszeit + payment select).
 
+## Iteration 9 (2026-08-16) — FULL app-wide i18n (EN/DE/AR) sweep + Arabic RTL
+- **Complete multilingual coverage**: every user-facing screen now translates via the language switcher (localStorage `rb_lang`). Expanded `de/en/ar.json` with new namespaces: `dashboard, mad, oc, inv, usr, ana, proc, palerts, purch, scan, notif, comm, chat, wa, sig, cam, pstatus, toast` + extended `detail/costs/orders/login`.
+- **Converted to i18n** (were hardcoded German): Dashboard, MitarbeiterDashboard, OrderCreate, Inventory, Users, Analytics, Procurement, Scan pages; NotificationBell, CommunicationPanel, ProcurementAlerts, OrderPurchasesTab, OrderChat, WhatsAppFab, SignaturePad, CameraCapture, PatternLock components; finished OrderDetail (remaining toasts, signature labels, warranty days, status-history labels, cost-status badge) and Orders (Alle tab + badge titles) and Login demo-accounts panel.
+- **Constants labels** (STATUS_LABELS/ROLE_LABELS/PURCHASE_STATUS_LABELS) now resolved via `t('status.*' / 'roles.*' / 'pstatus.*')` at call sites; constants kept as fallback.
+- **Arabic RTL**: verified `html[dir=rtl]` toggles and sidebar/layout mirror on Dashboard, Orders, OrderDetail.
+- **Verified**: testing_agent iteration_8.json = frontend 100% (zero raw i18n keys, zero German leftovers on EN/AR across all pages, RTL confirmed). Backend untouched.
+- **INTENTIONALLY kept German** (legal/business documents): printed Invoice.jsx, Abholschein.jsx, ContractPrint.jsx AGB/DSGVO text, and the on-screen LIABILITY_WAIVER body on OrderCreate (translating a binding liability waiver is a legal decision — pending user confirmation).
+

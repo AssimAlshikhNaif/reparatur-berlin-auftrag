@@ -1,11 +1,13 @@
 import React, { useRef, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Eraser, Check, PencilSimple } from "@phosphor-icons/react";
 
 /**
  * Canvas-based digital signature pad (no external dependency).
  * Supports mouse and touch. Calls onSave(dataUrl) when the user confirms.
  */
-export default function SignaturePad({ onSave, saving = false, height = 180, label = "Hier unterschreiben" }) {
+export default function SignaturePad({ onSave, saving = false, height = 180, label }) {
+  const { t } = useTranslation();
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef({ x: 0, y: 0 });
@@ -76,7 +78,7 @@ export default function SignaturePad({ onSave, saving = false, height = 180, lab
   return (
     <div className="space-y-2" data-testid="signature-pad">
       <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-        <PencilSimple size={13} /> {label}
+        <PencilSimple size={13} /> {label || t("sig.defaultLabel")}
       </div>
       <div className="border border-border rounded-lg overflow-hidden bg-white">
         <canvas
@@ -95,11 +97,11 @@ export default function SignaturePad({ onSave, saving = false, height = 180, lab
       <div className="flex gap-2">
         <button type="button" data-testid="signature-clear" onClick={clear}
           className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider border border-border px-3 py-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors">
-          <Eraser size={13} /> Löschen
+          <Eraser size={13} /> {t("sig.clear")}
         </button>
         <button type="button" data-testid="signature-save" onClick={save} disabled={!hasDrawn || saving}
           className="flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-1.5 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-          <Check size={13} /> {saving ? "Speichern…" : "Unterschrift bestätigen"}
+          <Check size={13} /> {saving ? t("sig.saving") : t("sig.confirm")}
         </button>
       </div>
     </div>

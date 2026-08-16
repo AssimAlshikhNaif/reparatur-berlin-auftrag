@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 // 3x3 unlock-pattern drawer. Dots are numbered 1..9 (top-left to bottom-right).
 // Emits the drawn sequence as a dash-joined string, e.g. "1-2-3-6-9".
@@ -37,6 +38,7 @@ export function PatternDisplay({ value, size = 120 }) {
 }
 
 export default function PatternLock({ value, onChange }) {
+  const { t } = useTranslation();
   const [seq, setSeq] = useState(() => (value || "").split("-").filter(Boolean).map(Number));
   const [drawing, setDrawing] = useState(false);
   const svgRef = useRef(null);
@@ -109,11 +111,11 @@ export default function PatternLock({ value, onChange }) {
       </svg>
       <div className="flex items-center gap-3">
         <span className="font-mono text-xs text-muted-foreground" data-testid="pattern-sequence">
-          {seq.length ? seq.join(" → ") : "Muster zeichnen…"}
+          {seq.length ? seq.join(" → ") : t("oc.patternDraw")}
         </span>
         <button type="button" data-testid="pattern-reset" onClick={reset}
           className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground underline">
-          Zurücksetzen
+          {t("oc.patternReset")}
         </button>
       </div>
     </div>

@@ -16,7 +16,7 @@ import CommunicationPanel from "@/components/CommunicationPanel";
 import InspectionForm from "@/components/InspectionForm";
 import ContractPrint from "@/components/ContractPrint";
 import { PatternDisplay } from "@/components/PatternLock";
-import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_STYLES } from "@/lib/constants";
+import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, PAYMENT_STATUS_STYLES } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ import {
   Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText,
 } from "@phosphor-icons/react";
 
-const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" };
+const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" }; // eslint-disable-line no-unused-vars
 
 function Section({ title, icon: Icon, children }) {
   return (
@@ -109,45 +109,45 @@ export default function OrderDetail() {
     loadComms();
   }, [load, loadPurchasesCount, user.role, loadComms]);
 
-  if (!order) return <div className="p-8 font-mono text-muted-foreground">Lade Auftrag…</div>;
+  if (!order) return <div className="p-8 font-mono text-muted-foreground">{t("detail.loading")}</div>;
 
   const branchName = branches.find((b) => b.id === order.branch_id)?.name || "—";
 
   const act = async (fn, msg) => {
     try { await fn(); toast.success(msg); await load(); loadComms(); }
-    catch (e) { toast.error(e.response?.data?.detail || "Fehler"); }
+    catch (e) { toast.error(e.response?.data?.detail || t("toast.error")); }
   };
 
-  const assign = (techId) => act(() => api.post(`/orders/${id}/assign`, { techniker_id: techId }), "Techniker zugewiesen");
-  const accept = () => act(() => api.post(`/orders/${id}/accept`), "Auftrag akzeptiert");
+  const assign = (techId) => act(() => api.post(`/orders/${id}/assign`, { techniker_id: techId }), t("toast.techAssigned"));
+  const accept = () => act(() => api.post(`/orders/${id}/accept`), t("toast.orderAccepted"));
   const doReject = () => {
-    if (!rejectReason.trim()) { toast.error("Grund erforderlich"); return; }
-    act(() => api.post(`/orders/${id}/reject`, { reason: rejectReason }), "Auftrag abgelehnt")
+    if (!rejectReason.trim()) { toast.error(t("toast.reasonRequired")); return; }
+    act(() => api.post(`/orders/${id}/reject`, { reason: rejectReason }), t("toast.orderRejected"))
       .then(() => { setShowReject(false); setRejectReason(""); });
   };
-  const setStatus = (status) => act(() => api.patch(`/orders/${id}/status`, { status }), `Status: ${STATUS_LABELS[status]}`);
+  const setStatus = (status) => act(() => api.patch(`/orders/${id}/status`, { status }), t("toast.statusChanged", { s: t(`status.${status}`, STATUS_LABELS[status]) }));
 
   const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     diagnosis_fee: parseFloat(costForm.diagnosis_fee) || 0,
     labor_cost: parseFloat(costForm.labor_cost) || 0,
     parts_cost: parseFloat(costForm.parts_cost) || 0,
-  }), "Kosten gespeichert");
+  }), t("toast.costsSaved"));
 
-  const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), "Kostenstatus aktualisiert");
-  const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), "Zahlungsstatus aktualisiert");
+  const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
+  const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), t("toast.paymentStatusUpdated"));
 
   const addPart = () => {
-    if (!partId) { toast.error("Ersatzteil wählen"); return; }
-    act(() => api.post(`/orders/${id}/parts`, { inventory_id: partId, quantity: parseInt(partQty) || 1 }), "Ersatzteil verbaut (Lagerabzug)")
+    if (!partId) { toast.error(t("toast.choosePart")); return; }
+    act(() => api.post(`/orders/${id}/parts`, { inventory_id: partId, quantity: parseInt(partQty) || 1 }), t("toast.partInstalled"))
       .then(() => { setPartId(""); setPartQty(1); api.get("/inventory").then((r) => setInventory(r.data)); });
   };
 
-  const removePart = (pid) => act(() => api.delete(`/orders/${id}/parts/${pid}`), "Ersatzteil entfernt (Bestand zurück)")
+  const removePart = (pid) => act(() => api.delete(`/orders/${id}/parts/${pid}`), t("toast.partRemoved"))
     .then(() => api.get("/inventory").then((r) => setInventory(r.data)));
 
   const saveImei = () => {
-    if (!imeiInput.trim()) { toast.error("Bitte IMEI eingeben"); return; }
-    act(() => api.patch(`/orders/${id}/imei`, { imei: imeiInput.trim() }), "IMEI nachgetragen")
+    if (!imeiInput.trim()) { toast.error(t("toast.enterImei")); return; }
+    act(() => api.patch(`/orders/${id}/imei`, { imei: imeiInput.trim() }), t("toast.imeiSaved"))
       .then(() => setImeiInput(""));
   };
 
@@ -155,10 +155,10 @@ export default function OrderDetail() {
     setSavingSig(true);
     try {
       await api.post(`/orders/${id}/signature`, { type, signature: dataUrl, signer_name: order.customer_name || "" });
-      toast.success(type === "pickup" ? "Abhol-Unterschrift gespeichert" : "Unterschrift gespeichert");
+      toast.success(type === "pickup" ? t("toast.pickupSigSaved") : t("toast.sigSaved"));
       await load();
     } catch (e) {
-      toast.error(e.response?.data?.detail || "Fehler beim Speichern der Unterschrift");
+      toast.error(e.response?.data?.detail || t("toast.sigError"));
     } finally { setSavingSig(false); }
   };
 
@@ -172,10 +172,10 @@ export default function OrderDetail() {
         fd.append("media_type", user.role === "techniker" ? "repair" : "intake");
         await api.post(`/orders/${id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
       }
-      toast.success("Medien hochgeladen");
+      toast.success(t("toast.mediaUploaded"));
       await load();
     } catch (err) {
-      toast.error("Upload fehlgeschlagen");
+      toast.error(t("toast.uploadFailed"));
     } finally { setUploading(false); }
   };
 
@@ -201,7 +201,7 @@ export default function OrderDetail() {
       <PageHeader label={branchName} title={order.auftragsnummer}>
         <button data-testid="back-button" onClick={() => navigate("/auftraege")}
           className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-primary-foreground transition-colors">
-          <ArrowLeft size={16} /> Zurück
+          <ArrowLeft size={16} /> {t("common.back")}
         </button>
       </PageHeader>
 
@@ -211,17 +211,17 @@ export default function OrderDetail() {
         {order.sla_breached && <SlaBadge days={order.working_days_open} />}
         {order.imei_reminder && (
           <span data-testid="imei-reminder-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg animate-pulse">
-            <Warning size={13} weight="fill" /> IMEI fehlt – bitte nachtragen
+            <Warning size={13} weight="fill" /> {t("detail.imeiMissing")}
           </span>
         )}
         {order.under_warranty && (
           <span data-testid="warranty-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-emerald-600 bg-emerald-950 text-emerald-300 rounded-lg">
-            <ShieldCheck size={13} weight="fill" /> Garantie aktiv{typeof order.warranty_days_left === "number" ? ` · ${order.warranty_days_left} Tage` : ""}
+            <ShieldCheck size={13} weight="fill" /> {t("detail.warrantyActive")}{typeof order.warranty_days_left === "number" ? ` · ${t("detail.days", { d: order.warranty_days_left })}` : ""}
           </span>
         )}
         {order.is_reclamation && (
           <span data-testid="reclamation-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg">
-            <ArrowsClockwise size={13} weight="fill" /> Reklamation{order.reclamation_of_number ? ` zu ${order.reclamation_of_number}` : ""}
+            <ArrowsClockwise size={13} weight="fill" /> {t("actions.reklamation")}{order.reclamation_of_number ? ` · ${order.reclamation_of_number}` : ""}
           </span>
         )}
         <div className="flex-1" />
@@ -231,10 +231,10 @@ export default function OrderDetail() {
             onChange={(e) => setStatus(e.target.value)}
             className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
             {["ANGENOMMEN", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].map((s) => (
-              <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
             ))}
             {!["ANGENOMMEN", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].includes(order.status) && (
-              <option value={order.status} disabled>{STATUS_LABELS[order.status]}</option>
+              <option value={order.status} disabled>{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
             )}
           </select>
         )}
@@ -242,19 +242,19 @@ export default function OrderDetail() {
         {canManage && (
           <button data-testid="open-receipt" onClick={() => setShowReceipt(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <Printer size={14} /> Abholschein
+            <Printer size={14} /> {t("actions.receipt")}
           </button>
         )}
         {canManage && (
           <button data-testid="open-contract" onClick={() => setShowContract(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <ClipboardText size={14} /> Komplett-Druck
+            <ClipboardText size={14} /> {t("actions.fullPrint")}
           </button>
         )}
         {canManage && order.status === "ABGEHOLT" && (
           <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-            <Printer size={14} /> Rechnung drucken
+            <Printer size={14} /> {t("actions.printInvoice")}
           </button>
         )}
         {canManage && order.status === "ABGEHOLT" && (
@@ -265,50 +265,50 @@ export default function OrderDetail() {
               customer_email: order.customer_email, customer_address: order.customer_address,
             } } })}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-950 transition-colors">
-            <ArrowsClockwise size={14} /> Reklamation
+            <ArrowsClockwise size={14} /> {t("actions.reklamation")}
           </button>
         )}
         {canManage && order.status === "FERTIG" && (
           <button data-testid="mark-delivered" onClick={() => setStatus("ABGEHOLT")}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-foreground px-4 py-2 hover:bg-emerald-500 transition-colors">
-            <CheckCircle size={14} /> Abgeholt
+            <CheckCircle size={14} /> {t("actions.collected")}
           </button>
         )}
         {isTech && order.status === "ZUGEWIESEN" && (
           <>
             <button data-testid="accept-order" onClick={accept}
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-              <CheckCircle size={14} /> Annehmen
+              <CheckCircle size={14} /> {t("actions.accept")}
             </button>
             <button data-testid="reject-order" onClick={() => setShowReject(true)}
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-red-600 text-foreground px-4 py-2 hover:bg-red-500 transition-colors">
-              <XCircle size={14} /> Ablehnen
+              <XCircle size={14} /> {t("actions.reject")}
             </button>
           </>
         )}
         {isTech && order.status === "AKZEPTIERT" && (
           <button data-testid="start-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-foreground px-4 py-2 hover:bg-amber-500 transition-colors">
-            <Wrench size={14} /> Reparatur starten
+            <Wrench size={14} /> {t("actions.startRepair")}
           </button>
         )}
         {isTech && order.status === "IN_BEARBEITUNG" && (
           <>
             <button data-testid="wait-part" onClick={() => setStatus("WARTEN_ERSATZTEIL")}
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-orange-600 text-foreground px-4 py-2 hover:bg-orange-500 transition-colors">
-              <Package size={14} /> Warten auf Ersatzteil
+              <Package size={14} /> {t("actions.waitPart")}
             </button>
             <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0 || !order.inspection}
-              title={repairMedia.length === 0 ? "Erst Reparatur-Fotos/Videos aufnehmen" : (!order.inspection ? "Erst Prüfprotokoll ausfüllen" : "")}
+              title={repairMedia.length === 0 ? t("detail.markReadyMediaTitle") : (!order.inspection ? t("detail.markReadyInspectionTitle") : "")}
               className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-foreground px-4 py-2 hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              <CheckCircle size={14} /> Fertig melden
+              <CheckCircle size={14} /> {t("actions.markReady")}
             </button>
           </>
         )}
         {isTech && order.status === "WARTEN_ERSATZTEIL" && (
           <button data-testid="resume-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-foreground px-4 py-2 hover:bg-amber-500 transition-colors">
-            <Wrench size={14} /> Reparatur fortsetzen
+            <Wrench size={14} /> {t("actions.resumeRepair")}
           </button>
         )}
       </div>
@@ -321,7 +321,7 @@ export default function OrderDetail() {
             activeTab === "details" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Auftragsdetails & Teile
+          {t("detail.tabDetails")}
         </button>
         <button
           onClick={() => {
@@ -332,7 +332,7 @@ export default function OrderDetail() {
             activeTab === "purchases" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          <ShoppingCart size={14} /> Beschaffung & Einkauf
+          <ShoppingCart size={14} /> {t("detail.tabPurchases")}
           {purchasesCount > 0 && (
             <span className="bg-accent/20 text-accent px-1.5 py-0.5 rounded-full text-[10px] font-mono">
               {purchasesCount}
@@ -343,7 +343,7 @@ export default function OrderDetail() {
 
       {order.status === "ABGELEHNT" && order.reject_reason && (
         <div className="mx-6 md:mx-8 my-4 border border-red-900 bg-red-950/30 px-4 py-3">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">Ablehnungsgrund</div>
+          <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.rejectReason")}</div>
           <div className="text-sm text-red-200">{order.reject_reason}</div>
         </div>
       )}
@@ -359,43 +359,43 @@ export default function OrderDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 md:p-8">
           {/* LEFT column */}
           <div className="lg:col-span-2 space-y-4">
-            <Section title="Gerät & Fehler" icon={DeviceMobile}>
-              <Field label="Marke / Modell" value={`${order.device_brand} ${order.device_model}`} />
-              <Field label="IMEI" value={order.imei || (order.imei_unreadable ? "— (nicht lesbar)" : "—")} />
+            <Section title={t("detail.deviceError")} icon={DeviceMobile}>
+              <Field label={t("detail.brandModel")} value={`${order.device_brand} ${order.device_model}`} />
+              <Field label={t("detail.imei")} value={order.imei || (order.imei_unreadable ? t("detail.imeiNotReadable") : "—")} />
               {order.imei_reminder && (
                 <div data-testid="imei-fillin" className="my-2 border border-amber-800/60 bg-amber-950/20 rounded-lg p-3">
                   <div className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-amber-300 mb-2">
-                    <Warning size={13} weight="fill" /> IMEI ausstehend – sobald Gerät zugänglich, bitte nachtragen
+                    <Warning size={13} weight="fill" /> {t("detail.imeiMissing")}
                   </div>
                   <div className="flex gap-2">
                     <input data-testid="imei-input" value={imeiInput} onChange={(e) => setImeiInput(e.target.value)}
-                      placeholder="IMEI / Seriennummer" className="flex-1 bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+                      placeholder={t("detail.imei")} className="flex-1 bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     <button data-testid="imei-save" onClick={saveImei}
                       className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 rounded-lg hover:bg-blue-600 transition-colors">
-                      Speichern
+                      {t("common.save")}
                     </button>
                   </div>
                 </div>
               )}
-              <Field label="Geräte-Sperre" value={LOCK_LABELS[order.device_lock_type] || (order.device_passcode ? "PIN/Passwort" : "Keine Sperre")} />
+              <Field label={t("detail.lock")} value={(!order.device_lock_type || order.device_lock_type === "none") ? t("detail.noLock") : (order.device_lock_type === "pattern" ? t("detail.pattern") : order.device_lock_type.toUpperCase())} />
               {order.device_lock_type === "pattern" && order.device_passcode ? (
                 <div className="flex justify-between items-center gap-4 py-1.5 border-b border-border/40">
-                  <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground shrink-0">Muster</span>
+                  <span className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground shrink-0">{t("detail.pattern")}</span>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-foreground">{order.device_passcode.split("-").join(" → ")}</span>
                     <PatternDisplay value={order.device_passcode} size={72} />
                   </div>
                 </div>
               ) : (
-                <Field label="Sperrwert" value={order.device_passcode} />
+                <Field label={t("detail.lockValue")} value={order.device_passcode} />
               )}
-              <Field label="Fehlerbeschreibung" value={order.issue_description} />
-              <Field label="Garantie" value={
+              <Field label={t("detail.issue")} value={order.issue_description} />
+              <Field label={t("detail.warranty")} value={
                 order.warranty_months
                   ? (order.warranty_until
-                      ? `${order.warranty_months} Monate · gültig bis ${berlinDateTime(order.warranty_until)}${order.under_warranty ? " (aktiv)" : " (abgelaufen)"}`
-                      : `${order.warranty_months} Monate (ab Abholung)`)
-                  : "Keine Garantie"
+                      ? `${order.warranty_months} · ${berlinDateTime(order.warranty_until)}${order.under_warranty ? ` (${t("reklamation.badgeWarranty")})` : ""}`
+                      : t("detail.warrantyMonthsFrom", { m: order.warranty_months }))
+                  : t("detail.noWarranty")
               } />
             </Section>
 
@@ -405,29 +405,29 @@ export default function OrderDetail() {
               <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
                 <div className="flex items-center gap-2">
                   <Receipt size={16} className="text-accent" />
-                  <h2 className="font-head font-semibold text-sm tracking-tight">Kostenaufschlüsselung</h2>
+                  <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
                 </div>
                 <span data-testid="cost-status-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${COST_STATUS_STYLES[order.cost?.status] || "bg-muted text-foreground/80 border-border"}`}>
-                  {COST_STATUS_LABELS[order.cost?.status] || "—"}
+                  {order.cost?.status ? t("costs." + ({WARTET:"waiting",BESTAETIGT:"confirmed",ABGELEHNT:"rejected"}[order.cost.status] || "waiting")) : "—"}
                 </span>
               </div>
               <div className="p-4">
                 {canManage ? (
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Diagnose</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
                       <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
                         onChange={(e) => setCostForm({ ...costForm, diagnosis_fee: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Arbeitskosten</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.labor")}</label>
                       <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
                         onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">Versuchszeit</label>
+                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.attempt")}</label>
                       <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
                         onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
                         className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
@@ -435,32 +435,32 @@ export default function OrderDetail() {
                   </div>
                 ) : (
                   <div className="font-mono text-sm space-y-1 mb-3">
-                    <div className="flex justify-between text-muted-foreground"><span>Diagnosegebühr</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Arbeitskosten</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Versuchszeit</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
                   </div>
                 )}
 
                 <div className="border-t border-border pt-3 font-mono text-sm space-y-1">
-                  <div className="flex justify-between text-muted-foreground"><span>Netto</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>MwSt. (19%)</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>Gesamt (Brutto)</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>{t("costs.net")}</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
+                  <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
                 </div>
 
                 {/* Diagnosegebühr Zahlungsstatus */}
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Diagnosegebühr:</span>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
                   {canManage ? (
                     <select data-testid="diagnosis-payment-select" value={order.diagnosis_payment_status || "OPEN"}
                       onChange={(e) => setDiagnosisPayment(e.target.value)}
                       className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-                      <option value="OPEN">Offen</option>
-                      <option value="PAID">Bezahlt</option>
-                      <option value="NA">Nicht zutreffend</option>
+                      <option value="OPEN">{t("costs.open")}</option>
+                      <option value="PAID">{t("costs.paid")}</option>
+                      <option value="NA">{t("costs.na")}</option>
                     </select>
                   ) : (
                     <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
-                      {PAYMENT_STATUS_LABELS[order.diagnosis_payment_status] || "Offen"}
+                      {t("costs." + ({PAID:"paid",OPEN:"open",NA:"na"}[order.diagnosis_payment_status] || "open"))}
                     </span>
                   )}
                 </div>
@@ -469,16 +469,16 @@ export default function OrderDetail() {
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     <button data-testid="save-costs" onClick={saveCosts}
                       className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                      Kosten speichern
+                      {t("costs.save")}
                     </button>
                     <div className="flex-1" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Freigabe:</span>
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.release")}</span>
                     <button data-testid="cost-approve" onClick={() => setCostStatus("BESTAETIGT")}
-                      className="text-xs font-mono uppercase tracking-wider border border-emerald-700 text-emerald-300 px-3 py-2 hover:bg-emerald-950 transition-colors">Bestätigt</button>
+                      className="text-xs font-mono uppercase tracking-wider border border-emerald-700 text-emerald-300 px-3 py-2 hover:bg-emerald-950 transition-colors">{t("costs.confirmed")}</button>
                     <button data-testid="cost-wait" onClick={() => setCostStatus("WARTET")}
-                      className="text-xs font-mono uppercase tracking-wider border border-amber-700 text-amber-300 px-3 py-2 hover:bg-amber-950 transition-colors">Wartet</button>
+                      className="text-xs font-mono uppercase tracking-wider border border-amber-700 text-amber-300 px-3 py-2 hover:bg-amber-950 transition-colors">{t("costs.waiting")}</button>
                     <button data-testid="cost-reject" onClick={() => setCostStatus("ABGELEHNT")}
-                      className="text-xs font-mono uppercase tracking-wider border border-red-700 text-red-300 px-3 py-2 hover:bg-red-950 transition-colors">Abgelehnt</button>
+                      className="text-xs font-mono uppercase tracking-wider border border-red-700 text-red-300 px-3 py-2 hover:bg-red-950 transition-colors">{t("costs.rejected")}</button>
                   </div>
                 )}
               </div>
@@ -489,11 +489,11 @@ export default function OrderDetail() {
             <div className="border border-border">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
                 <Package size={16} className="text-accent" />
-                <h2 className="font-head font-semibold text-sm tracking-tight">Verbaute Ersatzteile</h2>
+                <h2 className="font-head font-semibold text-sm tracking-tight">{t("detail.partsTitle")}</h2>
               </div>
               <div className="p-4">
                 {(order.used_parts || []).length === 0 ? (
-                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">Noch keine Ersatzteile verbaut.</div>
+                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noParts")}</div>
                 ) : (
                   <div className="space-y-2 mb-3">
                     {order.used_parts.map((p) => (
@@ -518,7 +518,7 @@ export default function OrderDetail() {
                   <div className="flex gap-2 border-t border-border pt-3">
                     <select data-testid="part-select" value={partId} onChange={(e) => setPartId(e.target.value)}
                       className="flex-1 min-w-0 bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent">
-                      <option value="">— Ersatzteil aus Lager wählen —</option>
+                      <option value="">{t("detail.choosePart")}</option>
                       {inventory.filter((i) => i.quantity > 0).map((i) => (
                         <option key={i.id} value={i.id}>{`${i.brand} ${i.device_model} · ${i.part_type} (${i.quantity} · ${Number(i.price).toFixed(2)}€)`}</option>
                       ))}
@@ -527,7 +527,7 @@ export default function OrderDetail() {
                       className="w-16 bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
                     <button data-testid="add-part" onClick={addPart}
                       className="flex items-center gap-1 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                      <Plus size={14} /> Verbauen
+                      <Plus size={14} /> {t("detail.install")}
                     </button>
                   </div>
                 )}
@@ -538,23 +538,23 @@ export default function OrderDetail() {
               <div className="border border-amber-900/50 bg-amber-950/20 px-4 py-3 flex items-center gap-3">
                 <ShieldCheck size={20} className="text-amber-400 shrink-0" />
                 <div>
-                  <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400">DSGVO-Schutz</div>
-                  <div className="text-xs text-muted-foreground">Kundendaten sind für Techniker aus Datenschutzgründen ausgeblendet.</div>
+                  <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400">{t("detail.dsgvoTitle")}</div>
+                  <div className="text-xs text-muted-foreground">{t("detail.dsgvoDesc")}</div>
                 </div>
               </div>
             ) : (
-              <Section title="Kundendaten" icon={User}>
-                <Field label="Name" value={order.customer_name} />
-                <Field label="Telefon" value={order.customer_phone} />
-                <Field label="E-Mail" value={order.customer_email} />
-                <Field label="Adresse" value={order.customer_address} />
+              <Section title={t("detail.customer")} icon={User}>
+                <Field label={t("detail.name")} value={order.customer_name} />
+                <Field label={t("detail.phone")} value={order.customer_phone} />
+                <Field label={t("detail.email")} value={order.customer_email} />
+                <Field label={t("detail.address")} value={order.customer_address} />
               </Section>
             )}
 
             {/* Media */}
-            <Section title="Zustandsprotokoll (Eingang)" icon={Camera}>
+            <Section title={t("detail.intakeMedia")} icon={Camera}>
               {intakeMedia.length === 0 ? (
-                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">Keine Eingangs-Medien.</div>
+                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {intakeMedia.map((m) => <MediaThumb key={m.id} m={m} />)}
@@ -562,14 +562,14 @@ export default function OrderDetail() {
               )}
             </Section>
 
-            <Section title="Reparatur-Dokumentation" icon={Wrench}>
+            <Section title={t("detail.repairDoc")} icon={Wrench}>
               {isTech && repairMedia.length === 0 && order.status !== "ABGEHOLT" && (
                 <div data-testid="repair-media-required" className="mb-3 border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-300 font-mono">
-                  Pflicht: Nehmen Sie vor „Fertig melden" Reparatur-Fotos/-Videos direkt über die Live-Kamera auf.
+                  {t("detail.repairRequired")}
                 </div>
               )}
               {repairMedia.length === 0 ? (
-                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">Noch keine Reparatur-Medien.</div>
+                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
                   {repairMedia.map((m) => <MediaThumb key={m.id} m={m} />)}
@@ -578,12 +578,12 @@ export default function OrderDetail() {
               {(isTech || canManage) && order.status !== "ABGEHOLT" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <label data-testid="upload-media-label" className="flex items-center justify-center gap-2 border border-dashed border-border py-3 cursor-pointer hover:border-accent transition-colors text-sm text-muted-foreground">
-                    <UploadSimple size={16} /> {uploading ? "Lädt…" : "Datei hochladen"}
+                    <UploadSimple size={16} /> {uploading ? t("common.loading") : t("detail.uploadFile")}
                     <input data-testid="upload-media-input" type="file" accept="image/*,video/*" multiple onChange={uploadRepair} className="hidden" disabled={uploading} />
                   </label>
                   <button data-testid="open-camera" onClick={() => setShowCamera(true)}
                     className="flex items-center justify-center gap-2 border border-dashed border-accent/50 py-3 hover:border-accent hover:bg-accent/5 transition-colors text-sm text-foreground/80">
-                    <VideoCamera size={16} className="text-accent" /> Live-Kamera
+                    <VideoCamera size={16} className="text-accent" /> {t("detail.liveCamera")}
                   </button>
                 </div>
               )}
@@ -607,15 +607,15 @@ export default function OrderDetail() {
 
             {/* Digitale Unterschriften */}
             {canManage && (
-              <Section title="Digitale Unterschriften" icon={Signature}>
+              <Section title={t("detail.signatures")} icon={Signature}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Intake / Abholschein */}
                   <div className="space-y-2">
-                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Abgabe (Abholschein)</div>
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("detail.sigIntake")}</div>
                     {order.has_intake_signature && order.intake_signature ? (
                       <div className="space-y-1">
                         <div className="border border-border rounded-lg bg-white p-2">
-                          <img src={order.intake_signature} alt="Unterschrift Abgabe" className="h-24 object-contain mx-auto" />
+                          <img src={order.intake_signature} alt={t("detail.sigIntake")} className="h-24 object-contain mx-auto" />
                         </div>
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {order.intake_signed_name || order.customer_name} · {order.intake_signed_at ? berlinDateTime(order.intake_signed_at) : ""}
@@ -623,18 +623,18 @@ export default function OrderDetail() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("intake", d)} label="Kunde unterschreibt (Abgabe)" height={140} />
+                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("intake", d)} label={t("detail.sigIntakeSign")} height={140} />
                       </div>
                     )}
                   </div>
 
                   {/* Pickup / Übergabe */}
                   <div className="space-y-2">
-                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">Abholung / Übergabe</div>
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("detail.sigPickup")}</div>
                     {order.has_pickup_signature && order.pickup_signature ? (
                       <div className="space-y-1">
                         <div className="border border-border rounded-lg bg-white p-2">
-                          <img src={order.pickup_signature} alt="Unterschrift Abholung" className="h-24 object-contain mx-auto" />
+                          <img src={order.pickup_signature} alt={t("detail.sigPickup")} className="h-24 object-contain mx-auto" />
                         </div>
                         <div className="font-mono text-[10px] text-muted-foreground">
                           {order.pickup_signed_name || order.customer_name} · {order.pickup_signed_at ? berlinDateTime(order.pickup_signed_at) : ""}
@@ -643,7 +643,7 @@ export default function OrderDetail() {
                     ) : (
                       <div className="space-y-2">
                         <p className="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed border border-border/60 rounded-lg p-2 bg-card/30">{PICKUP_WAIVER}</p>
-                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("pickup", d)} label="Kunde unterschreibt (Abholung)" height={140} />
+                        <SignaturePad saving={savingSig} onSave={(d) => saveSignature("pickup", d)} label={t("detail.sigPickupSign")} height={140} />
                       </div>
                     )}
                   </div>
@@ -654,22 +654,22 @@ export default function OrderDetail() {
             {/* Chat */}
             <OrderChat orderId={order.id} />
             {canManage && (
-              <Section title="Kundenkommunikation · WhatsApp / SMS / E-Mail" icon={ChatCircleDots}>
+              <Section title={t("detail.commTitle")} icon={ChatCircleDots}>
                 <CommunicationPanel order={order} onSent={loadComms} />
                 <div className="mt-4 pt-4 border-t border-border/60">
-                  <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">Verlauf</div>
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">{t("detail.history")}</div>
                   {comms.length === 0 ? (
-                    <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">Noch keine Nachrichten an den Kunden.</div>
+                    <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noMessages")}</div>
                   ) : (
                     <div className="space-y-2" data-testid="comms-list">
                       {comms.map((c) => (
                         <div key={c.id} className="border border-border/60 px-3 py-2">
                           <div className="flex items-center justify-between mb-0.5">
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{(c.channel || "nachricht").toUpperCase()} → {c.to}{c.status ? ` · ${c.status}` : ""}</span>
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{(c.channel || t("detail.channelDefault")).toUpperCase()} → {c.to}{c.status ? ` · ${c.status}` : ""}</span>
                             <span className="font-mono text-[10px] text-muted-foreground">{berlinDateTime(c.at)}</span>
                           </div>
                           <div className="text-sm text-foreground">{c.message}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">von {c.by}</div>
+                          <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">{t("detail.msgFrom")} {c.by}</div>
                         </div>
                       ))}
                     </div>
@@ -680,9 +680,9 @@ export default function OrderDetail() {
 
             {/* Audit-Log */}
             {canManage && (
-              <Section title="Audit-Log · Historie" icon={ListChecks}>
+              <Section title={t("detail.auditTitle")} icon={ListChecks}>
                 {audit.length === 0 ? (
-                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">Keine Einträge.</div>
+                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noAudit")}</div>
                 ) : (
                   <div className="space-y-1" data-testid="audit-list">
                     {audit.map((a) => (
@@ -700,32 +700,32 @@ export default function OrderDetail() {
 
           {/* RIGHT column */}
           <div className="space-y-4">
-            <Section title="QR-Code" icon={Package}>
+            <Section title={t("detail.qr")} icon={Package}>
               <div className="flex flex-col items-center py-3">
                 <div className="bg-white p-3">
                   <QRCodeCanvas value={order.auftragsnummer} size={140} level="M" />
                 </div>
                 <div className="font-mono text-sm text-foreground mt-3">{order.auftragsnummer}</div>
-                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest mt-1">Zum Scannen</div>
+                <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest mt-1">{t("detail.scanHint")}</div>
               </div>
             </Section>
 
             {canManage && (order.status === "ANGENOMMEN" || order.status === "ABGELEHNT" || !order.assigned_techniker_id) && (
-              <Section title={order.status === "ABGELEHNT" ? "Neu zuweisen (nach Ablehnung)" : "Techniker zuweisen"} icon={Wrench}>
+              <Section title={order.status === "ABGELEHNT" ? t("detail.reassignTitle") : t("detail.assignTech")} icon={Wrench}>
                 {order.status === "ABGELEHNT" && (
                   <p data-testid="reassign-hint" className="text-[11px] font-mono text-amber-300 mb-2">
-                    Auftrag wurde abgelehnt. Wählen Sie einen anderen Techniker, um erneut zuzuweisen.
+                    {t("detail.reassignHint")}
                   </p>
                 )}
                 <select data-testid="assign-technician-select" defaultValue="" onChange={(e) => e.target.value && assign(e.target.value)}
                   className="w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent">
-                  <option value="">— Techniker wählen —</option>
+                  <option value="">{t("detail.chooseTech")}</option>
                   {technicians.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </Section>
             )}
 
-            <Section title="Verlauf" icon={ClockCounterClockwise}>
+            <Section title={t("detail.history")} icon={ClockCounterClockwise}>
               <div className="space-y-3">
                 {(order.status_history || []).slice().reverse().map((h, i) => (
                   <div key={i} className="flex gap-3">
@@ -734,7 +734,7 @@ export default function OrderDetail() {
                       {i < order.status_history.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
                     </div>
                     <div className="pb-2">
-                      <div className="text-sm text-foreground">{STATUS_LABELS[h.status] || h.status}</div>
+                      <div className="text-sm text-foreground">{t(`status.${h.status}`, STATUS_LABELS[h.status] || h.status)}</div>
                       <div className="font-mono text-[10px] text-muted-foreground">
                         {berlinDateTime(h.at)} · {h.by}
                       </div>
@@ -756,19 +756,19 @@ export default function OrderDetail() {
       {showReject && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-background border border-border max-w-md w-full p-6">
-            <h3 className="font-head font-semibold text-lg mb-1">Auftrag ablehnen</h3>
-            <p className="text-sm text-muted-foreground mb-4">Bitte geben Sie einen Grund für die Ablehnung an.</p>
+            <h3 className="font-head font-semibold text-lg mb-1">{t("detail.rejectTitle")}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t("detail.rejectDesc")}</p>
             <textarea data-testid="reject-reason-input" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={4}
-              placeholder="z.B. Ersatzteil nicht verfügbar, Wasserschaden zu groß…"
+              placeholder={t("detail.rejectPlaceholder")}
               className="w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent" />
             <div className="flex gap-3 mt-4">
               <button data-testid="confirm-reject" onClick={doReject}
                 className="flex-1 bg-red-600 text-foreground font-head font-semibold text-sm uppercase tracking-wider py-2.5 hover:bg-red-500 transition-colors">
-                Ablehnen
+                {t("actions.reject")}
               </button>
               <button onClick={() => setShowReject(false)}
                 className="px-6 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors">
-                Abbrechen
+                {t("common.cancel")}
               </button>
             </div>
           </div>

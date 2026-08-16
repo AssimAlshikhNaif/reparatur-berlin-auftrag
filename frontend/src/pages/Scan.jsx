@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Html5Qrcode } from "html5-qrcode";
 import api from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
@@ -8,6 +9,7 @@ import { QrCode, Keyboard, Camera, StopCircle } from "@phosphor-icons/react";
 
 export default function Scan() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [manual, setManual] = useState("");
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef(null);
@@ -18,11 +20,11 @@ export default function Scan() {
     busyRef.current = true;
     try {
       const { data } = await api.get(`/orders/lookup/${encodeURIComponent(auftragsnummer.trim())}`);
-      toast.success(`Auftrag ${data.auftragsnummer} gefunden`);
+      toast.success(t("scan.found", { nr: data.auftragsnummer }));
       await stop();
       navigate(`/auftrag/${data.id}`);
     } catch (err) {
-      toast.error(err.response?.data?.detail || "Auftrag nicht gefunden");
+      toast.error(err.response?.data?.detail || t("scan.notFound"));
       busyRef.current = false;
     }
   };
@@ -39,7 +41,7 @@ export default function Scan() {
         () => {}
       );
     } catch (err) {
-      toast.error("Kamera konnte nicht gestartet werden. Bitte Auftragsnummer manuell eingeben.");
+      toast.error(t("scan.cameraError"));
       setScanning(false);
     }
   };
@@ -56,25 +58,25 @@ export default function Scan() {
 
   return (
     <div>
-      <PageHeader label="Schnellzugriff" title="QR-Code scannen" />
+      <PageHeader label={t("scan.label")} title={t("scan.title")} />
       <div className="p-6 md:p-8 max-w-xl space-y-6">
         {/* Scanner */}
         <div className="border border-border">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
             <QrCode size={16} className="text-accent" />
-            <h2 className="font-head font-semibold text-sm">Kamera-Scanner</h2>
+            <h2 className="font-head font-semibold text-sm">{t("scan.cameraScanner")}</h2>
           </div>
           <div className="p-4">
             <div id="qr-reader" className="w-full overflow-hidden bg-black min-h-[80px]" />
             {!scanning ? (
               <button data-testid="start-scan" onClick={start}
                 className="mt-4 w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider py-3 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                <Camera size={16} /> Scanner starten
+                <Camera size={16} /> {t("scan.startScanner")}
               </button>
             ) : (
               <button data-testid="stop-scan" onClick={stop}
                 className="mt-4 w-full flex items-center justify-center gap-2 border border-border text-foreground/80 font-head font-semibold text-sm uppercase tracking-wider py-3 rounded-lg hover:bg-muted transition-colors">
-                <StopCircle size={16} /> Stoppen
+                <StopCircle size={16} /> {t("scan.stop")}
               </button>
             )}
           </div>
@@ -84,7 +86,7 @@ export default function Scan() {
         <div className="border border-border">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
             <Keyboard size={16} className="text-accent" />
-            <h2 className="font-head font-semibold text-sm">Manuelle Eingabe</h2>
+            <h2 className="font-head font-semibold text-sm">{t("scan.manualEntry")}</h2>
           </div>
           <form onSubmit={(e) => { e.preventDefault(); if (manual.trim()) lookup(manual); }} className="p-4 flex gap-2">
             <input data-testid="manual-auftragsnummer" value={manual} onChange={(e) => setManual(e.target.value)}
@@ -92,7 +94,7 @@ export default function Scan() {
               className="flex-1 bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent transition-colors font-mono" />
             <button data-testid="manual-lookup" type="submit"
               className="bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider px-6 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-              Suchen
+              {t("scan.search")}
             </button>
           </form>
         </div>

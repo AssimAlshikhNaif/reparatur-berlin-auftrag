@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, VideoCamera, X, Circle, StopCircle, ArrowClockwise } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 export default function CameraCapture({ onCapture, onClose }) {
+  const { t } = useTranslation();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const recorderRef = useRef(null);
@@ -21,7 +23,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       if (videoRef.current) videoRef.current.srcObject = stream;
       setReady(true);
     } catch (e) {
-      toast.error("Kamera konnte nicht gestartet werden. Bitte Berechtigung prüfen.");
+      toast.error(t("cam.cameraError"));
       onClose();
     }
   };
@@ -60,7 +62,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       if (!blob) return;
       const file = new File([blob], `foto-${Date.now()}.jpg`, { type: "image/jpeg" });
       onCapture(file);
-      toast.success("Foto aufgenommen");
+      toast.success(t("cam.photoTaken"));
     }, "image/jpeg", 0.9);
   };
 
@@ -74,7 +76,7 @@ export default function CameraCapture({ onCapture, onClose }) {
         const blob = new Blob(chunksRef.current, { type: "video/webm" });
         const file = new File([blob], `video-${Date.now()}.webm`, { type: "video/webm" });
         onCapture(file);
-        toast.success("Video aufgenommen");
+        toast.success(t("cam.videoTaken"));
       };
       rec.start();
       recorderRef.current = rec;
@@ -90,7 +92,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2">
           <Camera size={18} className="text-accent" />
-          <h3 className="font-head font-semibold text-sm">Live-Aufnahme · Zustandsprotokoll</h3>
+          <h3 className="font-head font-semibold text-sm">{t("cam.title")}</h3>
         </div>
         <button data-testid="camera-close" onClick={() => { stopStream(); onClose(); }} className="text-muted-foreground hover:text-primary-foreground">
           <X size={22} />
@@ -105,28 +107,28 @@ export default function CameraCapture({ onCapture, onClose }) {
         <div className="flex items-center justify-center gap-2 mb-4">
           <button data-testid="camera-mode-photo" onClick={() => switchMode("photo")} disabled={recording}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-mono uppercase tracking-wider border rounded-lg transition-colors ${mode === "photo" ? "bg-primary text-primary-foreground border-white" : "border-border text-muted-foreground hover:text-primary-foreground"}`}>
-            <Camera size={14} /> Foto
+            <Camera size={14} /> {t("cam.photo")}
           </button>
           <button data-testid="camera-mode-video" onClick={() => switchMode("video")} disabled={recording}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-mono uppercase tracking-wider border rounded-lg transition-colors ${mode === "video" ? "bg-primary text-primary-foreground border-white" : "border-border text-muted-foreground hover:text-primary-foreground"}`}>
-            <VideoCamera size={14} /> Video
+            <VideoCamera size={14} /> {t("cam.video")}
           </button>
         </div>
         <div className="flex items-center justify-center">
           {mode === "photo" ? (
             <button data-testid="camera-shutter" onClick={takePhoto} disabled={!ready}
               className="flex items-center gap-2 bg-accent text-foreground font-head font-semibold text-sm uppercase tracking-wider px-8 py-3 rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-40">
-              <Circle size={18} weight="fill" /> Aufnehmen
+              <Circle size={18} weight="fill" /> {t("cam.capture")}
             </button>
           ) : (
             <button data-testid="camera-record" onClick={toggleRecording} disabled={!ready}
               className={`flex items-center gap-2 font-head font-semibold text-sm uppercase tracking-wider px-8 py-3 rounded-lg transition-colors disabled:opacity-40 ${recording ? "bg-red-600 text-foreground hover:bg-red-500" : "bg-accent text-foreground hover:bg-blue-500"}`}>
-              {recording ? <><StopCircle size={18} weight="fill" /> Stopp</> : <><Circle size={18} weight="fill" /> Aufnahme starten</>}
+              {recording ? <><StopCircle size={18} weight="fill" /> {t("cam.stop")}</> : <><Circle size={18} weight="fill" /> {t("cam.startRecording")}</>}
             </button>
           )}
         </div>
         <p className="text-center text-[11px] font-mono text-muted-foreground mt-3">
-          Aufnahmen werden direkt dem Auftrag hinzugefügt. Sie können mehrere Aufnahmen machen.
+          {t("cam.hint")}
         </p>
       </div>
     </div>

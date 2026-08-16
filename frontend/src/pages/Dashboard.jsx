@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import api, { formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
@@ -49,6 +50,7 @@ export default function Dashboard() {
 }
 
 function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSlaOrders }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
         }
       } catch (err) {
         console.error("Dashboard-Ladefehler:", err);
-        toast.error(formatApiErrorDetail(err.response?.data?.detail) || "Fehler beim Laden des Dashboards");
+        toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("dashboard.loadError"));
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -79,29 +81,29 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
     return () => {
       isMounted = false;
     };
-  }, [setStats, setSlaOrders]);
+  }, [setStats, setSlaOrders, t]);
 
   if (loading || !stats) {
     return (
       <div className="p-8 font-mono text-muted-foreground animate-pulse text-sm">
-        Lade Dashboard…
+        {t("dashboard.loading")}
       </div>
     );
   }
 
   return (
     <div className="space-y-8 pb-12">
-      <PageHeader label={`Übersicht · ${user?.name || "Benutzer"}`} title="Dashboard" />
+      <PageHeader label={`${t("dashboard.overview")} · ${user?.name || t("dashboard.user")}`} title={t("dashboard.title")} />
 
       {/* Metrics grid */}
       <div className="px-6 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Metric testid="metric-total" label="Aufträge gesamt" value={stats.total_orders ?? 0} icon={Wrench} />
-        <Metric testid="metric-active" label="Aktive Aufträge" value={stats.active_orders ?? 0} icon={ClockCountdown} accent="text-accent" />
-        <Metric testid="metric-sla" label="SLA-Verstöße" value={stats.sla_breached ?? 0} icon={Warning} accent={stats.sla_breached > 0 ? "text-red-500" : "text-muted-foreground/70"} />
+        <Metric testid="metric-total" label={t("dashboard.metricTotal")} value={stats.total_orders ?? 0} icon={Wrench} />
+        <Metric testid="metric-active" label={t("dashboard.metricActive")} value={stats.active_orders ?? 0} icon={ClockCountdown} accent="text-accent" />
+        <Metric testid="metric-sla" label={t("dashboard.metricSla")} value={stats.sla_breached ?? 0} icon={Warning} accent={stats.sla_breached > 0 ? "text-red-500" : "text-muted-foreground/70"} />
         {user?.role === "admin" ? (
-          <Metric testid="metric-revenue" label="Umsatz (abgeholt)" value={`${Number(stats.revenue ?? 0).toFixed(0)} €`} icon={Receipt} accent="text-emerald-500" />
+          <Metric testid="metric-revenue" label={t("dashboard.metricRevenue")} value={`${Number(stats.revenue ?? 0).toFixed(0)} €`} icon={Receipt} accent="text-emerald-500" />
         ) : (
-          <Metric testid="metric-done" label="Abgeholt" value={stats.by_status?.ABGEHOLT ?? 0} icon={CheckCircle} accent="text-emerald-500" />
+          <Metric testid="metric-done" label={t("dashboard.metricDone")} value={stats.by_status?.ABGEHOLT ?? 0} icon={CheckCircle} accent="text-emerald-500" />
         )}
       </div>
 
@@ -118,10 +120,10 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Storefront size={20} className="text-accent" />
-                <h2 className="font-head font-semibold text-base">Umsatz & Reparaturen je Filiale</h2>
+                <h2 className="font-head font-semibold text-base">{t("dashboard.revenueByBranch")}</h2>
               </div>
               <span className="font-mono text-xs text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full border border-border/40">
-                {stats.completed_repairs ?? 0} abgeschlossene Reparaturen
+                {t("dashboard.completedRepairs", { n: stats.completed_repairs ?? 0 })}
               </span>
             </div>
             <div className="h-64 pt-2" data-testid="revenue-chart">
@@ -133,7 +135,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
                   <Tooltip
                     cursor={{ fill: "rgba(255,255,255,0.03)" }}
                     contentStyle={{ background: "#09090B", border: "1px solid #3f3f46", borderRadius: "8px", fontFamily: "IBM Plex Mono", fontSize: 12 }}
-                    formatter={(v, n) => [n === "revenue" ? `${Number(v).toFixed(2)} €` : v, n === "revenue" ? "Umsatz" : "Aufträge"]}
+                    formatter={(v, n) => [n === "revenue" ? `${Number(v).toFixed(2)} €` : v, n === "revenue" ? t("dashboard.revenue") : t("dashboard.ordersWord")]}
                   />
                   <Bar dataKey="revenue" fill="#3B82F6" radius={[4, 4, 0, 0]} maxBarSize={45} />
                 </BarChart>
@@ -149,11 +151,11 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
         <div className="lg:col-span-2 border border-border/80 rounded-xl bg-card p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <Warning size={20} weight="fill" className="text-red-500" />
-            <h2 className="font-head font-semibold text-base">SLA-Alarme · 3 Werktage</h2>
+            <h2 className="font-head font-semibold text-base">{t("dashboard.slaTitle")}</h2>
           </div>
           {!slaOrders || slaOrders.length === 0 ? (
             <div className="text-sm text-muted-foreground font-mono border border-dashed border-border/60 rounded-lg py-12 text-center">
-              Keine SLA-Verstöße. Alle Aufträge im Zeitrahmen.
+              {t("dashboard.noSla")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -182,7 +184,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
         {/* Status distribution & Low stock */}
         <div className="border border-border/80 rounded-xl bg-card p-6 shadow-sm space-y-6">
           <div>
-            <h2 className="font-head font-semibold text-base mb-4">Status-Verteilung</h2>
+            <h2 className="font-head font-semibold text-base mb-4">{t("dashboard.statusDistribution")}</h2>
             <div className="space-y-3">
               {Object.keys(STATUS_LABELS).map((st) => {
                 const count = stats.by_status?.[st] ?? 0;
@@ -191,7 +193,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
                 return (
                   <div key={st} data-testid={`dist-${st}`}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-muted-foreground">{STATUS_LABELS[st]}</span>
+                      <span className="text-xs text-muted-foreground">{t(`status.${st}`, STATUS_LABELS[st])}</span>
                       <span className="font-mono text-xs font-semibold text-foreground">{count}</span>
                     </div>
                     <div className="h-1.5 bg-muted rounded-full overflow-hidden">
@@ -207,7 +209,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
             <div className="pt-4 border-t border-border/40">
               <div className="flex items-center gap-2 mb-3">
                 <Package size={18} className="text-amber-500" />
-                <h3 className="font-head font-semibold text-sm">Nachbestellung nötig</h3>
+                <h3 className="font-head font-semibold text-sm">{t("dashboard.reorderNeeded")}</h3>
               </div>
               <div className="space-y-2">
                 {stats.low_stock_items.slice(0, 6).map((i) => (

@@ -7,9 +7,9 @@ import { Wall, Eye, EyeSlash, SpinnerGap, Copy, ShieldCheck, User, Wrench } from
 import { toast } from "sonner";
 
 const DEMO_ACCOUNTS = [
-  { role: "admin", label: "Administrator", desc: "Vollzugriff", icon: ShieldCheck, emails: ["admin@repair.de"] },
-  { role: "mitarbeiter", label: "Mitarbeiter", desc: "Filialgebunden", icon: User, emails: ["mohini@repair.de", "leen@repair.de", "abbas@repair.de", "salem@repair.de", "ali@repair.de"] },
-  { role: "techniker", label: "Techniker", desc: "Nur Reparaturansicht (ohne Kundendaten)", icon: Wrench, emails: ["chris@repair.de", "nam@repair.de", "yasser@repair.de", "basel@repair.de"] },
+  { role: "admin", icon: ShieldCheck, emails: ["admin@repair.de"] },
+  { role: "mitarbeiter", icon: User, emails: ["mohini@repair.de", "leen@repair.de", "abbas@repair.de", "salem@repair.de", "ali@repair.de"] },
+  { role: "techniker", icon: Wrench, emails: ["chris@repair.de", "nam@repair.de", "yasser@repair.de", "basel@repair.de"] },
 ];
 const DEMO_PW = "Repair2026!";
 
@@ -60,7 +60,7 @@ export default function Login() {
             {t("login.heroDesc")}
           </p>
           <div className="mt-8 flex gap-4 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
-            <span>Auftrag</span><span>·</span><span>Techniker</span><span>·</span><span>Abholschein</span>
+            <span>{t("login.tag1")}</span><span>·</span><span>{t("login.tag2")}</span><span>·</span><span>{t("login.tag3")}</span>
           </div>
         </div>
       </div>
@@ -135,25 +135,26 @@ export default function Login() {
 }
 
 function DemoAccounts({ onPick }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const roleTone = {
     admin: "text-primary border-primary/40 bg-primary/10",
     mitarbeiter: "text-emerald-500 border-emerald-500/40 bg-emerald-500/10",
     techniker: "text-amber-500 border-amber-500/40 bg-amber-500/10",
   };
-  const copy = (txt) => { navigator.clipboard?.writeText(txt); toast.success(`Kopiert: ${txt}`); };
+  const copy = (txt) => { navigator.clipboard?.writeText(txt); toast.success(t("usr.copied", { email: txt })); };
 
   return (
     <div className="mt-6 border border-border rounded-lg overflow-hidden">
       <button type="button" data-testid="toggle-demo-accounts" onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-muted transition-colors">
-        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Test-Zugänge (Demo)</span>
-        <span className="font-mono text-[11px] text-primary">{open ? "Verbergen" : "Anzeigen"}</span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{t("login.demoTitle")}</span>
+        <span className="font-mono text-[11px] text-primary">{open ? t("login.hide") : t("login.show")}</span>
       </button>
       {open && (
         <div className="p-4 space-y-4 bg-card/40">
           <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className="text-muted-foreground">Passwort für alle Konten:</span>
+            <span className="text-muted-foreground">{t("login.pwForAll")}</span>
             <button data-testid="copy-password" onClick={() => copy(DEMO_PW)}
               className="flex items-center gap-1 text-foreground hover:text-primary transition-colors">
               {DEMO_PW} <Copy size={13} />
@@ -165,9 +166,9 @@ function DemoAccounts({ onPick }) {
               <div key={grp.role}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-mono uppercase tracking-wider ${roleTone[grp.role]}`}>
-                    <Icon size={12} weight="bold" /> {grp.label}
+                    <Icon size={12} weight="bold" /> {t(`roles.${grp.role}`)}
                   </span>
-                  <span className="text-[10px] font-mono text-muted-foreground/70">{grp.desc}</span>
+                  <span className="text-[10px] font-mono text-muted-foreground/70">{t(`login.desc_${grp.role}`)}</span>
                 </div>
                 <div className="space-y-1">
                   {grp.emails.map((em) => (
@@ -175,7 +176,7 @@ function DemoAccounts({ onPick }) {
                       <span className="font-mono text-xs text-foreground/80 truncate">{em}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         <button data-testid={`use-${em}`} onClick={() => onPick(em)}
-                          className="text-[10px] font-mono uppercase tracking-wider text-primary hover:underline">Einsetzen</button>
+                          className="text-[10px] font-mono uppercase tracking-wider text-primary hover:underline">{t("login.use")}</button>
                         <button data-testid={`copy-${em}`} onClick={() => copy(em)}
                           className="text-muted-foreground hover:text-foreground transition-colors"><Copy size={13} /></button>
                       </div>

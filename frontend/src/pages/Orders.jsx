@@ -84,7 +84,7 @@ export default function Orders() {
                 : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : "border-border text-muted-foreground hover:text-foreground")
             }`}
           >
-            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : t(`status.${tab.key}`, tab.label)}
+            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}
           </button>
         ))}
       </div>
@@ -158,18 +158,18 @@ export default function Orders() {
                       <StatusBadge status={o.status} />
                       {o.sla_breached && <SlaBadge days={o.working_days_open} />}
                       {o.imei_reminder && (
-                        <span data-testid={`list-imei-${o.auftragsnummer}`} title="IMEI fehlt" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
+                        <span data-testid={`list-imei-${o.auftragsnummer}`} title={t("detail.imeiMissing")} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
                           <Warning size={10} weight="fill" /> IMEI
                         </span>
                       )}
                       {o.under_warranty && (
-                        <span data-testid={`list-warranty-${o.auftragsnummer}`} title="Garantiefall" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-emerald-600 bg-emerald-950 text-emerald-300 rounded">
-                          <ShieldCheck size={10} weight="fill" /> Garantie
+                        <span data-testid={`list-warranty-${o.auftragsnummer}`} title={t("reklamation.badgeWarranty")} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-emerald-600 bg-emerald-950 text-emerald-300 rounded">
+                          <ShieldCheck size={10} weight="fill" /> {t("reklamation.badgeWarranty")}
                         </span>
                       )}
                       {o.is_reclamation && (
-                        <span data-testid={`list-reclamation-${o.auftragsnummer}`} title="Reklamation" className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
-                          <ArrowsClockwise size={10} weight="fill" /> Reklamation
+                        <span data-testid={`list-reclamation-${o.auftragsnummer}`} title={t("reklamation.badgeReclamation")} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">
+                          <ArrowsClockwise size={10} weight="fill" /> {t("reklamation.badgeReclamation")}
                         </span>
                       )}
                     </div>
