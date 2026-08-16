@@ -22,14 +22,17 @@ async def push_notification(
     order_id: Optional[str] = None,
     auftragsnummer: Optional[str] = None,
     meta: Optional[dict] = None,
+    target_user_id: Optional[str] = None,
+    target_role: Optional[str] = None,
 ):
-    """Insert an admin notification.
+    """Insert a notification.
 
-    Only actions by mitarbeiter/techniker generate notifications (an admin does
-    not need to be alerted about their own actions).
+    Audit notifications (who did what) are only generated for mitarbeiter/techniker
+    actions. Targeted notifications (e.g. an order assigned to a specific
+    technician) always fire regardless of who triggered them.
     """
     try:
-        if by_role not in ("mitarbeiter", "techniker"):
+        if target_user_id is None and by_role not in ("mitarbeiter", "techniker"):
             return None
         doc = {
             "kind": kind,
@@ -39,6 +42,8 @@ async def push_notification(
             "by_role": by_role,
             "order_id": order_id,
             "auftragsnummer": auftragsnummer,
+            "target_user_id": target_user_id,
+            "target_role": target_role,
             "meta": meta or {},
             "read": False,
             "at": datetime.now(timezone.utc).isoformat(),

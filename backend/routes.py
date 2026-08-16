@@ -560,6 +560,10 @@ async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
         except Exception:
             pass
     return {"message": "Auftrag gelöscht", "auftragsnummer": order.get("auftragsnummer")}
+
+
+@router.post("/orders")
+async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
     # Conditional IMEI validation: IMEI is mandatory unless the device is flagged
     # as defective / IMEI unreadable.
     if not (input.imei or "").strip() and not input.imei_unreadable:
@@ -628,6 +632,15 @@ async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
         by=current["name"], by_role=current["role"],
         order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
     )
+    # Targeted real-time alert if the order was created already assigned to a technician
+    if input.assigned_techniker_id:
+        await push_notification(
+            kind="ASSIGNED", title="🔧 Neuer Auftrag zugewiesen",
+            message=f"Ihnen wurde {auftragsnummer} zugewiesen: {input.device_brand} {input.device_model}",
+            by=current["name"], by_role=current["role"],
+            order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
+            target_user_id=input.assigned_techniker_id, target_role="techniker",
+        )
     return serialize_order(order, current)
 
 
@@ -663,6 +676,14 @@ async def assign_order(order_id: str, input: AssignInput,
         message=f"{current['name']} hat {order.get('auftragsnummer','')} an {tech['name']} {action_word}.",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    # Targeted real-time alert to the assigned technician
+    await push_notification(
+        kind="ASSIGNED", title="🔧 Neuer Auftrag zugewiesen",
+        message=f"Ihnen wurde {order.get('auftragsnummer','')} zugewiesen: {order.get('device_brand','')} {order.get('device_model','')}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+        target_user_id=input.techniker_id, target_role="techniker",
     )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
@@ -1282,22 +1303,27 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
 
 
-# ==================== NOTIFICATIONS (Admin + branch Reception) ====================
-async def _notif_scope_ids(user: dict):
-    """Return None for admin (sees all), or the set of order_ids belonging to
-    the reception user's branch (so Mitarbeiter only see their branch's alerts)."""
-    if user["role"] == "admin":
-        return None
+# ==================== NOTIFICATIONS (Admin + Reception + targeted Technicians) ====================
+async def _notif_query(user: dict):
+    """Build the Mongo filter for the notifications a user may see.
+    - admin: all broadcast/untargeted notifications (target_user_id null/absent)
+    - techniker: only notifications targeted at their own user id (e.g. assignments)
+    - mitarbeiter: untargeted notifications for their branch's orders
+    (Mongo `{field: None}` also matches documents where the field is absent.)"""
+    role = user["role"]
+    if role == "admin":
+        return {"target_user_id": None}
+    if role == "techniker":
+        return {"target_user_id": str(user["_id"])}
     orders = await db.orders.find({"branch_id": user.get("branch_id")}, {"_id": 1}).to_list(10000)
-    return {str(o["_id"]) for o in orders}
+    ids = [str(o["_id"]) for o in orders]
+    return {"target_user_id": None, "order_id": {"$in": ids}}
 
 
 @router.get("/notifications")
-async def list_notifications(limit: int = 50, current=Depends(require_roles("admin", "mitarbeiter"))):
-    scope = await _notif_scope_ids(current)
-    items = await db.notifications.find().sort("at", -1).to_list(1000)
-    if scope is not None:
-        items = [n for n in items if n.get("order_id") in scope]
+async def list_notifications(limit: int = 50, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current)
+    items = await db.notifications.find(q).sort("at", -1).to_list(1000)
     unread = sum(1 for n in items if not n.get("read", False))
     view = items[:limit]
     return {
@@ -1318,23 +1344,16 @@ async def list_notifications(limit: int = 50, current=Depends(require_roles("adm
 
 
 @router.post("/notifications/read")
-async def mark_notifications_read(current=Depends(require_roles("admin", "mitarbeiter"))):
-    scope = await _notif_scope_ids(current)
-    if scope is None:
-        await db.notifications.update_many({"read": False}, {"$set": {"read": True}})
-    else:
-        await db.notifications.update_many(
-            {"read": False, "order_id": {"$in": list(scope)}}, {"$set": {"read": True}})
+async def mark_notifications_read(current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current)
+    await db.notifications.update_many({**q, "read": False}, {"$set": {"read": True}})
     return {"message": "Alle Benachrichtigungen als gelesen markiert"}
 
 
 @router.delete("/notifications")
-async def clear_notifications(current=Depends(require_roles("admin", "mitarbeiter"))):
-    scope = await _notif_scope_ids(current)
-    if scope is None:
-        await db.notifications.delete_many({})
-    else:
-        await db.notifications.delete_many({"order_id": {"$in": list(scope)}})
+async def clear_notifications(current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current)
+    await db.notifications.delete_many(q)
     return {"message": "Benachrichtigungen gelöscht"}
 
 
