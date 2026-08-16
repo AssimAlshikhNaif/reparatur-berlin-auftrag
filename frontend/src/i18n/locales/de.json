@@ -95,6 +95,8 @@
     "saved": "Prüfprotokoll gespeichert",
     "save": "Prüfprotokoll speichern",
     "statusOK": "OK",
+    "allOk": "Alles i.O.",
+    "allOkHint": "Alle Prüfpunkte auf einmal als bestanden markieren:",
     "statusNOK": "Nicht OK",
     "statusNV": "N.V.",
     "notePlaceholder": "Anmerkung…",
@@ -622,7 +624,16 @@
     "confirm": "Ja, endgültig löschen",
     "cancel": "Abbrechen",
     "success": "Testdaten gelöscht",
-    "error": "Löschen fehlgeschlagen"
+    "error": "Löschen fehlgeschlagen",
+    "scopeTitle": "Was soll gelöscht werden?",
+    "optOrders": "Test-Aufträge löschen",
+    "optOrdersDesc": "Aufträge, Beschaffungen, Nachrichten, Benachrichtigungen, Protokolle",
+    "optCounters": "Zähler zurücksetzen",
+    "optCountersDesc": "Auftrags- & Rechnungsnummern beginnen neu",
+    "optInventory": "Lagerbestand ebenfalls löschen",
+    "optInventoryDesc": "Alle Ersatzteile im Lager entfernen",
+    "selectOne": "Bitte mindestens eine Option auswählen.",
+    "typeToConfirm": "Zum Bestätigen \"{{word}}\" eingeben"
   },
   "label": {
     "title": "Geräte-Etikett (QR)",

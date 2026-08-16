@@ -95,6 +95,8 @@
     "saved": "Inspection saved",
     "save": "Save inspection",
     "statusOK": "OK",
+    "allOk": "All OK",
+    "allOkHint": "Mark all check points as passed at once:",
     "statusNOK": "Not OK",
     "statusNV": "N/A",
     "notePlaceholder": "Note…",
@@ -622,7 +624,16 @@
     "confirm": "Yes, delete permanently",
     "cancel": "Cancel",
     "success": "Test data cleared",
-    "error": "Deletion failed"
+    "error": "Deletion failed",
+    "scopeTitle": "What should be cleared?",
+    "optOrders": "Clear test orders",
+    "optOrdersDesc": "Orders, procurement, messages, notifications, logs",
+    "optCounters": "Reset counters",
+    "optCountersDesc": "Order & invoice numbers start fresh",
+    "optInventory": "Clear inventory too",
+    "optInventoryDesc": "Remove all spare parts from stock",
+    "selectOne": "Please select at least one option.",
+    "typeToConfirm": "Type \"{{word}}\" to confirm"
   },
   "label": {
     "title": "Device label (QR)",

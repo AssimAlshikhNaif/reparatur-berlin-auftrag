@@ -1327,20 +1327,34 @@ async def clear_notifications(current=Depends(require_roles("admin", "mitarbeite
 
 
 # ==================== ADMIN: RESET TEST DATA (production launch) ====================
+class ResetOptions(BaseModel):
+    orders: bool = True       # orders + all order-related operational data
+    counters: bool = True     # order & invoice sequence counters
+    inventory: bool = False   # spare-parts stock (off by default)
+
+
 @router.post("/admin/reset-test-data")
-async def reset_test_data(current=Depends(require_roles("admin"))):
-    """Admin-only. Wipes transactional/test data and resets the order & invoice
-    counters. Master data (users, branches, inventory) is preserved."""
-    collections = [
-        "orders", "purchases", "chat_messages", "communications",
-        "notifications", "audit_log", "files", "counters",
-    ]
+async def reset_test_data(opts: Optional[ResetOptions] = None, current=Depends(require_roles("admin"))):
+    """Admin-only. Selectively wipes chosen operational/test data. Master data
+    (users, branches) is always preserved. Inventory only cleared if requested."""
+    if opts is None:
+        opts = ResetOptions()
+    collections = []
+    if opts.orders:
+        collections += ["orders", "purchases", "chat_messages", "communications",
+                        "notifications", "audit_log", "files"]
+    if opts.counters:
+        collections.append("counters")
+    if opts.inventory:
+        collections.append("inventory")
+    if not collections:
+        raise HTTPException(status_code=400, detail="Bitte mindestens eine Option auswählen.")
     deleted = {}
     for c in collections:
         res = await db[c].delete_many({})
         deleted[c] = res.deleted_count
     total = sum(deleted.values())
-    return {"message": "Testdaten wurden gelöscht. Zähler zurückgesetzt.", "deleted": deleted, "total": total}
+    return {"message": "Ausgewählte Daten wurden gelöscht.", "deleted": deleted, "total": total}
 
 
 # ==================== INVOICE (Rechnung, GoBD per-branch) ====================

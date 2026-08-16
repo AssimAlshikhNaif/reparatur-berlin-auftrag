@@ -92,6 +92,11 @@ Production-ready, secure full-stack Repair Management System (ERP) for a smartph
 - **Verified**: testing_agent iteration_8.json = frontend 100% (zero raw i18n keys, zero German leftovers on EN/AR across all pages, RTL confirmed). Backend untouched.
 - **INTENTIONALLY kept German** (legal/business documents): printed Invoice.jsx, Abholschein.jsx, ContractPrint.jsx AGB/DSGVO text, and the on-screen LIABILITY_WAIVER body on OrderCreate (translating a binding liability waiver is a legal decision — pending user confirmation).
 
+## Iteration 14 (2026-08-16) — Scoped reset, type-to-confirm, checklist "All OK"
+- **Scoped admin reset**: `POST /api/admin/reset-test-data` now takes `ResetOptions {orders, counters, inventory}`. Only selected data is wiped (users/branches always kept; inventory only if chosen). Empty selection → 400. Dashboard DangerZone modal now has 3 checkboxes (orders on, counters on, inventory off by default). Verified: counters-only reset kept orders(8) & inventory(44); non-admin 403.
+- **Type-to-confirm**: reset modal has a mandatory `reset-confirm-input`; the confirm button is disabled until the admin types exactly "LÖSCHEN" (verified wrong word stays disabled, correct enables). New `danger` i18n keys (scope labels + typeToConfirm) in DE/EN/AR.
+- **Technician checklist "Alles i.O."**: prominent `insp-all-ok` button in InspectionForm marks all 12 items OK in one tap; items stay individually toggleable. New `inspection.allOk/allOkHint` keys. Verified: 12/12 items marked OK.
+
 ## Iteration 13 (2026-08-16) — Role/DSGVO refinements
 - **Reset scope confirmed (item 1)**: `POST /api/admin/reset-test-data` already clears only operational/test data (orders, purchases, chat, communications, notifications, audit_log, files) + resets counters, while preserving core structures (users, branches, inventory). No change required — matches "fresh production launch, not total deletion."
 - **Streamlined technician checklist (item 2)**: removed 6 granular items from `InspectionForm.jsx` CATEGORIES — speaker (Lautsprecher), bluetooth, gps, proximity (Näherungssensor), gyro (Gyroskop/Lage), housing (Gehäuse/Rahmen). Checklist reduced 18 → 12 items (charging 3, audio 2, network 2, sensors 2, buttons 3). Verified via screenshot (12 insp-item nodes).

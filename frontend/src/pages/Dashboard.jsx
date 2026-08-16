@@ -20,11 +20,22 @@ function DangerZone({ onReset }) {
   const { t } = useTranslation();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [opts, setOpts] = useState({ orders: true, counters: true, inventory: false });
+  const [confirmText, setConfirmText] = useState("");
+
+  const CONFIRM_WORD = "LÖSCHEN";
+  const anySelected = opts.orders || opts.counters || opts.inventory;
+  const canDelete = anySelected && confirmText.trim().toUpperCase() === CONFIRM_WORD;
+
+  const openModal = () => { setConfirmText(""); setConfirm(true); };
+  const closeModal = () => { if (!busy) setConfirm(false); };
+  const toggle = (k) => setOpts((o) => ({ ...o, [k]: !o[k] }));
 
   const doReset = async () => {
+    if (!canDelete) return;
     setBusy(true);
     try {
-      const { data } = await api.post("/admin/reset-test-data");
+      const { data } = await api.post("/admin/reset-test-data", opts);
       toast.success(`${t("danger.success")} (${data.total ?? 0})`);
       setConfirm(false);
       onReset && onReset();
@@ -34,6 +45,12 @@ function DangerZone({ onReset }) {
       setBusy(false);
     }
   };
+
+  const OPTIONS = [
+    { key: "orders", label: t("danger.optOrders"), desc: t("danger.optOrdersDesc") },
+    { key: "counters", label: t("danger.optCounters"), desc: t("danger.optCountersDesc") },
+    { key: "inventory", label: t("danger.optInventory"), desc: t("danger.optInventoryDesc") },
+  ];
 
   return (
     <div className="px-6 md:px-8">
@@ -48,7 +65,7 @@ function DangerZone({ onReset }) {
           </div>
           <button
             data-testid="reset-test-data-button"
-            onClick={() => setConfirm(true)}
+            onClick={openModal}
             className="flex items-center gap-2 shrink-0 border border-red-700 bg-red-950/40 text-red-300 text-xs font-head font-semibold uppercase tracking-wider px-4 py-2.5 rounded-lg hover:bg-red-700 hover:text-white transition-colors"
           >
             <TrashSimple size={16} weight="bold" /> {t("danger.button")}
@@ -63,19 +80,53 @@ function DangerZone({ onReset }) {
               <ShieldWarning size={22} weight="fill" />
               <h3 className="font-head font-semibold text-lg">{t("danger.confirmTitle")}</h3>
             </div>
-            <p className="text-sm text-muted-foreground">{t("danger.confirmText")}</p>
+
+            {/* Scoped options */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("danger.scopeTitle")}</div>
+              {OPTIONS.map((o) => (
+                <label key={o.key} data-testid={`reset-opt-${o.key}`}
+                  className={`flex items-start gap-3 border rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${opts[o.key] ? "border-red-700/70 bg-red-950/20" : "border-border hover:bg-muted/40"}`}>
+                  <input type="checkbox" data-testid={`reset-opt-checkbox-${o.key}`} checked={opts[o.key]} onChange={() => toggle(o.key)}
+                    className="mt-0.5 accent-red-600 w-4 h-4" />
+                  <span className="min-w-0">
+                    <span className="block text-sm text-foreground">{o.label}</span>
+                    <span className="block text-[11px] font-mono text-muted-foreground">{o.desc}</span>
+                  </span>
+                </label>
+              ))}
+              {!anySelected && <p className="text-[11px] font-mono text-amber-400">{t("danger.selectOne")}</p>}
+            </div>
+
+            <p className="text-xs text-muted-foreground border-t border-border/50 pt-3">{t("danger.confirmText")}</p>
+
+            {/* Type-to-confirm */}
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+                {t("danger.typeToConfirm", { word: CONFIRM_WORD })}
+              </label>
+              <input
+                data-testid="reset-confirm-input"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={CONFIRM_WORD}
+                autoComplete="off"
+                className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-red-600 font-mono tracking-widest uppercase"
+              />
+            </div>
+
             <div className="flex gap-3 pt-1">
               <button
                 data-testid="reset-confirm-button"
                 onClick={doReset}
-                disabled={busy}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                disabled={busy || !canDelete}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {busy ? <><SpinnerGap size={16} className="animate-spin" /> {t("danger.button")}</> : <><TrashSimple size={16} /> {t("danger.confirm")}</>}
               </button>
               <button
                 data-testid="reset-cancel-button"
-                onClick={() => setConfirm(false)}
+                onClick={closeModal}
                 disabled={busy}
                 className="px-6 border border-border rounded-lg text-xs font-mono uppercase tracking-wider text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
               >

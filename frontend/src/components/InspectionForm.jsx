@@ -30,6 +30,16 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
   const setStatus = (item, v) => setChecklist((c) => ({ ...c, [item]: { ...(c[item] || {}), status: v } }));
   const setNote = (item, note) => setChecklist((c) => ({ ...c, [item]: { ...(c[item] || {}), note } }));
 
+  const markAllOk = () => setChecklist((c) => {
+    const next = { ...c };
+    CATEGORIES.forEach((cat) => cat.items.forEach((item) => {
+      next[item] = { ...(next[item] || {}), status: "OK" };
+    }));
+    return next;
+  });
+  const allItems = CATEGORIES.flatMap((cat) => cat.items);
+  const allAreOk = allItems.every((item) => checklist[item]?.status === "OK");
+
   const save = async () => {
     setBusy(true);
     try {
@@ -45,6 +55,15 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
 
   return (
     <div data-testid="inspection-form" className="space-y-5">
+      {!readOnly && (
+        <div className="flex items-center justify-between gap-3 border border-emerald-800/50 bg-emerald-950/20 rounded-lg px-3 py-2.5">
+          <span className="text-xs text-emerald-200/90">{t("inspection.allOkHint")}</span>
+          <button type="button" data-testid="insp-all-ok" onClick={markAllOk}
+            className={`flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 rounded-lg border transition-colors ${allAreOk ? "border-emerald-600 bg-emerald-700 text-white" : "border-emerald-600 text-emerald-300 hover:bg-emerald-700 hover:text-white"}`}>
+            <CheckCircle size={15} weight="fill" /> {t("inspection.allOk")}
+          </button>
+        </div>
+      )}
       {CATEGORIES.map((cat) => (
         <div key={cat.key}>
           <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-2">{t(`inspection.cat.${cat.key}`)}</div>
