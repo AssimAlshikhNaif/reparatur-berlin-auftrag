@@ -217,7 +217,13 @@
     "sigIntakeSign": "توقيع العميل (التسليم)",
     "sigPickupSign": "توقيع العميل (الاستلام)",
     "msgFrom": "بواسطة",
-    "channelDefault": "رسالة"
+    "channelDefault": "رسالة",
+    "deleteOrder": "حذف الطلب",
+    "deleteTitle": "هل تريد حقاً حذف هذا الطلب؟",
+    "deleteConfirm": "سيُحذف الطلب {{nr}} نهائياً من قاعدة البيانات. لا يمكن التراجع عن هذا الإجراء.",
+    "deleteConfirmBtn": "نعم، احذف",
+    "deleteSuccess": "تم حذف الطلب",
+    "deleteError": "فشل الحذف"
   },
   "costs": {
     "title": "تفصيل التكاليف",

@@ -546,8 +546,20 @@ async def get_order(order_id: str, current=Depends(get_current_user)):
     return attach_names(serialize_order(order, current), bmap, umap)
 
 
-@router.post("/orders")
-async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
+@router.delete("/orders/{order_id}")
+async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
+    """Admin-only. Permanently deletes a single order plus its related
+    operational records (procurement, chat, communications, notifications, files)."""
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    await db.orders.delete_one({"_id": ObjectId(order_id)})
+    for coll in ("purchases", "chat_messages", "communications", "notifications", "audit_log", "files"):
+        try:
+            await db[coll].delete_many({"order_id": order_id})
+        except Exception:
+            pass
+    return {"message": "Auftrag gelöscht", "auftragsnummer": order.get("auftragsnummer")}
     # Conditional IMEI validation: IMEI is mandatory unless the device is flagged
     # as defective / IMEI unreadable.
     if not (input.imei or "").strip() and not input.imei_unreadable:

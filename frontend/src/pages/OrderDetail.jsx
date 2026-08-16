@@ -25,7 +25,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
-  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap,
 } from "@phosphor-icons/react";
 
 const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" }; // eslint-disable-line no-unused-vars
@@ -79,8 +79,23 @@ export default function OrderDetail() {
   const [purchasesCount, setPurchasesCount] = useState(0);
   const [imeiInput, setImeiInput] = useState("");
   const [savingSig, setSavingSig] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
+  const isAdmin = user.role === "admin";
+
+  const deleteOrder = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`/orders/${id}`);
+      toast.success(t("detail.deleteSuccess"));
+      navigate("/auftraege");
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t("detail.deleteError"));
+      setDeleting(false);
+    }
+  };
 
   const loadComms = useCallback(() => {
     if (!canManageRef) return;
@@ -201,6 +216,12 @@ export default function OrderDetail() {
   return (
     <div>
       <PageHeader label={branchName} title={order.auftragsnummer}>
+        {isAdmin && (
+          <button data-testid="delete-order-button" onClick={() => setShowDelete(true)}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-700 bg-red-950/40 text-red-300 px-3 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-colors">
+            <Trash size={15} weight="bold" /> {t("detail.deleteOrder")}
+          </button>
+        )}
         <button data-testid="back-button" onClick={() => navigate("/auftraege")}
           className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-primary-foreground transition-colors">
           <ArrowLeft size={16} /> {t("common.back")}
@@ -776,6 +797,30 @@ export default function OrderDetail() {
       {showInvoice && <Invoice order={order} branchName={branchName} onClose={() => setShowInvoice(false)} />}
       {showContract && <ContractPrint order={order} branchName={branchName} onClose={() => setShowContract(false)} />}
       {showLabel && <LabelPrint order={order} onClose={() => setShowLabel(false)} />}
+
+      {showDelete && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div data-testid="delete-order-modal" className="bg-card border border-red-900/60 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+            <div className="flex items-center gap-2 text-red-300">
+              <ShieldWarning size={22} weight="fill" />
+              <h3 className="font-head font-semibold text-lg">{t("detail.deleteTitle")}</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t("detail.deleteConfirm", { nr: order.auftragsnummer })}
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button data-testid="delete-order-confirm" onClick={deleteOrder} disabled={deleting}
+                className="flex-1 flex items-center justify-center gap-2 bg-red-700 text-white font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                {deleting ? <SpinnerGap size={16} className="animate-spin" /> : <Trash size={16} />} {t("detail.deleteConfirmBtn")}
+              </button>
+              <button data-testid="delete-order-cancel" onClick={() => setShowDelete(false)} disabled={deleting}
+                className="px-6 border border-border rounded-lg text-xs font-mono uppercase tracking-wider text-muted-foreground hover:bg-muted transition-colors flex items-center gap-1.5">
+                <XCircle size={14} /> {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCamera && <CameraCapture onCapture={uploadCaptured} onClose={() => setShowCamera(false)} />}
       {canManage && order.customer_phone && <WhatsAppFab order={order} onLogged={loadComms} />}
 

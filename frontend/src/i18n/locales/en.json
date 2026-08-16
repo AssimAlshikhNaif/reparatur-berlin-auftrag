@@ -217,7 +217,13 @@
     "sigIntakeSign": "Customer signs (drop-off)",
     "sigPickupSign": "Customer signs (pickup)",
     "msgFrom": "by",
-    "channelDefault": "message"
+    "channelDefault": "message",
+    "deleteOrder": "Delete order",
+    "deleteTitle": "Really delete this order?",
+    "deleteConfirm": "Order {{nr}} will be permanently removed from the database. This action CANNOT be undone.",
+    "deleteConfirmBtn": "Yes, delete",
+    "deleteSuccess": "Order deleted",
+    "deleteError": "Deletion failed"
   },
   "costs": {
     "title": "Cost breakdown",

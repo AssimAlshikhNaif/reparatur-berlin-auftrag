@@ -217,7 +217,13 @@
     "sigIntakeSign": "Kunde unterschreibt (Abgabe)",
     "sigPickupSign": "Kunde unterschreibt (Abholung)",
     "msgFrom": "von",
-    "channelDefault": "nachricht"
+    "channelDefault": "nachricht",
+    "deleteOrder": "Auftrag löschen",
+    "deleteTitle": "Auftrag wirklich löschen?",
+    "deleteConfirm": "Der Auftrag {{nr}} wird dauerhaft aus der Datenbank entfernt. Diese Aktion kann NICHT rückgängig gemacht werden.",
+    "deleteConfirmBtn": "Ja, löschen",
+    "deleteSuccess": "Auftrag gelöscht",
+    "deleteError": "Löschen fehlgeschlagen"
   },
   "costs": {
     "title": "Kostenaufschlüsselung",
