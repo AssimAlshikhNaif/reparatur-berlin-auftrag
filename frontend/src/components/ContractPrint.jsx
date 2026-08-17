@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Printer, X } from "@phosphor-icons/react";
-import { berlinDateTime, berlinDate } from "@/lib/datetime";
+import { berlinDate } from "@/lib/datetime";
 import { SHOP_INFO, LIABILITY_WAIVER, AGB_FULL } from "@/lib/constants";
 
 export default function ContractPrint({ order, branchName, onClose }) {
@@ -92,7 +92,6 @@ export default function ContractPrint({ order, branchName, onClose }) {
                 <div style={{ borderTop: "1px solid #000", paddingTop: "4px", fontSize: "10px" }}>{t("print.signatureCustomer")}</div>
               </div>
             </div>
-            <div style={{ marginTop: "10px", fontSize: "9px", color: "#666" }}>Erstellt: {berlinDateTime(order.created_at)}</div>
           </div>
         </div>
       </div>

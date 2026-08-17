@@ -145,10 +145,10 @@ export default function Abholschein({ order, branchName, onClose }) {
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7px", lineHeight: 1.5 }}>
               <div style={{ fontWeight: 700, marginBottom: "1.5mm", fontSize: "8px", textAlign: "center", letterSpacing: "0.5px" }}>HAFTUNGSAUSSCHLUSS</div>
-              <ul style={{ listStyle: "none", padding: 0, margin: "0 auto", maxWidth: "68mm" }}>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0, maxWidth: "72mm" }}>
                 {WAIVER_BULLETS.map((b, i) => (
-                  <li key={i} style={{ display: "flex", gap: "1.5mm", marginBottom: "1mm", justifyContent: "center", textAlign: "left" }}>
-                    <span style={{ fontWeight: 700 }}>•</span><span>{b}</span>
+                  <li key={i} style={{ display: "flex", gap: "1.5mm", marginBottom: "1mm", textAlign: "left", alignItems: "flex-start" }}>
+                    <span style={{ fontWeight: 700, flexShrink: 0 }}>•</span><span style={{ wordBreak: "break-word" }}>{b}</span>
                   </li>
                 ))}
               </ul>

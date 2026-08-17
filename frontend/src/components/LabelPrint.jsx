@@ -33,15 +33,11 @@ export default function LabelPrint({ order, onClose }) {
 
         <div className="p-6 flex justify-center bg-card">
           {/* 50mm x 30mm sticker */}
-          <div id="geraete-label" style={{ width: "50mm", height: "30mm", padding: "2mm", background: "#fff", color: "#000", fontFamily: "'IBM Plex Mono', monospace", display: "flex", alignItems: "center", gap: "2mm", border: "1px solid #000" }}>
+          <div id="geraete-label" style={{ width: "50mm", height: "30mm", padding: "2mm", background: "#fff", color: "#000", fontFamily: "'IBM Plex Mono', monospace", display: "flex", alignItems: "center", justifyContent: "center", gap: "3mm", border: "1px solid #000" }}>
             <div style={{ flexShrink: 0, lineHeight: 0 }}>
-              <QRCodeCanvas value={order.auftragsnummer} size={92} level="M" includeMargin={false} />
+              <QRCodeCanvas value={order.auftragsnummer} size={100} level="M" includeMargin={false} />
             </div>
-            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-              <div style={{ fontSize: "12px", fontWeight: 700, letterSpacing: "0.5px", whiteSpace: "nowrap" }}>{order.auftragsnummer}</div>
-              <div style={{ fontSize: "9px", marginTop: "1mm", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{order.device_brand} {order.device_model}</div>
-              <div style={{ fontSize: "7px", marginTop: "0.5mm", color: "#333" }}>REPARATUR BERLIN</div>
-            </div>
+            <div style={{ fontSize: "13px", fontWeight: 700, letterSpacing: "0.5px", whiteSpace: "nowrap" }} data-testid="label-order-number">{order.auftragsnummer}</div>
           </div>
         </div>
         <div className="px-4 py-3 border-t border-border text-[11px] font-mono text-muted-foreground text-center">
