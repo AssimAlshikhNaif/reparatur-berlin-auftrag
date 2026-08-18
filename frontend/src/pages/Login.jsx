@@ -3,15 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { Wall, Eye, EyeSlash, SpinnerGap, Copy, ShieldCheck, User, Wrench } from "@phosphor-icons/react";
-import { toast } from "sonner";
-
-const DEMO_ACCOUNTS = [
-  { role: "admin", icon: ShieldCheck, emails: ["admin@repair.de"] },
-  { role: "mitarbeiter", icon: User, emails: ["mohini@repair.de", "leen@repair.de", "abbas@repair.de", "salem@repair.de", "ali@repair.de"] },
-  { role: "techniker", icon: Wrench, emails: ["chris@repair.de", "nam@repair.de", "yasser@repair.de", "basel@repair.de"] },
-];
-const DEMO_PW = "Repair2026!";
+import { Wall, Eye, EyeSlash, SpinnerGap } from "@phosphor-icons/react";
 
 const BG = "https://images.unsplash.com/photo-1522743791393-522312deeebf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwyfHxiZXJsaW4lMjBtb2Rlcm4lMjBidWlsZGluZyUyMGFic3RyYWN0fGVufDB8fHx8MTc4NTczOTAyNXww&ixlib=rb-4.1.0&q=85";
 
@@ -126,68 +118,8 @@ export default function Login() {
           <p className="text-[11px] text-muted-foreground/70 mt-8 font-mono leading-relaxed">
             {t("login.noRegister")}
           </p>
-
-          <DemoAccounts onPick={(email) => { setEmail(email); setPassword(DEMO_PW); }} />
         </div>
       </div>
-    </div>
-  );
-}
-
-function DemoAccounts({ onPick }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const roleTone = {
-    admin: "text-primary border-primary/40 bg-primary/10",
-    mitarbeiter: "text-emerald-500 border-emerald-500/40 bg-emerald-500/10",
-    techniker: "text-amber-500 border-amber-500/40 bg-amber-500/10",
-  };
-  const copy = (txt) => { navigator.clipboard?.writeText(txt); toast.success(t("usr.copied", { email: txt })); };
-
-  return (
-    <div className="mt-6 border border-border rounded-lg overflow-hidden">
-      <button type="button" data-testid="toggle-demo-accounts" onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-card hover:bg-muted transition-colors">
-        <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{t("login.demoTitle")}</span>
-        <span className="font-mono text-[11px] text-primary">{open ? t("login.hide") : t("login.show")}</span>
-      </button>
-      {open && (
-        <div className="p-4 space-y-4 bg-card/40">
-          <div className="flex items-center justify-between text-[11px] font-mono">
-            <span className="text-muted-foreground">{t("login.pwForAll")}</span>
-            <button data-testid="copy-password" onClick={() => copy(DEMO_PW)}
-              className="flex items-center gap-1 text-foreground hover:text-primary transition-colors">
-              {DEMO_PW} <Copy size={13} />
-            </button>
-          </div>
-          {DEMO_ACCOUNTS.map((grp) => {
-            const Icon = grp.icon;
-            return (
-              <div key={grp.role}>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-mono uppercase tracking-wider ${roleTone[grp.role]}`}>
-                    <Icon size={12} weight="bold" /> {t(`roles.${grp.role}`)}
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground/70">{t(`login.desc_${grp.role}`)}</span>
-                </div>
-                <div className="space-y-1">
-                  {grp.emails.map((em) => (
-                    <div key={em} data-testid={`demo-row-${em}`} className="flex items-center justify-between gap-2 border border-border/60 rounded-lg px-3 py-1.5">
-                      <span className="font-mono text-xs text-foreground/80 truncate">{em}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button data-testid={`use-${em}`} onClick={() => onPick(em)}
-                          className="text-[10px] font-mono uppercase tracking-wider text-primary hover:underline">{t("login.use")}</button>
-                        <button data-testid={`copy-${em}`} onClick={() => copy(em)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"><Copy size={13} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
