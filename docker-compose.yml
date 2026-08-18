@@ -4,8 +4,11 @@ services:
     build: ./backend
     ports:
       - "8001:8001"
-    env_file:
-      - ./backend/.env
+    environment:
+      - MONGO_URL=mongodb+srv://adminuser:Admin12345@cluster0.mxidlpw.mongodb.net/?appName=Cluster0
+      - MONGO_DETAILS=mongodb+srv://adminuser:Admin12345@cluster0.mxidlpw.mongodb.net/?appName=Cluster0
+      - PORT=8001
+      - JWT_SECRET=your_jwt_secret_here
     restart: always
 
   frontend:
