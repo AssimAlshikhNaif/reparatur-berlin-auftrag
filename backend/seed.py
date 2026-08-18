@@ -7,8 +7,7 @@ from auth import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 
-# فروعك الحقيقية. لإضافة فرع جديد لاحقاً بالمستقبل، ضيفي اسمه هون وأعيدي تشغيل
-# الباك اند مرة وحدة (docker compose up --build -d) — رح يتضاف تلقائياً بأول تشغيل.
+# فروعك الحقيقية المعتمدة
 BRANCHES = [
     "Phone Store Mobile",
     "Praxis Smartphone",
@@ -19,8 +18,6 @@ BRANCHES = [
 
 SEED_PASSWORD = "Repair2026!"
 
-# فقط حساب المدير يُنشأ تلقائياً. أي موظف/تقني حقيقي تضيفيه من داخل التطبيق
-# (لوحة التحكم -> إدارة المستخدمين)، مو من هون.
 STAFF = [
     ("Admin User", "admin@repair.de", "admin"),
 ]
@@ -29,7 +26,12 @@ STAFF = [
 async def seed_all():
     admin_password = os.environ.get("ADMIN_PASSWORD", SEED_PASSWORD)
 
-    # Branches
+    # 1. تنظيف الفروع القديمة غير الموجودة في القائمة الحالية، أو مزامنتها
+    current_branch_names = set(BRANCHES)
+    
+    # احذف أي فروع قديمة لم تعد موجودة في القائمه الجديدة
+    await db.branches.delete_many({"name": {"$nin": BRANCHES}})
+
     branch_map = {}
     for name in BRANCHES:
         existing = await db.branches.find_one({"name": name})
