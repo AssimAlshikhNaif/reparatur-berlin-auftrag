@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 3 tested end-to-end. Backend: 54/54 pytest cases pass (backend_test.py + test_iteration2.py + new test_iteration3.py). Iteration 3 features (analytics, whatsapp log, audit log, mandatory repair media before FERTIG, mitarbeiter branch RBAC override, order list branch/created_by/techniker names, DSGVO PII stripping) all verified via API and UI. Frontend Playwright verified: admin order list has Filiale/Mitarbeiter/Techniker cols with real values; /analyse renders mitarbeiter chart + ma-row-Mohini (18/4/575.01€) + tech-card-Chris; mitarbeiter branch select is disabled on /auftrag/neu; WhatsApp FAB present for mitarbeiter, wa-template-0 fills text, send opens wa.me popup (https://api.whatsapp.com/send/?phone=49…) and comms-list refreshes; Abholschein modal shows dynamic Berlin Auftragsdatum + Druckdatum (03.08.2026 today); Techniker sees DSGVO notice, NO WhatsApp FAB, Accept/Reject buttons on ZUGEWIESEN order, repair-media-required hint; /analyse redirects non-admin. Two pre-existing tests (mark_ready in backend_test.py and mitarbeiter_set_fertig in test_iteration2.py) that assumed FERTIG could be reached without repair media were updated to upload a repair media first (new iteration 3 business rule).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "OrderDetail (Verbaute Ersatzteile) & Analytics chart", "issues": ["React dev warning: '<span> cannot be a child of <option>' – caused by Emergent's build-time x-ve-dynamic <span> wrappers injected inside <option> elements (see part-select in OrderDetail.jsx line 342 and similar). Non-blocking hydration warning only; app functions. Not a code bug, but the warning floods the console."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes.py is 815 lines – acceptable for now but consider splitting orders/analytics/media/chat into sub-routers if it grows further.",
+    "analytics(): mitarbeiter dict includes users with role 'admin' so the admin user (Admin User) also shows in the Mitarbeiter table when they create orders. If PRD intends 'Mitarbeiter only', drop admin from this dict; if intended (admin creates in support mode) keep as-is.",
+    "OrderDetail.jsx audit-list data-testid is only rendered inside the else-branch (when audit.length>0). When empty, the 'Keine Einträge' placeholder has no testid so automation can't distinguish 'loaded but empty' from 'not loaded'. Suggest putting data-testid=\"audit-list\" on the wrapper regardless.",
+    "berlinNow() is called once at Abholschein render time (const printTs = berlinNow()) which is correct for a 'now' timestamp, but if the modal is left open for minutes the Druckdatum does not tick. Acceptable for print receipts.",
+    "Frontend and backend do NOT enforce a max text length on WhatsApp messages – wa.me may truncate very long text (>2000 chars). Low priority."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py"
+  ],
+  "success_rate": {"backend": "100% (54/54)", "frontend": "100% of iter3 flows verified"},
+  "test_credentials": "admin@repair.de / mohini@repair.de / chris@repair.de — all Repair2026!",
+  "seed_data_creation": "Tests created several TEST_ orders in mohini's branch (RB-2026-000xx) — not cleaned up but harmless.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_iteration3.py covers: order list names, analytics shape + 403 for non-admin, mitarbeiter branch override on POST /orders, mitarbeiter list scoped to own branch, WhatsApp log normalizes phone to 49… and 403 for techniker, communications list, audit list after actions + 403 for techniker, mandatory repair media before FERTIG (400 without, 200 after upload with media_type=repair), and intake-only media does NOT unlock FERTIG. Live camera modal not tested in Playwright headless (no getUserMedia) — but UI code paths return gracefully on failure. Ex frontend Playwright confirmed WhatsApp popup opens with wa_number '49...' — good."
+}

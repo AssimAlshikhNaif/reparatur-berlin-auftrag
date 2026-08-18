@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 7 full test pass. Backend pytest 10/10 (test_iteration7.py). Frontend Playwright verified: reklamation-panel on admin Dashboard, activity-table on /aktivitaet (admin-only, mitarbeiter/techniker redirected), LanguageSwitcher DE/EN/AR toggles document.dir=rtl for AR + lang=ar/en/de, ContractPrint modal opens from OrderDetail [data-testid=open-contract] AND from Orders table [data-testid=quick-print-*] without navigating (stopPropagation confirmed). Modal exposes contract-customer, contract-device, contract-terms, contract-print-button, contract-close-button (no OS print triggered). Technician (chris) sees NO quick-print buttons and NO Aktivität nav link. Full FERTIG e2e verified with fresh order RB-2026-00059 assigned to chris: mark-ready DISABLED with no media+no insp, DISABLED after insp only, still DISABLED with media+no insp, ENABLES only when BOTH insp saved AND repair media present — clicking then transitions to FERTIG (toast 'Status: Fertig'). Inspection form data-testids all present (insp-item-battery/wifi/fingerprint/faceid/housing/cameras plus OK/NOK/NV buttons, insp-note-*, insp-display-type, insp-battery-health, insp-notes, insp-save). Toast 'Prüfprotokoll gespeichert' shown. Status label 'Diagnose' (replacing 'Angenommen') present 31x on Orders page including StatusBadge, filter-tab-angenommen label, dashboard Status-Verteilung, and manual status dropdown. Terminology on /auftrag/neu confirmed: labels 'Arbeitskosten (€)' and 'Materialkosten (€)' present; NO 'Arbeitslohn' or 'Ersatzteilkosten' anywhere on OrderCreate/OrderDetail/Invoice. Backend audit PRUEFPROTOKOLL entry created on inspection save.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "OrderDetail Kostenaufschlüsselung (editable inputs)", "issues": ["Third column label reads 'Material' (short) while the summary row below and OrderCreate use full 'Materialkosten'. Minor inconsistency; consider renaming column label to 'Materialkosten' for consistency with the rest of the app."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/iter7.xml"
+  ],
+  "action_items": [
+    "(Optional cosmetic) Rename OrderDetail.jsx L429 label 'Material' to 'Materialkosten' for consistency.",
+    "(Code quality) GET /api/reklamationen returns items where legacy orders may omit 'is_reclamation' key entirely; consider always echoing is_reclamation (default false) in serialize_order for a stable schema — not a functional bug."
+  ],
+  "critical_code_review_comments": [
+    "routes.py is now ~1381 lines — still growing. Recommend splitting into inspection.py, activity.py, reklamation.py modules alongside existing endpoints.",
+    "FERTIG gate correctly checks BOTH repair-media AND inspection presence; disable-state on frontend mark-ready mirrors both conditions with helpful title hints. Solid UX.",
+    "InspectionForm cleanly reuses order.inspection to prefill on re-open (readOnly capability provided but not currently wired from OrderDetail — future improvement to lock the checklist after FERTIG).",
+    "ContractPrint modal correctly uses window.addEventListener('afterprint') to auto-close (no OS print dialog triggered during automated testing since we never clicked contract-print-button).",
+    "Global /api/activity fetches all audit entries plus order lookup map; for large audit_log this will get heavy — consider paginating and joining via aggregation.",
+    "Quick-print row click uses e.stopPropagation() correctly — no accidental navigation observed."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration7.py"],
+  "success_rate": { "backend": "100% (10/10)", "frontend": "100% of specified selectors/flows verified" },
+  "test_credentials": "admin@repair.de / mohini@repair.de / chris@repair.de — all Repair2026!",
+  "seed_data_creation": "Backend pytest created: TEST_Iter7 Insp Admin (RB-2026-00056), TEST_Iter7 Insp Tech (RB-2026-00057), TEST_Iter7 FertigGate (RB-2026-00058 → FERTIG). UI test seeded RB-2026-00059 (TEST_Iter7 UI FertigFlow → FERTIG). All prefixed TEST_ for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 7 fully green. Backend tests at /app/backend/tests/test_iteration7.py (run with REACT_APP_BACKEND_URL prefix env var). Inspection endpoint stores {checklist, display_type, battery_health, notes, by, at} and creates audit PRUEFPROTOKOLL. FERTIG gate returns 400 with detail containing 'Prüfprotokoll' when inspection missing, and 400 with 'Reparatur' text when media missing (media checked first). Reklamation legacy orders may not echo is_reclamation key — filter still works via .get() in endpoint. Techniker mark-ready button disabled logic on frontend mirrors backend gate.",
+  "rca of the issue": "N/A — no functional issues found this iteration."
+}

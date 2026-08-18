@@ -1,0 +1,19 @@
+{
+  "summary": "Iteration 9: verified tech status flow restrictions, WARTEN_FREIGABE new status, FERTIG notifications (admin + same-branch reception, branch-scoped), tech decluttered detail view (DSGVO note, no costs), QR label modal (no PII), ContractPrint water clause, and Abholschein centered 5-bullet HAFTUNGSAUSSCHLUSS. All backend and frontend checks passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_iteration9.py", "/app/test_reports/pytest/iter9.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note: tech OrderDetail body still contains the German heading 'Kundendaten' section wrapper, but no PII fields underneath (DSGVO privacy note is shown instead). Cosmetically OK but consider hiding the section header for techs too.",
+    "Reception (mohini@repair.de) is seeded in branch 'Phone Store' (bf84), NOT 'Smartphone Apotheke' (bf83) as stated in the review request. Branch-scoping works correctly, but the review request info was outdated. Ali@repair.de is the Smartphone Apotheke mitarbeiter."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration9.py"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (all UI checks passed)"},
+  "test_credentials": "admin@repair.de / Repair2026!; ali@repair.de (Smartphone Apotheke reception); chris@repair.de (tech). Token key: access_token. Lang: localStorage rb_lang=de.",
+  "seed_data_creation": "None. Used existing seeded orders. FERTIG notification produced on order 6a80f8c4a1c9f2ef31ac7751 (RB-2026-00062).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend regression: /app/backend/tests/test_iteration9.py covers tech ABGEHOLT-block, tech WARTEN_FREIGABE, notifications endpoint for admin+reception, FERTIG notification generation for admin AND same-branch reception, and branch-scope smoke test. UI verified: [data-testid=tech-status-select] exposes exactly 4 phase options (ANGENOMMEN|Diagnose, WARTEN_FREIGABE|Nach Diagnose / Freigabe, IN_BEARBEITUNG|In Bearbeitung, FERTIG|Fertig). [data-testid=manual-status-select] admin includes WARTEN_FREIGABE. [data-testid=open-label] opens #geraete-label with a QR canvas + order number RB-2026-XXXXX and NO customer name/phone. ContractPrint contains Haftungsausschluss + §4 Wasser- & Feuchtigkeitsschutz. Abholschein HAFTUNGSAUSSCHLUSS renders 5 centered bullets (Datenverlust, Nicht abgeholte Geräte, Vorschäden, Wasserschutz, Bestätigung). Reception (Ali, Smartphone Apotheke) sees notification-bell + notification-count badge.",
+  "rca of the issue": "n/a — no bugs found."
+}

@@ -1,0 +1,28 @@
+.App {
+  min-height: 100vh;
+}
+@media print {
+  /* إخفاء عناصر الموقع بالكامل عند الطباعة عدا الإيصال */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #abholschein,
+  #abholschein * {
+    visibility: visible !important;
+  }
+
+  /* توسيط الإيصال تماماً في منتصف صفحة الطباعة */
+  #abholschein {
+    position: fixed !important;
+    top: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+}
