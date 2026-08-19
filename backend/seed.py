@@ -7,13 +7,33 @@ from auth import hash_password, verify_password
 
 logger = logging.getLogger(__name__)
 
-# فروعك الحقيقية المعتمدة
+# الفروع الحقيقية مع تفاصيل الإيميل والواتساب الخاصة بكل فرع
 BRANCHES = [
-    "Phone Store Mobile",
-    "Praxis Smartphone",
-    "Handy & Laptop Krankenhaus",
-    "Technik Phone",
-    "Smartphone Apotheke",
+    {
+        "name": "Phone Store Mobile",
+        "email": "info@phone-store.de",
+        "whatsapp": "+4915775111444"
+    },
+    {
+        "name": "Praxis Smartphone",
+        "email": "info@Praxis.de",
+        "whatsapp": "+491631222227"
+    },
+    {
+        "name": "Handy & Laptop Krankenhaus",
+        "email": "info@handykrankenhaus.de",
+        "whatsapp": "+491631222240"
+    },
+    {
+        "name": "Technik Phone",
+        "email": "info@technikphone.de",
+        "whatsapp": "+4915751540257"
+    },
+    {
+        "name": "Smartphone Apotheke",
+        "email": "info@smartphone-apotheke.de",
+        "whatsapp": "+491782931142"
+    },
 ]
 
 SEED_PASSWORD = "Repair2026!"
@@ -26,20 +46,34 @@ STAFF = [
 async def seed_all():
     admin_password = os.environ.get("ADMIN_PASSWORD", SEED_PASSWORD)
 
-    # 1. تنظيف الفروع القديمة غير الموجودة في القائمة الحالية، أو مزامنتها
-    current_branch_names = set(BRANCHES)
+    # 1. استخراج أسماء الفروع فقط للمقارنة والحذف
+    branch_names = [b["name"] for b in BRANCHES]
     
-    # احذف أي فروع قديمة لم تعد موجودة في القائمه الجديدة
-    await db.branches.delete_many({"name": {"$nin": BRANCHES}})
+    # احذف أي فروع قديمة لم تعد موجودة في القائمة الجديدة
+    await db.branches.delete_many({"name": {"$nin": branch_names}})
 
     branch_map = {}
-    for name in BRANCHES:
+    for branch_data in BRANCHES:
+        name = branch_data["name"]
         existing = await db.branches.find_one({"name": name})
+        
         if existing:
+            # تحديث الإيميل والواتساب إذا تم تعديلهم
+            await db.branches.update_one(
+                {"name": name},
+                {
+                    "$set": {
+                        "email": branch_data["email"],
+                        "whatsapp": branch_data["whatsapp"]
+                    }
+                }
+            )
             branch_map[name] = str(existing["_id"])
         else:
             res = await db.branches.insert_one({
                 "name": name,
+                "email": branch_data["email"],
+                "whatsapp": branch_data["whatsapp"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
             branch_map[name] = str(res.inserted_id)
