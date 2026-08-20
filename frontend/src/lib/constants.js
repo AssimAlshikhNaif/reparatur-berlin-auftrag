@@ -86,33 +86,6 @@ export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
 
 1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.
 
-2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, können kostenpflichtig eingelagert, verwertet oder entsorgt werden.
-
-3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
-
-4. Wasser- & Feuchtigkeitsschutz: Bei geöffneten Geräten kann die werkseitige Wasser-/Staubdichtigkeit (IP-Schutz) nicht garantiert werden und geht in der Regel verloren. Eine Haftung für spätere Feuchtigkeitsschäden ist ausgeschlossen.
-
-5. Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
-
-// Concise shop-protection bullet points for the compact Abholschein (pickup slip)
-export const WAIVER_BULLETS = [
-  "Datenverlust: Keine Haftung – Datensicherung ist Sache des Kunden.",
-  "Nicht abgeholte Geräte: Nach 90 Tagen kostenpflichtige Lagerung/Verwertung.",
-  "Vorschäden: Keine Haftung für Folgen bestehender Wasser-/Sturzschäden.",
-  "Wasserschutz: IP-Dichtigkeit entfällt nach Öffnung des Geräts.",
-  "Bestätigung: Mit Unterschrift Geräteübergabe & Bedingungen akzeptiert.",
-];
-
-export const PICKUP_WAIVER = `Übernahmebestätigung:
-
-Mit meiner Unterschrift bestätige ich den Erhalt des oben genannten Geräts in ordnungsgemäßem Zustand. Die durchgeführten Arbeiten wurden mir erläutert und der Endbetrag wurde beglichen bzw. anerkannt.`;
-
-
-// ===== Legal liability waiver (shown below the intake signature) =====
-export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
-
-1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.
-
 2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, werden kostenpflichtig eingelagert. Für die Lagerung berechnen wir eine Gebühr von 1,50 € pro Tag. Sobald die aufgelaufenen Lagerkosten den wirtschaftlichen Wert des Gerätes erreichen, wird das Gerät verkauft.
 
 3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
@@ -145,7 +118,6 @@ export const SHOP_INFO = {
   steuernummer: "Steuernr.: 30/123/45678",
   website: "www.smartphone-apotheke.de",
 };
-
 
 export const INVOICE_WARRANTY = `Gewährleistung: Auf durchgeführte Reparaturen gewähren wir 6 Monate Gewährleistung gemäß den gesetzlichen Bestimmungen. Ausgenommen sind Folgeschäden durch unsachgemäße Behandlung, Sturz- oder Feuchtigkeitsschäden sowie Verschleißteile. Für Datenverluste wird keine Haftung übernommen (Datensicherung ist Sache des Kunden).
 
@@ -183,10 +155,6 @@ export const DSGVO_FULL = `Datenschutzerklärung (DSGVO)
 
 4. Weitergabe: Eine Weitergabe an Dritte erfolgt nur, soweit dies zur Auftragsabwicklung (z.B. Ersatzteilbestellung) erforderlich oder gesetzlich vorgeschrieben ist.
 
-5. Ihre Rechte: Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch. Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen.
+5. Ihre Rechte: Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch. Beschwerden können Sie bei der zuständigen Aufsbehörde einreichen.
 
 6. Einwilligung: Mit Ihrer Unterschrift bestätigen Sie die Kenntnisnahme dieser Datenschutzhinweise.`;
-
-
-
-
