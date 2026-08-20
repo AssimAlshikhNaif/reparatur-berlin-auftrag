@@ -107,23 +107,51 @@ export const PICKUP_WAIVER = `Übernahmebestätigung:
 
 Mit meiner Unterschrift bestätige ich den Erhalt des oben genannten Geräts in ordnungsgemäßem Zustand. Die durchgeführten Arbeiten wurden mir erläutert und der Endbetrag wurde beglichen bzw. anerkannt.`;
 
+
+// ===== Legal liability waiver (shown below the intake signature) =====
+export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
+
+1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.
+
+2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, werden kostenpflichtig eingelagert. Für die Lagerung berechnen wir eine Gebühr von 1,50 € pro Tag. Sobald die aufgelaufenen Lagerkosten den wirtschaftlichen Wert des Gerätes erreichen, wird das Gerät verkauft.
+
+3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
+
+4. Wasser und Feuchtigkeit: Generell raten wir nach der Reparatur dringend davon ab, das Gerät mit Wasser in Berührung zu bringen. Durch das Öffnen des Gerätes und die von uns verwendeten Kleber kann nicht mehr sichergestellt werden, dass das Gerät weiterhin wasserdicht ist. Für Schäden, die nach der Reparatur durch Wasser, Feuchtigkeit oder andere Flüssigkeiten entstehen, übernehmen wir keine Haftung.
+
+5. Bestätigung: Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
+
+// Concise shop-protection bullet points for the compact Abholschein (pickup slip)
+export const WAIVER_BULLETS = [
+  "Datenverlust: Keine Haftung – Datensicherung ist Sache des Kunden.",
+  "Nicht abgeholte Geräte: Kostenpflichtige Lagerung (1,50 €/Tag) nach 90 Tagen; Verkauf bei Erreichen des Gerätewerts.",
+  "Vorschäden: Keine Haftung für Folgen bestehender Wasser-/Sturzschäden.",
+  "Wasser und Feuchtigkeit: Nach der Reparatur kann die Wasserdichtigkeit nicht mehr garantiert werden – keine Haftung für Folgeschäden.",
+  "Bestätigung: Mit Unterschrift Geräteübergabe & Bedingungen akzeptiert.",
+];
+
+export const PICKUP_WAIVER = `Übernahmebestätigung:
+
+Mit meiner Unterschrift bestätige ich den Erhalt des oben genannten Geräts in ordnungsgemäßem Zustand. Die durchgeführten Arbeiten wurden mir erläutert und der Endbetrag wurde beglichen bzw. anerkannt.`;
+
 // ===== Invoice (Rechnung) configuration =====
 export const SHOP_INFO = {
-  name: "Reparatur Berlin GmbH",
-  addressLine1: "Musterstraße 12",
-  addressLine2: "10115 Berlin",
-  phone: "+49 30 1234567",
-  email: "info@reparatur-berlin.de",
-  taxNumber: "USt-IdNr.: DE123456789",
+  name: "smartphone Apotheke",
+  addressLine1: "Frankfurter Alle 95 ",
+  addressLine2: "10247 Berlin",
+  phone: "+49 177 9777771",
+  email: "info@smartphone-apotheke.de",
+  taxNumber: "USt-IdNr.: DE355296654",
   steuernummer: "Steuernr.: 30/123/45678",
-  website: "www.reparatur-berlin.de",
+  website: "www.smartphone-apotheke.de",
 };
+
 
 export const INVOICE_WARRANTY = `Gewährleistung: Auf durchgeführte Reparaturen gewähren wir 6 Monate Gewährleistung gemäß den gesetzlichen Bestimmungen. Ausgenommen sind Folgeschäden durch unsachgemäße Behandlung, Sturz- oder Feuchtigkeitsschäden sowie Verschleißteile. Für Datenverluste wird keine Haftung übernommen (Datensicherung ist Sache des Kunden).
 
 Der Rechnungsbetrag wurde bei Abholung vollständig beglichen. Vielen Dank für Ihren Auftrag!`;
 
-export const AGB_TEXT = `AGB (Auszug): Es gelten unsere Allgemeinen Geschäftsbedingungen. Nicht abgeholte Geräte werden nach 90 Tagen kostenpflichtig eingelagert oder verwertet. Kostenvoranschläge sind unverbindlich; Mehrkosten werden vor Ausführung abgestimmt.`;
+export const AGB_TEXT = `AGB (Auszug): Es gelten unsere Allgemeinen Geschäftsbedingungen. Nicht abgeholte Geräte werden nach 90 Tagen kostenpflichtig eingelagert (1,50 € pro Tag); bei Erreichen des Gerätewerts wird das Gerät verkauft. Kostenvoranschläge sind unverbindlich; Mehrkosten werden vor Ausführung abgestimmt.`;
 
 export const DSGVO_CONSENT = `Datenschutz (DSGVO): Ihre personenbezogenen Daten werden ausschließlich zur Auftragsabwicklung gemäß Art. 6 Abs. 1 lit. b DSGVO verarbeitet und nicht an Dritte weitergegeben. Mit Ihrer Unterschrift willigen Sie in die Verarbeitung dieser Daten zum Zweck der Reparaturabwicklung ein.`;
 
@@ -137,7 +165,7 @@ export const AGB_FULL = `Allgemeine Geschäftsbedingungen (AGB)
 
 §4 Gewährleistung: Auf durchgeführte Arbeiten gewähren wir 6 Monate Gewährleistung. Ausgenommen sind Verschleiß, Sturz- und Feuchtigkeitsschäden sowie Folgeschäden bestehender Vorschäden.
 
-§5 Abholung & Lagerung: Nicht innerhalb von 90 Tagen abgeholte Geräte können nach vorheriger Benachrichtigung kostenpflichtig eingelagert, verwertet oder entsorgt werden.
+§5 Abholung & Lagerung: Nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholte Geräte werden kostenpflichtig eingelagert. Für die Lagerung berechnen wir eine Gebühr von 1,50 € pro Tag. Sobald die aufgelaufenen Lagerkosten den wirtschaftlichen Wert des Gerätes erreichen, wird das Gerät verkauft.
 
 §6 Eigentumsvorbehalt: Bis zur vollständigen Bezahlung bleibt das reparierte Gerät bzw. verbaute Ersatzteile Eigentum der Werkstatt.
 
