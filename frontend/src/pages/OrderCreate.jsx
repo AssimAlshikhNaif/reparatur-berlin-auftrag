@@ -45,10 +45,9 @@ export default function OrderCreate() {
     assigned_techniker_id: "",
   });
 
-  const netTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
-  const taxTotal = netTotal * 0.19;
-  const grossTotal = netTotal + taxTotal;
-
+ const grossTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
+const netTotal = grossTotal / 1.19;
+const taxTotal = grossTotal - netTotal;
   useEffect(() => {
     (async () => {
       const [b, tk] = await Promise.all([api.get("/branches"), api.get("/technicians")]);

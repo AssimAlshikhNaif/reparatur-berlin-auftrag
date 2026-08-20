@@ -207,11 +207,11 @@ export default function OrderDetail() {
 
   // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
   // from the local costForm state so the totals update in real-time as they type.
-  const liveNet = canManage
-    ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
-    : Number(order.cost?.net || 0);
-  const liveTax = canManage ? liveNet * 0.19 : Number(order.cost?.tax || 0);
-  const liveGross = canManage ? liveNet + liveTax : Number(order.cost?.gross || 0);
+  const liveGross = canManage
+  ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
+  : Number(order.cost?.gross || 0);
+const liveNet = canManage ? liveGross / 1.19 : Number(order.cost?.net || 0);
+const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
 
   return (
     <div>

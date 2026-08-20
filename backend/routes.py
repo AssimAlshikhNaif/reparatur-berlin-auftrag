@@ -61,9 +61,9 @@ def compute_costs(order: dict) -> dict:
     d = float(order.get("diagnosis_fee") or 0)
     l = float(order.get("labor_cost") or 0)
     p = float(order.get("parts_cost") or 0)
-    net = round(d + l + p, 2)
-    tax = round(net * TAX_RATE, 2)
-    gross = round(net + tax, 2)
+    gross = round(d + l + p, 2)
+    net = round(gross / (1 + TAX_RATE), 2)
+    tax = round(gross - net, 2)
     return {
         "diagnosis_fee": d, "labor_cost": l, "parts_cost": p,
         "net": net, "tax": tax, "gross": gross, "tax_rate": 19,
