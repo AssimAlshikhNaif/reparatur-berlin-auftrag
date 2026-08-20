@@ -81,18 +81,19 @@ export const PURCHASE_STATUS_ORDER = [
   "ANGEFRAGT", "BESTELLT", "UNTERWEGS", "ANGEKOMMEN", "EINGEBAUT", "STORNIERT",
 ];
 
+
 // ===== Legal liability waiver (shown below the intake signature) =====
-export const LIABILITY_WAIVER = `Haftungsausschluss & Einverständniserklärung:
+export const LIABILITY_WAIVER = "Haftungsausschluss & Einverständniserklärung: \n" +
 
-1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.
+"1. Datenverlust: Der Kunde wurde darauf hingewiesen, seine Daten vor der Reparatur zu sichern. Die Werkstatt übernimmt keinerlei Haftung für den Verlust von Daten (Kontakte, Fotos, Apps etc.) während oder infolge der Reparatur.\n" +
 
-2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, werden kostenpflichtig eingelagert. Für die Lagerung berechnen wir eine Gebühr von 1,50 € pro Tag. Sobald die aufgelaufenen Lagerkosten den wirtschaftlichen Wert des Gerätes erreichen, wird das Gerät verkauft.
+"2. Nicht abgeholte Geräte: Reparierte oder nicht reparierbare Geräte, die nicht innerhalb von 90 Tagen nach Benachrichtigung abgeholt werden, werden kostenpflichtig eingelagert. Für die Lagerung berechnen wir eine Gebühr von 1,50 € pro Tag. Sobald die aufgelaufenen Lagerkosten den wirtschaftlichen Wert des Gerätes erreichen, wird das Gerät verkauft.\n" +
 
-3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.
+"3. Vorschäden: Der Kunde bestätigt, dass bereits bestehende (Vor-)Schäden (z. B. Wasserschaden, Sturzschäden, Vorreparaturen) den Reparaturerfolg beeinträchtigen können. Für Folgeschäden, die auf solche Vorschäden zurückzuführen sind, wird keine Haftung übernommen.\n" +
 
-4. Wasser und Feuchtigkeit: Generell raten wir nach der Reparatur dringend davon ab, das Gerät mit Wasser in Berührung zu bringen. Durch das Öffnen des Gerätes und die von uns verwendeten Kleber kann nicht mehr sichergestellt werden, dass das Gerät weiterhin wasserdicht ist. Für Schäden, die nach der Reparatur durch Wasser, Feuchtigkeit oder andere Flüssigkeiten entstehen, übernehmen wir keine Haftung.
+"4. Wasser und Feuchtigkeit: Generell raten wir nach der Reparatur dringend davon ab, das Gerät mit Wasser in Berührung zu bringen. Durch das Öffnen des Gerätes und die von uns verwendeten Kleber kann nicht mehr sichergestellt werden, dass das Gerät weiterhin wasserdicht ist. Für Schäden, die nach der Reparatur durch Wasser, Feuchtigkeit oder andere Flüssigkeiten entstehen, übernehmen wir keine Haftung.\n" +
 
-5. Bestätigung: Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.`;
+"5. Bestätigung: Mit meiner Unterschrift bestätige ich, das Gerät zur Reparatur übergeben sowie die obenstehenden Bedingungen gelesen und akzeptiert zu haben.";
 
 // Concise shop-protection bullet points for the compact Abholschein (pickup slip)
 export const WAIVER_BULLETS = [
@@ -118,6 +119,7 @@ export const SHOP_INFO = {
   steuernummer: "Steuernr.: 30/123/45678",
   website: "www.smartphone-apotheke.de",
 };
+
 
 export const INVOICE_WARRANTY = `Gewährleistung: Auf durchgeführte Reparaturen gewähren wir 6 Monate Gewährleistung gemäß den gesetzlichen Bestimmungen. Ausgenommen sind Folgeschäden durch unsachgemäße Behandlung, Sturz- oder Feuchtigkeitsschäden sowie Verschleißteile. Für Datenverluste wird keine Haftung übernommen (Datensicherung ist Sache des Kunden).
 
@@ -155,6 +157,10 @@ export const DSGVO_FULL = `Datenschutzerklärung (DSGVO)
 
 4. Weitergabe: Eine Weitergabe an Dritte erfolgt nur, soweit dies zur Auftragsabwicklung (z.B. Ersatzteilbestellung) erforderlich oder gesetzlich vorgeschrieben ist.
 
-5. Ihre Rechte: Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch. Beschwerden können Sie bei der zuständigen Aufsbehörde einreichen.
+5. Ihre Rechte: Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit sowie Widerspruch. Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen.
 
 6. Einwilligung: Mit Ihrer Unterschrift bestätigen Sie die Kenntnisnahme dieser Datenschutzhinweise.`;
+
+
+
+
