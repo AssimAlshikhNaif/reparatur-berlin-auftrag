@@ -20,8 +20,15 @@ export default function BranchDropdown() {
     const onClickOutside = (e) => {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
     };
+    
+    // إضافة الاستماع لأحداث النقر واللمس معاً لضمان العمل على الموبايل
     document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("touchstart", onClickOutside);
+    
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("touchstart", onClickOutside);
+    };
   }, [open]);
 
   const goToBranch = (b) => {
@@ -44,7 +51,7 @@ export default function BranchDropdown() {
       {open && (
         <div
           data-testid="branch-dropdown-list"
-          className="absolute right-0 mt-2 w-64 z-40 bg-background border border-border rounded-xl shadow-2xl overflow-hidden"
+          className="absolute right-0 md:right-0 mt-2 w-64 max-h-[75vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
         >
           {branches.length === 0 ? (
             <div className="px-4 py-3 text-xs font-mono text-muted-foreground/70">{t("common.noResults", "Keine Ergebnisse")}</div>
@@ -54,7 +61,7 @@ export default function BranchDropdown() {
                 key={b._id}
                 data-testid={`branch-item-${b._id}`}
                 onClick={() => goToBranch(b)}
-                className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate"
+                className="w-full text-left px-4 py-3 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate"
               >
                 {b.name}
               </button>
