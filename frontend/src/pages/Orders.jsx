@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -7,12 +7,15 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge, SlaBadge } from "@/components/StatusBadge";
 import ContractPrint from "@/components/ContractPrint";
 import { STATUS_LABELS } from "@/lib/constants";
-import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck, ArrowsClockwise, Printer } from "@phosphor-icons/react";
+import { MagnifyingGlass, PlusCircle, Funnel, Warning, ShieldCheck, ArrowsClockwise, Printer, X } from "@phosphor-icons/react";
 
 export default function Orders() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const branchId = searchParams.get("branch_id") || "";
+  const branchName = searchParams.get("branch_name") || "";
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -25,19 +28,27 @@ export default function Orders() {
     if (statusFilter === "REKLAMATION") {
       try {
         const { data } = await api.get("/reklamationen");
-        setOrders(data);
+        setOrders(branchId ? data.filter((o) => o.branch_id === branchId) : data);
       } catch { setOrders([]); }
       setLoading(false);
       return;
     }
     const params = {};
     if (statusFilter) params.status = statusFilter;
+    if (branchId) params.branch_id = branchId;
     const { data } = await api.get("/orders", { params });
     setOrders(data);
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [statusFilter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [statusFilter, branchId]);
+
+  const clearBranchFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("branch_id");
+    next.delete("branch_name");
+    setSearchParams(next);
+  };
 
   const filtered = orders.filter((o) => {
     if (!q) return true;
@@ -63,6 +74,17 @@ export default function Orders() {
           </button>
         )}
       </PageHeader>
+
+      {branchId && (
+        <div className="px-6 md:px-8 pt-4">
+          <div data-testid="branch-filter-badge" className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary text-xs font-mono px-3 py-1.5 rounded-lg">
+            <span>{t("orders.filteredByBranch", "Filiale")}: {branchName || branchId}</span>
+            <button data-testid="branch-filter-clear" onClick={clearBranchFilter} className="hover:opacity-70">
+              <X size={13} weight="bold" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Quick filter tabs */}
       <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">

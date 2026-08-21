@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
@@ -25,6 +25,10 @@ export default function OrderCreate() {
   const [technicians, setTechnicians] = useState([]);
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
+  // Synchroner Schutz vor Doppel-Absendung: React-State ("busy") aktualisiert sich
+  // erst beim nächsten Render, daher kann ein sehr schneller Doppelklick den
+  // Handler zweimal auslösen, bevor der Button visuell deaktiviert ist.
+  const submittingRef = useRef(false);
   const [showCamera, setShowCamera] = useState(false);
   const [intakeSignature, setIntakeSignature] = useState(null);
   const [signerName, setSignerName] = useState("");
@@ -45,9 +49,11 @@ export default function OrderCreate() {
     assigned_techniker_id: "",
   });
 
- const grossTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
-const netTotal = grossTotal / 1.19;
-const taxTotal = grossTotal - netTotal;
+  // Eingaben sind Bruttopreise (inkl. MwSt.) — Endbetrag = Summe der Eingaben.
+  const grossTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
+  const netTotal = grossTotal / 1.19;
+  const taxTotal = grossTotal - netTotal;
+
   useEffect(() => {
     (async () => {
       const [b, tk] = await Promise.all([api.get("/branches"), api.get("/technicians")]);
@@ -113,10 +119,12 @@ const taxTotal = grossTotal - netTotal;
 
   const submit = async (e) => {
     e.preventDefault();
+    if (submittingRef.current) return; // schon eine Anfrage läuft — Doppelklick ignorieren
     if (!validate()) {
       toast.error(t("oc.validateFail"));
       return;
     }
+    submittingRef.current = true;
     setBusy(true);
     try {
       const payload = {
@@ -145,6 +153,7 @@ const taxTotal = grossTotal - netTotal;
     } catch (err) {
       toast.error(err.response?.data?.detail || t("oc.createError"));
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };

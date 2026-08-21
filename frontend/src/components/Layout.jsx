@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/context/ThemeContext";
 import { ROLE_LABELS } from "@/lib/constants";
 import NotificationBell from "@/components/NotificationBell";
 import GlobalSearch from "@/components/GlobalSearch";
+import BranchDropdown from "@/components/BranchDropdown";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
   Gauge, Wrench, Package, Users, QrCode, PlusCircle,
@@ -118,8 +119,9 @@ export default function Layout({ children }) {
       {/* Main content area that takes the rest of the flex space cleanly */}
       <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-auto">
         <div className="flex items-center gap-3 h-12 px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
-          <div className="flex-1 min-w-0 hidden sm:block">
-            <GlobalSearch />
+          <div className="flex-1 min-w-0 hidden sm:flex items-center gap-2">
+            <GlobalSearch compact={user.role === "admin"} />
+            {user.role === "admin" && <BranchDropdown />}
           </div>
           <div className="flex-1 sm:hidden" />
           {(user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker") && <NotificationBell />}

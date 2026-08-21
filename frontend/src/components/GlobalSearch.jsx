@@ -5,7 +5,7 @@ import api from "@/lib/api";
 import { MagnifyingGlass, X, ShieldCheck, Warning } from "@phosphor-icons/react";
 import { STATUS_LABELS } from "@/lib/constants";
 
-export default function GlobalSearch() {
+export default function GlobalSearch({ compact = false }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [q, setQ] = useState("");
@@ -45,7 +45,7 @@ export default function GlobalSearch() {
   };
 
   return (
-    <div className="relative w-full max-w-md">
+    <div className={`relative w-full ${compact ? "max-w-[190px]" : "max-w-md"}`}>
       <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-9">
         <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
         <input

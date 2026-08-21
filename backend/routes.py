@@ -61,6 +61,9 @@ def compute_costs(order: dict) -> dict:
     d = float(order.get("diagnosis_fee") or 0)
     l = float(order.get("labor_cost") or 0)
     p = float(order.get("parts_cost") or 0)
+    # Die eingegebenen Beträge sind Bruttopreise (inkl. MwSt.) – das ist der
+    # Endbetrag, den der Kunde zahlt. Netto und MwSt. werden daraus rückwirkend
+    # herausgerechnet (Gesamt bleibt unverändert = Summe der Eingaben).
     gross = round(d + l + p, 2)
     net = round(gross / (1 + TAX_RATE), 2)
     tax = round(gross - net, 2)
@@ -312,13 +315,23 @@ class InventoryUpdate(BaseModel):
 
 # ==================== BRANCHES ====================
 # Per-branch branding/config defaults (DB values override these when present).
-BRANCH_CONFIG = {
-    "Smartphone Apotheke": {"city": "Berlin", "address": "Kantstraße 12, 10623 Berlin", "phone": "+49 30 1110001", "email": "apotheke@reparatur-berlin.de"},
-    "Phone Store": {"city": "Berlin", "address": "Frankfurter Allee 88, 10247 Berlin", "phone": "+49 30 1110002", "email": "phonestore@reparatur-berlin.de"},
-    "Media Technik": {"city": "Berlin", "address": "Turmstraße 5, 10559 Berlin", "phone": "+49 30 1110003", "email": "media@reparatur-berlin.de"},
-    "Schönenhause": {"city": "Berlin", "address": "Schönhauser Allee 120, 10437 Berlin", "phone": "+49 30 1110004", "email": "schoenhauser@reparatur-berlin.de"},
-    "Hauptwerkstatt Berlin": {"city": "Berlin", "address": "Musterstraße 12, 10115 Berlin", "phone": "+49 30 1234567", "email": "info@reparatur-berlin.de"},
-}
+BRANCH_CONFIG = {}
+
+
+class BranchCreate(BaseModel):
+    name: str
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    city: Optional[str] = ""
+    address: Optional[str] = ""
+
+
+class BranchUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
 
 
 @router.get("/branches")
@@ -327,7 +340,7 @@ async def list_branches(current=Depends(get_current_user)):
     out = []
     for b in branches:
         name = b.get("name", "")
-        defaults = BRANCH_CONFIG.get(name, {"city": "Berlin", "address": "Berlin", "phone": "+49 30 0000000", "email": "info@reparatur-berlin.de"})
+        defaults = BRANCH_CONFIG.get(name, {"city": "", "address": "", "phone": "", "email": ""})
         out.append({
             "id": str(b["_id"]),
             "name": name,
@@ -340,6 +353,59 @@ async def list_branches(current=Depends(get_current_user)):
             "steuernummer": b.get("steuernummer") or "Steuernr.: 30/123/45678",
         })
     return out
+
+
+@router.post("/branches")
+async def create_branch(input: BranchCreate, current=Depends(require_roles("admin"))):
+    name = (input.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+    existing = await db.branches.find_one({"name": name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Eine Filiale mit diesem Namen existiert bereits")
+    doc = {
+        "name": name,
+        "phone": (input.phone or "").strip(),
+        "email": (input.email or "").strip(),
+        "city": (input.city or "").strip(),
+        "address": (input.address or "").strip(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await db.branches.insert_one(doc)
+    doc["id"] = str(res.inserted_id)
+    return doc
+
+
+@router.put("/branches/{branch_id}")
+async def update_branch(branch_id: str, input: BranchUpdate, current=Depends(require_roles("admin"))):
+    branch = await db.branches.find_one({"_id": ObjectId(branch_id)})
+    if not branch:
+        raise HTTPException(status_code=404, detail="Filiale nicht gefunden")
+    updates = {k: v for k, v in input.dict(exclude_unset=True).items() if v is not None}
+    if "name" in updates:
+        updates["name"] = updates["name"].strip()
+        if not updates["name"]:
+            raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+        dup = await db.branches.find_one({"name": updates["name"], "_id": {"$ne": ObjectId(branch_id)}})
+        if dup:
+            raise HTTPException(status_code=400, detail="Eine Filiale mit diesem Namen existiert bereits")
+    if updates:
+        await db.branches.update_one({"_id": ObjectId(branch_id)}, {"$set": updates})
+    updated = await db.branches.find_one({"_id": ObjectId(branch_id)})
+    updated["id"] = str(updated.pop("_id"))
+    return updated
+
+
+@router.delete("/branches/{branch_id}")
+async def delete_branch(branch_id: str, current=Depends(require_roles("admin"))):
+    branch = await db.branches.find_one({"_id": ObjectId(branch_id)})
+    if not branch:
+        raise HTTPException(status_code=404, detail="Filiale nicht gefunden")
+    in_use = await db.orders.count_documents({"branch_id": branch_id})
+    if in_use > 0:
+        raise HTTPException(status_code=400, detail=f"Filiale hat {in_use} Aufträge und kann nicht gelöscht werden")
+    await db.branches.delete_one({"_id": ObjectId(branch_id)})
+    return {"status": "deleted"}
 
 
 # ==================== USERS (Admin only) ====================
@@ -508,10 +574,12 @@ async def _order_query_for_user(user: dict) -> dict:
 
 @router.get("/orders")
 async def list_orders(status: Optional[str] = None, sla: Optional[bool] = None,
-                     current=Depends(get_current_user)):
+                     branch_id: Optional[str] = None, current=Depends(get_current_user)):
     query = await _order_query_for_user(current)
     if status:
         query["status"] = status
+    if branch_id:
+        query["branch_id"] = branch_id
     orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
     bmap, umap = await _name_maps()
     result = [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
@@ -970,6 +1038,15 @@ async def notify_customer(order_id: str, input: NotifyInput,
     email = order.get("customer_email", "")
     auftrag = order.get("auftragsnummer", "")
 
+    branch_phone = ""
+    branch_email = ""
+    branch_id = order.get("branch_id")
+    if branch_id:
+        branch = await db.branches.find_one({"_id": ObjectId(branch_id)})
+        if branch:
+            branch_phone = branch.get("phone") or ""
+            branch_email = branch.get("email") or ""
+
     if input.channel == "email":
         if not email:
             raise HTTPException(status_code=400, detail="Keine E-Mail-Adresse für diesen Kunden hinterlegt")
@@ -977,7 +1054,10 @@ async def notify_customer(order_id: str, input: NotifyInput,
         html = f"<div style='font-family:Arial,sans-serif;font-size:14px;color:#111'>" \
                f"<p>Sehr geehrte/r Kunde/in,</p><p>{text}</p>" \
                f"<p style='color:#666;font-size:12px'>Auftrag: {auftrag}</p></div>"
-        result = await messaging.send_email(email, subject, html)
+        identity = messaging.resolve_send_identity(branch_email)
+        result = await messaging.send_email(email, subject, html,
+                                            from_email=identity["from_email"],
+                                            reply_to=identity["reply_to"])
         to_val = email
     else:
         if not phone:
@@ -986,6 +1066,7 @@ async def notify_customer(order_id: str, input: NotifyInput,
         result = await (messaging.send_sms(phone, body) if input.channel == "sms"
                         else messaging.send_whatsapp(phone, body))
         to_val = result.get("to", phone)
+        result["branch_phone"] = branch_phone
 
     status = result.get("status", "unknown")
     now = datetime.now(timezone.utc).isoformat()
