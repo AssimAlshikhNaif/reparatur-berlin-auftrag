@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/context/ThemeContext";
 import { ROLE_LABELS } from "@/lib/constants";
 import NotificationBell from "@/components/NotificationBell";
+import GlobalSearch from "@/components/GlobalSearch";
 import BranchDropdown from "@/components/BranchDropdown";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import {
@@ -118,7 +119,8 @@ export default function Layout({ children }) {
       {/* Main content area that takes the rest of the flex space cleanly */}
       <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-auto">
         <div className="flex items-center justify-between gap-2 h-12 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
-          <div className="flex items-center gap-2 min-w-0 py-1">
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto py-1">
+            {/* تم إزالة شروط الإخفاء لتظهر القائمة على جميع الأجهزة والشاشات */}
             {user.role === "admin" && <BranchDropdown />}
           </div>
           
