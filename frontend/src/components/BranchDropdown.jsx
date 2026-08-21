@@ -30,20 +30,29 @@ export default function BranchDropdown() {
     };
   }, [open]);
 
-  const goToBranch = (b) => {
+  const handleToggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpen((prev) => !prev);
+  };
+
+  const goToBranch = (e, b) => {
+    e.preventDefault();
+    e.stopPropagation();
     setOpen(false);
     navigate(`/auftraege?branch_id=${b._id}&branch_name=${encodeURIComponent(b.name)}`);
   };
 
   return (
-    <div className="relative" ref={boxRef}>
+    <div className="relative inline-block" ref={boxRef}>
       <button
+        type="button"
         data-testid="branch-dropdown-toggle"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 border border-border rounded-lg px-3 h-9 text-sm text-foreground hover:bg-muted transition-colors shrink-0"
+        onClick={handleToggle}
+        onTouchEnd={handleToggle}
+        className="flex items-center gap-1.5 border border-border rounded-lg px-3 h-9 text-sm text-foreground bg-card hover:bg-muted transition-colors shrink-0 cursor-pointer"
       >
         <Buildings size={15} />
-        {/* تم إزالة hidden لضمان ظهور الكلمة على الموبايل واللابتوب */}
         <span className="inline">{t("branches.title", "Filialen")}</span>
         <CaretDown size={11} className="text-muted-foreground" />
       </button>
@@ -51,8 +60,7 @@ export default function BranchDropdown() {
       {open && (
         <div
           data-testid="branch-dropdown-list"
-          // تم ضبط العرض ليتناسب مع الموبايل (عرض الشاشة ناقص هامش) ورفع z-index
-          className="absolute right-0 mt-2 w-[280px] md:w-64 max-h-[75vh] overflow-y-auto z-[9999] bg-card border border-border rounded-xl shadow-2xl"
+          className="fixed sm:absolute start-3 sm:start-auto sm:end-0 top-16 sm:top-auto sm:mt-2 w-[calc(100vw-24px)] sm:w-64 max-h-[60vh] overflow-y-auto z-[99999] bg-card border border-border rounded-xl shadow-2xl"
         >
           {branches.length === 0 ? (
             <div className="px-4 py-3 text-xs font-mono text-muted-foreground/70">
@@ -61,10 +69,12 @@ export default function BranchDropdown() {
           ) : (
             branches.map((b) => (
               <button
+                type="button"
                 key={b._id}
                 data-testid={`branch-item-${b._id}`}
-                onClick={() => goToBranch(b)}
-                className="w-full text-left px-4 py-3 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate"
+                onClick={(e) => goToBranch(e, b)}
+                onTouchEnd={(e) => goToBranch(e, b)}
+                className="w-full text-start px-4 py-3 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate cursor-pointer"
               >
                 {b.name}
               </button>
