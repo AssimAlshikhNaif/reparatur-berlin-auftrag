@@ -34,6 +34,39 @@ BRANCHES = [
         "email": "info@smartphone-apotheke.de",
         "whatsapp": "+491782931142"
     },
+     {
+        "name": "Smartphone Tegel ",
+        "email": "info@smartphone-apotheke.de",
+        "whatsapp": "+4915733555555"
+    },
+     {
+        "name": "M.T Postplatz",
+        "email": "",
+        "whatsapp": "+"
+    },
+     {
+        "name": "M.T Pragerst 12",
+        "email": "",
+        "whatsapp": "+"
+    },
+     {
+        "name": "M.T Hauptbahnof 4",
+        "email": "",
+        "whatsapp": "+"
+     },
+     {
+        "name": "M.T Wittenberg",
+        "email": "",
+        "whatsapp": "+"
+    },
+
+    {
+        "name": "Kauf park Laden",
+        "email": "info@phone-store.de",
+        "whatsapp": "+491631222240"
+    },
+
+
 ]
 
 SEED_PASSWORD = "Repair2026!"

@@ -26,7 +26,7 @@ export default function BranchDropdown() {
 
   const goToBranch = (b) => {
     setOpen(false);
-    navigate(`/auftraege?branch_id=${b.id}&branch_name=${encodeURIComponent(b.name)}`);
+    navigate(`/auftraege?branch_id=${b._id}&branch_name=${encodeURIComponent(b.name)}`);
   };
 
   return (
@@ -51,8 +51,8 @@ export default function BranchDropdown() {
           ) : (
             branches.map((b) => (
               <button
-                key={b.id}
-                data-testid={`branch-item-${b.id}`}
+                key={b._id}
+                data-testid={`branch-item-${b._id}`}
                 onClick={() => goToBranch(b)}
                 className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate"
               >
