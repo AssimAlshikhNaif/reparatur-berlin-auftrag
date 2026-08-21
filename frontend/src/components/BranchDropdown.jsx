@@ -21,7 +21,6 @@ export default function BranchDropdown() {
       if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false);
     };
     
-    // إضافة الاستماع لأحداث النقر واللمس معاً لضمان العمل على الموبايل
     document.addEventListener("mousedown", onClickOutside);
     document.addEventListener("touchstart", onClickOutside);
     
@@ -44,17 +43,21 @@ export default function BranchDropdown() {
         className="flex items-center gap-1.5 border border-border rounded-lg px-3 h-9 text-sm text-foreground hover:bg-muted transition-colors shrink-0"
       >
         <Buildings size={15} />
-        <span className="hidden md:inline">{t("branches.title", "Filialen")}</span>
+        {/* تم إزالة hidden لضمان ظهور الكلمة على الموبايل واللابتوب */}
+        <span className="inline">{t("branches.title", "Filialen")}</span>
         <CaretDown size={11} className="text-muted-foreground" />
       </button>
 
       {open && (
         <div
           data-testid="branch-dropdown-list"
-          className="absolute right-0 md:right-0 mt-2 w-64 max-h-[75vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
+          // تم ضبط العرض ليتناسب مع الموبايل (عرض الشاشة ناقص هامش) ورفع z-index
+          className="absolute right-0 mt-2 w-[280px] md:w-64 max-h-[75vh] overflow-y-auto z-[9999] bg-card border border-border rounded-xl shadow-2xl"
         >
           {branches.length === 0 ? (
-            <div className="px-4 py-3 text-xs font-mono text-muted-foreground/70">{t("common.noResults", "Keine Ergebnisse")}</div>
+            <div className="px-4 py-3 text-xs font-mono text-muted-foreground/70">
+              {t("common.noResults", "Keine Ergebnisse")}
+            </div>
           ) : (
             branches.map((b) => (
               <button
