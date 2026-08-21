@@ -118,15 +118,17 @@ export default function Layout({ children }) {
 
       {/* Main content area that takes the rest of the flex space cleanly */}
       <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-auto">
-        <div className="flex items-center gap-3 h-12 px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
-          <div className="flex-1 min-w-0 hidden sm:flex items-center gap-2">
-            <GlobalSearch compact={user.role === "admin"} />
+        <div className="flex items-center justify-between gap-2 h-12 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/80 backdrop-blur-xl z-20">
+          <div className="flex items-center gap-2 min-w-0 overflow-x-auto py-1">
+            {/* تم إزالة شروط الإخفاء لتظهر القائمة على جميع الأجهزة والشاشات */}
             {user.role === "admin" && <BranchDropdown />}
           </div>
-          <div className="flex-1 sm:hidden" />
-          {(user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker") && <NotificationBell />}
-          <LanguageSwitcher />
-          <ThemeToggle />
+          
+          <div className="flex items-center gap-2 shrink-0">
+            {(user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker") && <NotificationBell />}
+            <LanguageSwitcher />
+            <ThemeToggle />
+          </div>
         </div>
         <div className="flex-1">
           {children}
