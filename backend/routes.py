@@ -1,3 +1,4 @@
+import os
 import uuid
 import logging
 from datetime import datetime, timezone, timedelta
@@ -841,6 +842,64 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
+
+@router.delete("/orders/{order_id}/media/{media_id}")
+async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    media_list = order.get("media", [])
+    import urllib.parse
+    decoded_id = urllib.parse.unquote(media_id)
+
+    target_media = None
+    for m in media_list:
+        # نقوم بمقارنة جميع الاحتمالات الممكنة لمعرّف الصورة
+        m_id = str(m.get("id", ""))
+        m_oid = str(m.get("_id", ""))
+        m_file = str(m.get("file_path", ""))
+        m_storage = str(m.get("storage_path", ""))
+        m_filename = str(m.get("filename", ""))
+        
+        if (decoded_id == m_id or 
+            decoded_id == m_oid or 
+            decoded_id == m_filename or 
+            decoded_id in m_file or 
+            decoded_id in m_storage or
+            m_file.endswith(decoded_id) or
+            m_storage.endswith(decoded_id)):
+            target_media = m
+            break
+
+    # إذا لم يتم العثور عليها بالمعرف، نتحقق إن كان الـ media_id عبارة عن رقم ترتيبي (Index)
+    if not target_media and decoded_id.isdigit():
+        idx = int(decoded_id)
+        if 0 <= idx < len(media_list):
+            target_media = media_list[idx]
+
+    if not target_media:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    # حذف الملف الفعلي من السيرفر
+    file_path = target_media.get("file_path") or target_media.get("storage_path")
+    if file_path:
+        full_path = os.path.join("/app", file_path) if not file_path.startswith("/") else file_path
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+            except Exception:
+                pass
+
+    # إزالة العنصر من قاعدة البيانات
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$pull": {"media": target_media}}
+    )
+    
+    updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    bmap, umap = await _name_maps()
+    return serialize_order(updated_order, current)
 
 # ==================== COSTS ====================
 @router.patch("/orders/{order_id}/costs")

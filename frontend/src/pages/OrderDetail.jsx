@@ -179,6 +179,18 @@ export default function OrderDetail() {
     } finally { setSavingSig(false); }
   };
 
+ const deleteMedia = async (m, index) => {
+    // نختار أثبت قيمة تدل على الصورة
+    const mediaId = m.filename || m.storage_path?.split("/").pop() || m.file_path?.split("/").pop() || m.id || m._id || index;
+    try {
+      await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
+      toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
+      await load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
+    }
+  };
+
   const uploadFiles = async (files) => {
     if (!files.length) return;
     setUploading(true);
@@ -603,7 +615,9 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                  {intakeMedia.map((m) => <MediaThumb key={m.id} m={m} />)}
+               {intakeMedia.map((m, index) => (
+               <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+            ))}
                 </div>
               )}
             </Section>
@@ -618,7 +632,9 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
-                  {repairMedia.map((m) => <MediaThumb key={m.id} m={m} />)}
+                 {repairMedia.map((m, index) => (
+  <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+))}
                 </div>
               )}
               {(isTech || canManage) && order.status !== "ABGEHOLT" && (
@@ -633,6 +649,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                   </button>
                 </div>
               )}
+              
             </Section>
 
             {/* Endkontrolle / Prüfprotokoll (QC) */}
@@ -849,16 +866,31 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
   );
 }
 
-function MediaThumb({ m }) {
+function MediaThumb({ m, onDelete }) {
   const url = fileUrl(m.storage_path);
   return (
-    <a href={url} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`}
-      className="block aspect-square border border-border overflow-hidden bg-background hover:border-accent transition-colors">
-      {m.is_video ? (
-        <video src={url} className="w-full h-full object-cover" />
-      ) : (
-        <img src={url} alt={m.original_filename} className="w-full h-full object-cover" />
+    <div className="relative group aspect-square border border-border overflow-hidden bg-background hover:border-accent transition-colors">
+      <a href={url} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
+        {m.is_video ? (
+          <video src={url} className="w-full h-full object-cover" />
+        ) : (
+          <img src={url} alt={m.original_filename} className="w-full h-full object-cover" />
+        )}
+      </a>
+      {/* زر الحذف يظهر في الزاوية */}
+      {onDelete && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 hover:text-white rounded shadow transition-colors z-10"
+          title="Bild löschen"
+        >
+          <Trash size={14} weight="bold" />
+        </button>
       )}
-    </a>
+    </div>
   );
 }
