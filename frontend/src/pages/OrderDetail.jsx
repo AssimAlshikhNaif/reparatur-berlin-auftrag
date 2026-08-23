@@ -133,7 +133,7 @@ export default function OrderDetail() {
   if (!order) return <div className="p-8 font-mono text-muted-foreground">{t("detail.loading")}</div>;
 
   const branchName = branches.find((b) => b.id === order.branch_id)?.name || "—";
-
+  const currentBranch = branches.find((b) => b.id === order.branch_id);
   const act = async (fn, msg) => {
     try { await fn(); toast.success(msg); await load(); loadComms(); }
     catch (e) { toast.error(e.response?.data?.detail || t("toast.error")); }
@@ -698,7 +698,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               
             </Section>
 
-            {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
+           
 {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
 <div className="space-y-6">
   
@@ -899,8 +899,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         </div>
       )}
 
-      {showReceipt && <Abholschein order={order} branchName={branchName} onClose={() => setShowReceipt(false)} />}
-      {showInvoice && <Invoice order={order} branchName={branchName} onClose={() => setShowInvoice(false)} />}
+      {showReceipt && <Abholschein order={order} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowReceipt(false)} />}
+      {showInvoice && <Invoice order={order} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowInvoice(false)} />}
       {showContract && <ContractPrint order={{ ...order, inspection: order.inspection || order.checklist }} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowContract(false)} />}
       {showLabel && <LabelPrint order={order} onClose={() => setShowLabel(false)} />}
 

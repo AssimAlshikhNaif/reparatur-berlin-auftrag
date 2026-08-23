@@ -7,11 +7,11 @@ import { WAIVER_BULLETS } from "@/lib/constants";
 export default function Abholschein({ order, branchName, branchInfo, onClose }) {
   const printTs = berlinNow();
 
-  const currentShop = {
-    name: branchInfo?.name || branchName || "REPARATUR BERLIN",
-    email: branchInfo?.email || "",
-    whatsapp: branchInfo?.whatsapp || "",
-    logo_url: branchInfo?.logo_url || branchInfo?.logo || "",
+ const currentShop = {
+    name: branchInfo?.name || branchName || "Smartphone Apotheke",
+    email: branchInfo?.email || "info@smartphone-apotheke.de",
+    whatsapp: branchInfo?.whatsapp || "+491782931142",
+    logo_url: branchInfo?.logo_url || branchInfo?.logo || "/logos/logo-icon.png",
   };
 
   // دالة ذكية لتحديد رابط اللوغو تلقائياً (تعمل محلياً ومع سيرفر Hetzner دون تعديل)
