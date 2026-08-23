@@ -11,7 +11,18 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     name: branchInfo?.name || branchName || "REPARATUR BERLIN",
     email: branchInfo?.email || "",
     whatsapp: branchInfo?.whatsapp || "",
+    logo_url: branchInfo?.logo_url || branchInfo?.logo || "",
   };
+
+  // دالة ذكية لتحديد رابط اللوغو تلقائياً (تعمل محلياً ومع سيرفر Hetzner دون تعديل)
+  const getFullLogoUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
+  const shopLogo = getFullLogoUrl(currentShop.logo_url);
 
   // حل جذري للطباعة: فتح نافذة مستقلة نظيفة 100% تحتوي على الإيصال وحده دون أي شوائب أو تكرار
   const handlePrint = () => {
@@ -81,6 +92,17 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     const qrData = canvas ? canvas.toDataURL("image/png") : null;
     const doc = new jsPDF({ unit: "mm", format: [80, 210] });
     let y = 8;
+
+    // إضافة اللوجو في الـ PDF إذا كان متوفراً ودعم السيرفر
+    if (shopLogo) {
+      try {
+        doc.addImage(shopLogo, "PNG", 25, y, 30, 12);
+        y += 14;
+      } catch (e) {
+        // تجاهل الخطأ في حال تعذر تحميل الصورة
+      }
+    }
+
     doc.setFont("courier", "bold"); doc.setFontSize(11);
     doc.text(currentShop.name.toUpperCase(), 40, y, { align: "center" }); y += 5;
     
@@ -171,8 +193,27 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
         <div className="p-6 flex justify-center bg-card max-h-[80vh] overflow-y-auto">
           <div id="abholschein" style={{ width: "80mm", padding: "4mm", fontFamily: "'Courier New', Courier, monospace", background: "#ffffff", color: "#000000" }}>
+
+            {order.status === "STORNIERT" && (
+              <div data-testid="print-canceled-banner" style={{
+                textAlign: "center", border: "2px solid #c00", color: "#c00",
+                fontWeight: 700, fontSize: "13px", letterSpacing: "2px",
+                padding: "2mm", marginBottom: "3mm", transform: "rotate(-2deg)",
+              }}>
+                STORNIERT
+                {order.cancel_reason && (
+                  <div style={{ fontWeight: 400, fontSize: "8px", letterSpacing: "normal", marginTop: "1mm" }}>
+                    Grund: {order.cancel_reason}
+                  </div>
+                )}
+              </div>
+            )}
             
             <div style={{ textAlign: "center", borderBottom: "1px dashed #000", paddingBottom: "3mm", marginBottom: "3mm" }}>
+              {/* عرض اللوغو ديناميكياً على السيرفر ومحلياً */}
+              {shopLogo && (
+                <img src={shopLogo} alt="Logo" style={{ maxHeight: "40px", maxWidth: "120px", objectFit: "contain", margin: "0 auto 4px", display: "block" }} />
+              )}
               <div style={{ fontWeight: 700, fontSize: "12px", letterSpacing: "1px" }}>{currentShop.name}</div>
               {currentShop.whatsapp && <div style={{ fontSize: "8px" }}>WhatsApp: {currentShop.whatsapp}</div>}
               {currentShop.email && <div style={{ fontSize: "8px" }}>{currentShop.email}</div>}

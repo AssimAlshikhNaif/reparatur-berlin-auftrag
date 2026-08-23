@@ -23,14 +23,19 @@ WARRANTY_DEFAULT_MONTHS = 6
 # ---- Status constants ----
 STATUS_FLOW = [
     "ANGENOMMEN", "ZUGEWIESEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG",
-    "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT", "ABGELEHNT",
+    "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT", "ABGELEHNT", "STORNIERT",
 ]
 # Technical phases a technician may set (never administrative/final states like ABGEHOLT)
 TECH_ALLOWED_STATUS = {"ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG"}
 COST_STATES = {"WARTET", "BESTAETIGT", "ABGELEHNT"}
 TAX_RATE = 0.19
-FINAL_STATES = {"ABGEHOLT", "ABGELEHNT"}
+FINAL_STATES = {"ABGEHOLT", "ABGELEHNT" , "STORNIERT"}
 PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_address"]
+# Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
+EDITABLE_ORDER_FIELDS = [
+    "customer_name", "customer_phone", "customer_email", "customer_address",
+    "device_brand", "device_model", "imei", "device_passcode", "issue_description",
+]
 
 
 # ---- Helpers ----
@@ -164,6 +169,7 @@ AUTO_STATUS_MESSAGES = {
     "FERTIG": "Gute Nachrichten! Ihre Reparatur ist abgeschlossen. Ihr Gerät kann abgeholt werden.",
     "ABGEHOLT": "Vielen Dank! Ihr Gerät wurde abgeholt. Wir wünschen Ihnen viel Freude damit.",
     "ABGELEHNT": "Ihr Reparaturauftrag wurde storniert/abgelehnt. Bei Fragen kontaktieren Sie uns bitte.",
+    "STORNIERT": "Ihr Reparaturauftrag wurde storniert. Bei Fragen kontaktieren Sie uns bitte.",
 }
 
 
@@ -257,10 +263,11 @@ class InspectionItem(BaseModel):
 
 
 class InspectionInput(BaseModel):
-    checklist: dict = {}          # {itemKey: {status, note}}
+    checklist: dict = {}                 # {itemKey: {status, note}}
     display_type: Optional[str] = ""   # Original | In-Cell | OLED | Service-Pack
     battery_health: Optional[str] = "" # percentage as string
     notes: Optional[str] = ""
+    inspection_type: Optional[str] = "end" # <--- أضف هذا السطر هنا ليتم استلام النوع بنجاح
 
 
 class CostUpdate(BaseModel):
@@ -288,6 +295,20 @@ class AssignInput(BaseModel):
 class RejectInput(BaseModel):
     reason: str
 
+class CancelInput(BaseModel):
+    reason: str
+
+
+class OrderEditInput(BaseModel):
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    customer_email: Optional[str] = None
+    customer_address: Optional[str] = None
+    device_brand: Optional[str] = None
+    device_model: Optional[str] = None
+    imei: Optional[str] = None
+    device_passcode: Optional[str] = None
+    issue_description: Optional[str] = None
 
 class UserCreate(BaseModel):
     name: str
@@ -721,6 +742,68 @@ async def _touch_order(order_id, new_status, by_name, extra=None):
         update["$set"].update(extra)
     await db.orders.update_one({"_id": ObjectId(order_id)}, update)
     await log_audit(order_id, "STATUS", f"Status → {new_status}", by_name)
+
+@router.patch("/orders/{order_id}")
+async def edit_order(order_id: str, input: OrderEditInput,
+                     current=Depends(require_roles("admin", "mitarbeiter"))):
+    """Korrigiert Stammdaten eines Auftrags (z. B. Tippfehler im Kundennamen).
+    Zulässig nur, solange der Auftrag noch nicht final ist (kein ABGEHOLT/
+    ABGELEHNT/STORNIERT), und für Mitarbeiter nur bei selbst angelegten Aufträgen."""
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if order.get("status") in FINAL_STATES:
+        raise HTTPException(status_code=400, detail="Abgeschlossene/stornierte Aufträge können nicht mehr bearbeitet werden")
+    if current["role"] == "mitarbeiter" and order.get("created_by") != str(current["_id"]):
+        raise HTTPException(status_code=403, detail="Sie können nur selbst angelegte Aufträge bearbeiten")
+
+    updates = {}
+    changes_desc = []
+    for field in EDITABLE_ORDER_FIELDS:
+        v = getattr(input, field)
+        if v is not None:
+            v = v.strip() if isinstance(v, str) else v
+            old_val = order.get(field, "")
+            if v != old_val:
+                updates[field] = v
+                changes_desc.append(field)
+    if not updates:
+        return serialize_order(order, current)
+
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})
+    await log_audit(order_id, "BEARBEITET", f"Felder korrigiert: {', '.join(changes_desc)}", current["name"])
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
+
+
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order(order_id: str, input: CancelInput,
+                       current=Depends(require_roles("admin", "mitarbeiter"))):
+    """Storniert einen Auftrag (z. B. weil der Kunde die Reparatur nicht mehr
+    wünscht) mit Pflicht-Angabe eines Grundes. Endgültig — keine weitere
+    Bearbeitung des Auftrags danach möglich."""
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    if order.get("status") in FINAL_STATES:
+        raise HTTPException(status_code=400, detail="Auftrag ist bereits abgeschlossen/storniert")
+    if not input.reason.strip():
+        raise HTTPException(status_code=400, detail="Stornierungsgrund erforderlich")
+    if current["role"] == "mitarbeiter" and order.get("created_by") != str(current["_id"]):
+        raise HTTPException(status_code=403, detail="Sie können nur selbst angelegte Aufträge stornieren")
+
+    await _touch_order(order_id, "STORNIERT", current["name"], {"cancel_reason": input.reason.strip()})
+    await log_audit(order_id, "STORNIERT", f"Auftrag storniert: {input.reason.strip()}", current["name"])
+    await auto_status_communication(order, "STORNIERT", current["name"])
+    await push_notification(
+        kind="STATUS", title="Auftrag storniert",
+        message=f"{current['name']} hat {order.get('auftragsnummer','')} storniert: {input.reason.strip()}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
 
 
 @router.post("/orders/{order_id}/assign")
@@ -1558,34 +1641,38 @@ async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "m
 
 
 
-# ==================== POST-REPAIR INSPECTION (Endkontrolle / QC) ====================
+# ==================== DUAL INSPECTION SYSTEM (Intake & QC) ====================
 @router.post("/orders/{order_id}/inspection")
 async def save_inspection(order_id: str, input: InspectionInput, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
     await _assert_order_access(order, current)
     now = datetime.now(timezone.utc).isoformat()
-    inspection = {
+    
+    inspection_data = {
         "checklist": input.checklist or {},
         "display_type": input.display_type or "",
         "battery_health": input.battery_health or "",
         "notes": input.notes or "",
         "by": current["name"],
+        "role": current["role"],
         "at": now,
     }
-    await db.orders.update_one({"_id": ObjectId(order_id)},
-                               {"$set": {"inspection": inspection, "updated_at": now}})
-    await log_audit(order_id, "PRUEFPROTOKOLL", "Endkontrolle / Prüfprotokoll gespeichert", current["name"])
-    await push_notification(
-        kind="PRUEFPROTOKOLL", title="Prüfprotokoll gespeichert",
-        message=f"{current['name']} hat das Endkontroll-Protokoll für {order.get('auftragsnummer','')} gespeichert.",
-        by=current["name"], by_role=current["role"],
-        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    
+    # اختيار الحقل بناءً على نوع الفحص المرسل من الفرونت إند
+    update_field = "intake_inspection" if input.inspection_type == "intake" else "inspection"
+    
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {update_field: inspection_data, "updated_at": now}}
     )
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)
-
+    
+    await log_audit(order_id, "PRUEFPROTOKOLL", f"{update_field} gespeichert", current["name"])
+    
+    updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(updated_order, current)
 
 # ==================== GLOBAL ACTIVITY FEED (Admin) ====================
 @router.get("/activity")

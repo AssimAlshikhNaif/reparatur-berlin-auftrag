@@ -95,6 +95,7 @@ export default function Orders() {
           { key: "FERTIG", label: "Fertig" },
           { key: "ABGEHOLT", label: "Abgeholt" },
           { key: "REKLAMATION", label: "Reklamation" },
+          { key: "STORNIERT", label: "Storniert" },
         ].map((tab) => (
           <button
             key={tab.key || "all"}
@@ -102,11 +103,11 @@ export default function Orders() {
             onClick={() => setStatusFilter(tab.key)}
             className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors ${
               statusFilter === tab.key
-                ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : "border-accent bg-accent/10 text-foreground")
-                : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : "border-border text-muted-foreground hover:text-foreground")
+                ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : tab.key === "STORNIERT" ? "border-red-500 bg-red-950/60 text-red-200" : "border-accent bg-accent/10 text-foreground")
+                : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : tab.key === "STORNIERT" ? "border-red-700/60 text-red-400 hover:text-red-200" : "border-border text-muted-foreground hover:text-foreground")
             }`}
           >
-            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}
+            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : tab.key === "STORNIERT" ? "Storniert" : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}
           </button>
         ))}
       </div>
@@ -136,6 +137,7 @@ export default function Orders() {
               <option key={k} value={k}>{t(`status.${k}`, STATUS_LABELS[k])}</option>
             ))}
             <option value="REKLAMATION">{t("reklamation.badgeReclamation")}</option>
+            <option value="STORNIERT">Storniert</option>
           </select>
         </div>
       </div>
@@ -169,7 +171,11 @@ export default function Orders() {
                   key={o.id}
                   data-testid={`order-row-${o.auftragsnummer}`}
                   onClick={() => navigate(`/auftrag/${o.id}`)}
-                  className="border-b border-border/40 cursor-pointer hover:bg-muted transition-colors group"
+                  className={`border-b border-border/40 cursor-pointer transition-colors group ${
+                    o.status === "STORNIERT" 
+                      ? "bg-red-950/40 hover:bg-red-900/40 border-red-900/50" 
+                      : "hover:bg-muted"
+                  }`}
                 >
                   <td className="px-6 md:px-8 py-3 font-mono text-foreground whitespace-nowrap">{o.auftragsnummer}</td>
                   <td className="px-4 py-3 text-foreground/80 whitespace-nowrap">{o.device_brand} {o.device_model}</td>
@@ -179,7 +185,13 @@ export default function Orders() {
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{o.assigned_techniker_name || <span className="text-muted-foreground/70">—</span>}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <StatusBadge status={o.status} />
+                      {o.status === "STORNIERT" ? (
+                        <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-red-600 text-white border border-red-500 shadow-md">
+                          STORNIERT
+                        </span>
+                      ) : (
+                        <StatusBadge status={o.status} />
+                      )}
                       {o.sla_breached && <SlaBadge days={o.working_days_open} />}
                       {o.imei_reminder && (
                         <span data-testid={`list-imei-${o.auftragsnummer}`} title={t("detail.imeiMissing")} className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-mono uppercase border border-amber-600 bg-amber-950 text-amber-300 rounded">

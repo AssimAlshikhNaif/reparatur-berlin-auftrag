@@ -12,7 +12,7 @@ BRANCHES = [
     {
         "name": "Phone Store Mobile",
         "email": "info@phone-store.de",
-        "whatsapp": "+4915775111444"
+        "whatsapp": "+4915775111444",
     },
     {
         "name": "Praxis Smartphone",
@@ -29,15 +29,11 @@ BRANCHES = [
         "email": "info@technikphone.de",
         "whatsapp": "+4915751540257"
     },
-    {
+     {
         "name": "Smartphone Apotheke",
         "email": "info@smartphone-apotheke.de",
-        "whatsapp": "+491782931142"
-    },
-     {
-        "name": "Smartphone Tegel ",
-        "email": "info@smartphone-apotheke.de",
-        "whatsapp": "+4915733555555"
+        "whatsapp": "+491782931142",
+        "logo_url": "/logos/logo-icon.png"  # <-- يجب أن يكون هنا داخل القوسين
     },
      {
         "name": "M.T Postplatz",
@@ -97,9 +93,11 @@ async def seed_all():
                 {
                     "$set": {
                         "email": branch_data["email"],
-                        "whatsapp": branch_data["whatsapp"]
+                        "whatsapp": branch_data["whatsapp"],
+                        "logo_url": branch_data.get["logo_url"]  # أو branch_data["logo_url"] كلاهما صحيحان تماماً الآن
+        }
                     }
-                }
+                
             )
             branch_map[name] = str(existing["_id"])
         else:

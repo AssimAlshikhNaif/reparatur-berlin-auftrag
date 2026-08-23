@@ -18,9 +18,18 @@ const STATUSES = [
   { v: "NV", labelKey: "statusNV", cls: "border-zinc-600 text-zinc-300 bg-zinc-900", icon: MinusCircle },
 ];
 
-export default function InspectionForm({ order, readOnly = false, onSaved }) {
+export default function InspectionForm({ order, readOnly: externalReadOnly = false, onSaved, inspectionType = "end" }) {
   const { t } = useTranslation();
-  const existing = order.inspection || {};
+  
+  // اختيار البيانات بناءً على نوع الفحص (إما استلام الموظف أو فحص النهاية للتقني)
+  const existing = inspectionType === "intake" ? (order.intake_inspection || {}) : (order.inspection || {});
+  
+  // التحقق مما إذا كانت البيانات محفوظة مسبقاً وتحتوي على عناصر
+  const hasSavedData = Boolean(existing.checklist && Object.keys(existing.checklist).length > 0);
+  
+  // دمج الحالة: إذا تم طلبه كقراءة فقط من الخارج، أو وُجدت بيانات محفوظة مسقاً -> يصبح مقفلاً
+  const isReadOnly = externalReadOnly || hasSavedData;
+  
   const [checklist, setChecklist] = useState(existing.checklist || {});
   const [displayType, setDisplayType] = useState(existing.display_type || "");
   const [batteryHealth, setBatteryHealth] = useState(existing.battery_health || "");
@@ -44,7 +53,11 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
     setBusy(true);
     try {
       await api.post(`/orders/${order.id}/inspection`, {
-        checklist, display_type: displayType, battery_health: batteryHealth, notes,
+        checklist, 
+        display_type: displayType, 
+        battery_health: batteryHealth, 
+        notes,
+        inspection_type: inspectionType // إرسال نوع الفحص للباك إند ليتم حفظه في المكان المخصص
       });
       toast.success(t("inspection.saved"));
       onSaved && onSaved();
@@ -54,11 +67,11 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
   };
 
   return (
-    <div data-testid="inspection-form" className="space-y-5">
-      {!readOnly && (
+    <div data-testid={`inspection-form-${inspectionType}`} className="space-y-5">
+      {!isReadOnly && (
         <div className="flex items-center justify-between gap-3 border border-emerald-800/50 bg-emerald-950/20 rounded-lg px-3 py-2.5">
           <span className="text-xs text-emerald-200/90">{t("inspection.allOkHint")}</span>
-          <button type="button" data-testid="insp-all-ok" onClick={markAllOk}
+          <button type="button" data-testid={`insp-all-ok-${inspectionType}`} onClick={markAllOk}
             className={`flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 rounded-lg border transition-colors ${allAreOk ? "border-emerald-600 bg-emerald-700 text-white" : "border-emerald-600 text-emerald-300 hover:bg-emerald-700 hover:text-white"}`}>
             <CheckCircle size={15} weight="fill" /> {t("inspection.allOk")}
           </button>
@@ -71,28 +84,28 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
             {cat.items.map((item) => {
               const cur = checklist[item] || {};
               return (
-                <div key={item} data-testid={`insp-item-${item}`} className="flex flex-col sm:flex-row sm:items-center gap-2 border border-border/60 rounded-lg px-3 py-2">
+                <div key={item} data-testid={`insp-item-${inspectionType}-${item}`} className="flex flex-col sm:flex-row sm:items-center gap-2 border border-border/60 rounded-lg px-3 py-2">
                   <span className="text-sm text-foreground/90 flex-1">{t(`inspection.item.${item}`)}</span>
                   <div className="flex items-center gap-1.5">
                     {STATUSES.map((s) => {
                       const active = cur.status === s.v;
                       const Icon = s.icon;
                       return (
-                        <button key={s.v} type="button" disabled={readOnly}
-                          data-testid={`insp-${item}-${s.v}`}
+                        <button key={s.v} type="button" disabled={isReadOnly}
+                          data-testid={`insp-${inspectionType}-${item}-${s.v}`}
                           onClick={() => setStatus(item, s.v)}
-                          className={`flex items-center gap-1 px-2 py-1 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors ${active ? s.cls : "border-border text-muted-foreground hover:text-foreground"} ${readOnly ? "cursor-default" : ""}`}>
+                          className={`flex items-center gap-1 px-2 py-1 text-[10px] font-mono uppercase tracking-wider rounded border transition-colors ${active ? s.cls : "border-border text-muted-foreground hover:text-foreground"} ${isReadOnly ? "cursor-default" : ""}`}>
                           <Icon size={12} weight={active ? "fill" : "regular"} /> {t(`inspection.${s.labelKey}`)}
                         </button>
                       );
                     })}
                   </div>
-                  {!readOnly && (
-                    <input data-testid={`insp-note-${item}`} value={cur.note || ""} onChange={(e) => setNote(item, e.target.value)}
+                  {!isReadOnly && (
+                    <input data-testid={`insp-note-${inspectionType}-${item}`} value={cur.note || ""} onChange={(e) => setNote(item, e.target.value)}
                       placeholder={t("inspection.notePlaceholder")}
                       className="sm:w-40 bg-background border border-border px-2 py-1 text-xs rounded outline-none focus:border-accent" />
                   )}
-                  {readOnly && cur.note ? <span className="sm:w-40 text-xs text-muted-foreground truncate">{cur.note}</span> : null}
+                  {isReadOnly && cur.note ? <span className="sm:w-40 text-xs text-muted-foreground truncate">{cur.note}</span> : null}
                 </div>
               );
             })}
@@ -103,7 +116,7 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("inspection.displayType")}</label>
-          <select data-testid="insp-display-type" value={displayType} disabled={readOnly} onChange={(e) => setDisplayType(e.target.value)}
+          <select data-testid={`insp-display-type-${inspectionType}`} value={displayType} disabled={isReadOnly} onChange={(e) => setDisplayType(e.target.value)}
             className="w-full bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent">
             <option value="">—</option>
             {DISPLAY_TYPES.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -111,7 +124,7 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
         </div>
         <div>
           <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("inspection.batteryHealth")}</label>
-          <input data-testid="insp-battery-health" type="number" min="0" max="100" value={batteryHealth} disabled={readOnly}
+          <input data-testid={`insp-battery-health-${inspectionType}`} type="number" min="0" max="100" value={batteryHealth} disabled={isReadOnly}
             onChange={(e) => setBatteryHealth(e.target.value)} placeholder="z.B. 89"
             className="w-full bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
         </div>
@@ -119,13 +132,13 @@ export default function InspectionForm({ order, readOnly = false, onSaved }) {
 
       <div>
         <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("inspection.notes")}</label>
-        <textarea data-testid="insp-notes" value={notes} disabled={readOnly} onChange={(e) => setNotes(e.target.value)} rows={2}
+        <textarea data-testid={`insp-notes-${inspectionType}`} value={notes} disabled={isReadOnly} onChange={(e) => setNotes(e.target.value)} rows={2}
           placeholder={t("inspection.notesPlaceholder")}
           className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
       </div>
 
-      {!readOnly && (
-        <button data-testid="insp-save" onClick={save} disabled={busy}
+      {!isReadOnly && (
+        <button data-testid={`insp-save-${inspectionType}`} onClick={save} disabled={busy}
           className="flex items-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider px-5 py-2.5 rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50">
           {busy ? <SpinnerGap size={16} className="animate-spin" /> : <FloppyDisk size={16} />} {t("inspection.save")}
         </button>

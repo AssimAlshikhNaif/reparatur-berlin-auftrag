@@ -33,7 +33,8 @@ export default function BranchDropdown() {
 
   const goToBranch = (b) => {
     setOpen(false);
-    navigate(`/auftraege?branch_id=${b._id}&branch_name=${encodeURIComponent(b.name)}`);
+    const branchId = b._id || b.id; // التحقق من الحقلين لضمان عدم إرسال undefined
+    navigate(`/auftraege?branch_id=${branchId}&branch_name=${encodeURIComponent(b.name)}`);
   };
 
   return (

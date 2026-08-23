@@ -25,7 +25,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
-  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap,PencilSimple,
 } from "@phosphor-icons/react";
 
 const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" }; // eslint-disable-line no-unused-vars
@@ -65,6 +65,10 @@ export default function OrderDetail() {
   const [showLabel, setShowLabel] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showReject, setShowReject] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [showCancel, setShowCancel] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [inventory, setInventory] = useState([]);
@@ -142,6 +146,26 @@ export default function OrderDetail() {
     act(() => api.post(`/orders/${id}/reject`, { reason: rejectReason }), t("toast.orderRejected"))
       .then(() => { setShowReject(false); setRejectReason(""); });
   };
+
+  const doCancel = () => {
+    if (!cancelReason.trim()) { toast.error(t("toast.reasonRequired")); return; }
+    act(() => api.post(`/orders/${id}/cancel`, { reason: cancelReason }), t("detail.orderCanceled"))
+      .then(() => { setShowCancel(false); setCancelReason(""); });
+  };
+  const openEdit = () => {
+    setEditForm({
+      customer_name: order.customer_name || "", customer_phone: order.customer_phone || "",
+      customer_email: order.customer_email || "", customer_address: order.customer_address || "",
+      device_brand: order.device_brand || "", device_model: order.device_model || "",
+      imei: order.imei || "", device_passcode: order.device_passcode || "",
+      issue_description: order.issue_description || "",
+    });
+    setShowEdit(true);
+  };
+  const saveEdit = () => {
+    act(() => api.patch(`/orders/${id}`, editForm), t("detail.orderUpdated")).then(() => setShowEdit(false));
+  };
+  
   const setStatus = (status) => act(() => api.patch(`/orders/${id}/status`, { status }), t("toast.statusChanged", { s: t(`status.${status}`, STATUS_LABELS[status]) }));
 
   const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
@@ -289,6 +313,19 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
           </select>
         )}
 
+        {canManage && order.status !== "STORNIERT" && (
+          <button data-testid="open-edit" onClick={openEdit}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
+            <PencilSimple size={14} /> {t("detail.editOrder")}
+          </button>
+        )}
+        {canManage && order.status !== "STORNIERT" && (
+          <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
+            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-4 py-2 hover:bg-red-950 transition-colors">
+            <XCircle size={14} /> {t("detail.cancelOrder")}
+          </button>
+        )}
+
         {/* Device QR/barcode sticker — restricted to Admin & Reception (DSGVO / role isolation) */}
         {canManage && (
           <button data-testid="open-label" onClick={() => setShowLabel(true)}
@@ -309,6 +346,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
             <ClipboardText size={14} /> {t("actions.fullPrint")}
           </button>
         )}
+        
+        
         {canManage && order.status === "ABGEHOLT" && (
           <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
@@ -403,6 +442,13 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         <div className="mx-6 md:mx-8 my-4 border border-red-900 bg-red-950/30 px-4 py-3">
           <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.rejectReason")}</div>
           <div className="text-sm text-red-200">{order.reject_reason}</div>
+        </div>
+      )}
+
+      {order.status === "STORNIERT" && (
+        <div data-testid="cancel-reason-banner" className="mx-6 md:mx-8 my-4 border-2 border-red-700 bg-red-950/40 px-4 py-3">
+          <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.cancelReason")}</div>
+          <div className="text-sm text-red-200">{order.cancel_reason}</div>
         </div>
       )}
 
@@ -652,21 +698,64 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               
             </Section>
 
-            {/* Endkontrolle / Prüfprotokoll (QC) */}
-            {(isTech || canManage) && (
-              <Section title={t("inspection.title")} icon={ClipboardText}>
-                {order.inspection && order.status === "ABGEHOLT" ? (
-                  <InspectionForm order={order} readOnly onSaved={load} />
-                ) : (isTech || canManage) ? (
-                  <>
-                    <p className="text-[11px] font-mono text-amber-300 mb-3">{t("inspection.subtitle")}</p>
-                    <InspectionForm order={order} onSaved={load} />
-                  </>
-                ) : (
-                  <InspectionForm order={order} readOnly />
-                )}
-              </Section>
+            {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
+{/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
+<div className="space-y-6">
+  
+  {/* 1. فحص الاستلام (Eingangsprüfung) */}
+  <Section title="Eingangsprüfung (Mitarbeiter)" icon={ClipboardText}>
+    {(() => {
+      const hasIntake = Boolean(order.intake_inspection?.checklist && Object.keys(order.intake_inspection.checklist).length > 0);
+      const isReadOnly = hasIntake && !canManage && !isMitarbeiter;
+      
+      return (
+        <div className="space-y-3">
+          {hasIntake && (
+            <p className="text-[11px] font-mono text-emerald-400">
+              ✓ Eingangsprüfung durchgeführt von {order.intake_inspection.by || "Mitarbeiter"}
+            </p>
+          )}
+          <InspectionForm 
+            order={order} 
+            inspectionType="intake" 
+            inspectionData={order.intake_inspection} 
+            readOnly={isReadOnly} 
+            onSaved={load} 
+          />
+        </div>
+      );
+    })()}
+  </Section>
+
+  {/* 2. فحص النهاية (Endkontrolle) */}
+  {(isTech || canManage || isMitarbeiter) && (
+    <Section title={t("inspection.title")} icon={ClipboardText}>
+      {(() => {
+        const hasEnd = Boolean(order.inspection?.checklist && Object.keys(order.inspection.checklist).length > 0);
+        const isReadOnly = (hasEnd && order.status === "ABGEHOLT") || (!isTech && !canManage);
+
+        return (
+          <div className="space-y-3">
+            <p className="text-[11px] font-mono text-amber-300">{t("inspection.subtitle")}</p>
+            {hasEnd && (
+              <p className="text-[11px] font-mono text-emerald-400">
+                ✓ Endkontrolle durchgeführt von {order.inspection.by || "Techniker"}
+              </p>
             )}
+            <InspectionForm 
+              order={order} 
+              inspectionType="end" 
+              inspectionData={order.inspection} 
+              readOnly={isReadOnly} 
+              onSaved={load} 
+            />
+          </div>
+        );
+      })()}
+    </Section>
+  )}
+
+</div>
 
             {/* Digitale Unterschriften */}
             {canManage && (
@@ -856,6 +945,67 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               </button>
               <button onClick={() => setShowReject(false)}
                 className="px-6 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors">
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCancel && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-background border border-red-800 max-w-md w-full p-6 rounded-xl">
+            <h3 className="font-head font-semibold text-lg mb-1 text-red-300">{t("detail.cancelTitle")}</h3>
+            <p className="text-sm text-muted-foreground mb-4">{t("detail.cancelDesc")}</p>
+            <textarea data-testid="cancel-reason-input" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={4}
+              placeholder={t("detail.cancelPlaceholder")}
+              className="w-full bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent" />
+            <div className="flex gap-3 mt-4">
+              <button data-testid="confirm-cancel" onClick={doCancel}
+                className="flex-1 bg-red-700 text-foreground font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-red-600 transition-colors">
+                {t("detail.confirmCancel")}
+              </button>
+              <button onClick={() => { setShowCancel(false); setCancelReason(""); }}
+                className="px-6 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors rounded-lg">
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEdit && editForm && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-background border border-border max-w-lg w-full p-6 rounded-xl my-8">
+            <h3 className="font-head font-semibold text-lg mb-4">{t("detail.editOrder")}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                ["customer_name", t("oc.name")], ["customer_phone", t("oc.phone")],
+                ["customer_email", t("oc.email")], ["customer_address", t("oc.address")],
+                ["device_brand", t("oc.brand")], ["device_model", t("oc.model")],
+                ["imei", t("oc.imei")], ["device_passcode", t("oc.lockValue")],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
+                  <input data-testid={`edit-${key}`} value={editForm[key]}
+                    onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                    className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
+                </div>
+              ))}
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("oc.issue")}</label>
+                <textarea data-testid="edit-issue_description" value={editForm.issue_description} rows={3}
+                  onChange={(e) => setEditForm({ ...editForm, issue_description: e.target.value })}
+                  className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button data-testid="confirm-edit" onClick={saveEdit}
+                className="flex-1 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-blue-600 transition-colors">
+                {t("common.save")}
+              </button>
+              <button onClick={() => setShowEdit(false)}
+                className="px-6 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors rounded-lg">
                 {t("common.cancel")}
               </button>
             </div>

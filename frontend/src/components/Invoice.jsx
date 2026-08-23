@@ -47,6 +47,17 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const downloadPdf = () => {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     let y = 16;
+
+    // تضمين اللوجو في ملف الـ PDF إذا كان متوفراً
+    if (shop.logo_url) {
+      try {
+        doc.addImage(shop.logo_url, "PNG", 14, y, 35, 14);
+        y += 18;
+      } catch (e) {
+        // تجاهل الخطأ في حال تعذر تحميل الصورة
+      }
+    }
+
     doc.setFont("helvetica", "bold"); doc.setFontSize(16);
     doc.text(shop.name, 14, y); y += 6;
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
