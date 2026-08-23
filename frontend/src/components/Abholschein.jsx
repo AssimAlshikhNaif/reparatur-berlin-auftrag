@@ -7,12 +7,22 @@ import { WAIVER_BULLETS } from "@/lib/constants";
 export default function Abholschein({ order, branchName, branchInfo, onClose }) {
   const printTs = berlinNow();
 
- const currentShop = {
-    name: branchInfo?.name || branchName || "Smartphone Apotheke",
-    email: branchInfo?.email || "info@smartphone-apotheke.de",
-    whatsapp: branchInfo?.whatsapp || "+491782931142",
-    logo_url: branchInfo?.logo_url || branchInfo?.logo || "/logos/logo-icon.png",
-  };
+ // 1. خريطة تربط كل فرع باللوغو الخاص به حسب اسمه الصحيح
+const branchLogos = {
+  "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+  // أضف أي فرع آخر هنا مستقبلاً بهذه الطريقة:
+  // "اسم الفرع الثاني": "/logos/اسم_صورة_الفرع_الثاني.png"
+};
+
+const resolvedBranchName = branchInfo?.name || branchName || "Smartphone Apotheke";
+
+// 2. كود المتجر الذي سيختار اللوغو تلقائياً للفرع الحالي
+const currentShop = {
+  name: resolvedBranchName,
+  email: branchInfo?.email || "info@smartphone-apotheke.de",
+  whatsapp: branchInfo?.whatsapp || "+491782931142",
+  logo_url: branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
+};
 
   // دالة ذكية لتحديد رابط اللوغو تلقائياً (تعمل محلياً ومع سيرفر Hetzner دون تعديل)
   const getFullLogoUrl = (url) => {

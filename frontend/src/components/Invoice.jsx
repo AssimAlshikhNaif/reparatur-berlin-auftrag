@@ -12,15 +12,25 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const cost = order.cost || {};
   const parts = order.used_parts || [];
   const invoiceNo = order.invoice_number || order.auftragsnummer;
+  // خريطة اللوغوهات الخاصة بكل فرع بناءً على اسمه
+  const branchLogos = {
+    "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+    // أضف أي فرع آخر هنا مستقبلاً بهذه الطريقة:
+    // "اسم الفرع الثاني": "/logos/اسم_الصورة.png"
+  };
+
+  const resolvedBranchName = branch?.name || branchName || SHOP_INFO.name;
+
   const shop = {
-    name: branch?.name || SHOP_INFO.name,
+    name: resolvedBranchName,
     address: branch?.address || `${SHOP_INFO.addressLine1}, ${SHOP_INFO.addressLine2}`,
     phone: branch?.phone || SHOP_INFO.phone,
     email: branch?.email || SHOP_INFO.email,
     taxNumber: branch?.tax_number || SHOP_INFO.taxNumber,
     steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer,
     city: branch?.city || "Berlin",
-    logo_url: branch?.logo_url || "",
+    // سيأخذ اللوغو من قاعدة البيانات إذا وجد، أو من القاموس بناءً على اسم الفرع، أو اللوغو الافتراضي العام
+    logo_url: branch?.logo_url || branchLogos[resolvedBranchName] || SHOP_INFO.logo_url || "",
   };
   const ortDatumShort = `${shop.city}, ${order.invoice_date ? berlinDate(order.invoice_date) : berlinDate()}`;
   const customerSignature = order.pickup_signature || order.intake_signature || null;
