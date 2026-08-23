@@ -899,8 +899,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         </div>
       )}
 
-      {showReceipt && <Abholschein order={order} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowReceipt(false)} />}
-      {showInvoice && <Invoice order={order} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowInvoice(false)} />}
+      {showReceipt && <Abholschein order={order} branchName={branchName} branchInfo={branches.find((b) => b.name?.trim().toLowerCase() === branchName?.trim().toLowerCase())} onClose={() => setShowReceipt(false)} />}
+      {showInvoice && <Invoice order={order} branchName={branchName} branchInfo={branches.find((b) => b.name?.trim().toLowerCase() === branchName?.trim().toLowerCase())} onClose={() => setShowInvoice(false)} />}
       {showContract && <ContractPrint order={{ ...order, inspection: order.inspection || order.checklist }} branchName={branchName} branchInfo={branches.find((b) => b.id === order.branch_id)} onClose={() => setShowContract(false)} />}
       {showLabel && <LabelPrint order={order} onClose={() => setShowLabel(false)} />}
 
