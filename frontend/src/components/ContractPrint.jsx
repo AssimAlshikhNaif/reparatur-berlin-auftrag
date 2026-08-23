@@ -145,7 +145,15 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
 
         {/* نافذة المعاينة الداخلية */}
         <div className="p-8 bg-muted/40 overflow-y-auto flex-1 flex justify-center">
-          <div id="vertrag" style={{ width: "190mm", background: "#ffffff", color: "#111111", boxShadow: "0 0 10px rgba(0,0,0,0.1)", borderRadius: "4px" }}>
+  <div id="vertrag" style={{ width: "190mm", background: "#ffffff", color: "#111111", boxShadow: "0 0 10px rgba(0,0,0,0.1)", borderRadius: "4px", padding: "10mm" }}>
+    
+    {/* أضف هذا السطر هنا ليظهر اللوغو في المعاينة والطباعة معاً */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #111", paddingBottom: "6px", marginBottom: "10px" }}>
+      {currentShop.logo_url ? (
+        <img src={currentShop.logo_url} alt="Logo" style={{ maxHeight: "45px", maxWidth: "130px", objectFit: "contain" }} />
+      ) : <div />}
+      <div style={{ fontSize: "12px", fontWeight: "bold" }}>{currentShop.name}</div>
+    </div>
             
             {order.status === "STORNIERT" && (
               <div data-testid="print-canceled-banner" style={{
