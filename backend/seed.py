@@ -94,7 +94,7 @@ async def seed_all():
                     "$set": {
                         "email": branch_data["email"],
                         "whatsapp": branch_data["whatsapp"],
-                        "logo_url": branch_data.get["logo_url"]  # أو branch_data["logo_url"] كلاهما صحيحان تماماً الآن
+                        "logo_url": branch_data.get("logo_url") or "", 
         }
                     }
                 
