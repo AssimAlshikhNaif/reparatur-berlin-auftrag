@@ -133,7 +133,7 @@ export default function OrderDetail() {
   if (!order) return <div className="p-8 font-mono text-muted-foreground">{t("detail.loading")}</div>;
 
   const branchName = branches.find((b) => b.id === order.branch_id)?.name || "—";
-  const currentBranch = branches.find((b) => b.id === order.branch_id);
+  const currentBranch = branches.find((b) => String(b._id) === String(order.branch_id) || String(b.id) === String(order.branch_id));
   const act = async (fn, msg) => {
     try { await fn(); toast.success(msg); await load(); loadComms(); }
     catch (e) { toast.error(e.response?.data?.detail || t("toast.error")); }
