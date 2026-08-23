@@ -6,11 +6,20 @@ import { LIABILITY_WAIVER, AGB_FULL, DSGVO_FULL } from "@/lib/constants";
 export default function ContractPrint({ order, branchName, branchInfo, onClose }) {
   const { t } = useTranslation();
 
+  // خريطة اللوغوهات الخاصة بكل فرع بناءً على اسمه
+  const branchLogos = {
+    "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+    // أضف أي فرع آخر هنا مستقبلاً عند الحاجة
+  };
+
+  const resolvedBranchName = branchInfo?.name || branchName || "Reparatur Berlin";
+
   const currentShop = {
-    name: branchInfo?.name || branchName || "Reparatur Berlin",
+    name: resolvedBranchName,
     email: branchInfo?.email || "",
     whatsapp: branchInfo?.whatsapp || "",
     address: branchInfo?.address || "Berlin",
+    logo_url: branchInfo?.logo_url || branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
   };
 
   const handlePrint = () => {
@@ -27,62 +36,23 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
         <head>
           <title>Reparaturvertrag - ${order?.auftragsnummer || order?.orderNumber || ""}</title>
           <style>
-            body { 
-              font-family: Arial, sans-serif; 
-              color: #111; 
-              margin: 0;
-              padding: 0;
-            }
-            .page { 
-              box-sizing: border-box;
-              padding: 8mm 10mm;
-              height: 297mm;
-              max-height: 297mm;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              position: relative;
-              page-break-after: always; 
-              break-after: page;
-              overflow: hidden;
-            }
-            .header-mini {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              border-bottom: 1px solid #111;
-              padding-bottom: 4px;
-              margin-bottom: 6px;
-              font-size: 8.5px;
-            }
-            h1 { font-size: 15px; margin: 0 0 2px 0; }
-            h2 { font-size: 10.5px; border-bottom: 1.5px solid #000; padding-bottom: 2px; margin-top: 4px; margin-bottom: 3px; }
-            p, div { font-size: 8.5px; line-height: 1.3; }
-            table.check-table { width: 100%; border-collapse: collapse; margin-top: 2px; margin-bottom: 2px; }
-            table.check-table th, table.check-table td { border: 1px solid #ccc; padding: 2px 4px; font-size: 7.5px; text-align: left; }
-            table.check-table th { background-color: #f2f2f2; }
-            .signature-section {
-              border-top: 1px solid #aaa;
-              padding-top: 4px;
-              margin-top: 2px;
-              display: flex;
-              justify-content: space-between;
-              align-items: flex-end;
-            }
-            .legal-text {
-              font-size: 5.5px !important;
-              line-height: 1.2 !important;
-              white-space: pre-line;
-              color: #333;
-            }
-            @media print { 
-              @page { size: A4; margin: 0; } 
-              body { -webkit-print-color-adjust: exact; }
+            /* الأنماط الحالية الخاصة بك */
+            .shop-logo {
+              max-height: 45px;
+              max-width: 130px;
+              object-fit: contain;
+              margin-bottom: 5px;
             }
           </style>
         </head>
         <body>
+          <!-- أضف اللوغو هنا في أعلى الصفحة قبل عرض محتوى العقد -->
+          <div style="padding: 8mm 10mm 0 10mm;">
+            ${currentShop.logo_url ? `<img src="${currentShop.logo_url}" class="shop-logo" alt="Logo" />` : ''}
+          </div>
+
           ${contractContent}
+
           <script>
             window.onload = () => { 
               window.print(); 
