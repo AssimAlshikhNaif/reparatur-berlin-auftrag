@@ -6,8 +6,9 @@ logger = logging.getLogger(__name__)
 # أضف هذا السطر لحل مشكلة الـ ImportError
 APP_NAME = "repair-berlin"
 
-# تحديد مسار مجلد التخزين المحلي داخل المشروع
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploads")
+# تم تعديل المسار ليصبح خارج مجلد المشروع تماماً في مسار ثابت وآمن على السيرفر
+# يمكنك تعديل المسار الأساسي حسب رغبتك (مثل /var/www/repair-berlin-uploads)
+UPLOAD_DIR = "/var/www/repair-berlin-uploads"
 
 # التأكد من أن المجلد موجود، وإن لم يكن كذلك يتم إنشاؤه تلقائياً
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -22,7 +23,7 @@ def init_storage():
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
     """
-    حفظ الملف محلياً بدلاً من إرساله لخدمة خارجية.
+    حفظ الملف محلياً في المجلد الخارجي الثابت بدلاً من مجلد الكود.
     """
     try:
         # تنظيف المسار لمنع أي ثغرات أو مسارات غير مسموحة
@@ -32,7 +33,7 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
         # إنشاء المجلدات الفرعية إذا لزم الأمر
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
-        # كتابة البيانات الثنائية (Binary) لل파일
+        # كتابة البيانات الثنائية (Binary) للملف
         with open(file_path, "wb") as f:
             f.write(data)
             
@@ -45,7 +46,7 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 def get_object(path: str):
     """
-    استرجاع الملف محلياً.
+    استرجاع الملف محلياً من المجلد الخارجي.
     """
     safe_path = path.lstrip("/\\")
     file_path = os.path.join(UPLOAD_DIR, safe_path)

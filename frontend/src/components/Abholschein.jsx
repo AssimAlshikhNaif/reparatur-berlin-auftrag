@@ -7,24 +7,22 @@ import { WAIVER_BULLETS } from "@/lib/constants";
 export default function Abholschein({ order, branchName, branchInfo, onClose }) {
   const printTs = berlinNow();
 
- // 1. خريطة تربط كل فرع باللوغو الخاص به حسب اسمه الصحيح
-const branchLogos = {
-  "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
-  // أضف أي فرع آخر هنا مستقبلاً بهذه الطريقة:
-  // "اسم الفرع الثاني": "/logos/اسم_صورة_الفرع_الثاني.png"
-};
+  // 1. خريطة تربط كل فرع باللوغو الخاص به
+  const branchLogos = {
+    "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+  };
 
-const resolvedBranchName = branchInfo?.name || branchName || "Smartphone Apotheke";
+  const resolvedBranchName = branchInfo?.name || branchName || "Smartphone Apotheke";
 
-// 2. كود المتجر الذي سيختار اللوغو تلقائياً للفرع الحالي
-const currentShop = {
-  name: resolvedBranchName,
-  email: branchInfo?.email || "info@smartphone-apotheke.de",
-  whatsapp: branchInfo?.whatsapp || "+491782931142",
-  logo_url: branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
-};
+  // 2. بيانات المتجر الحالي
+  const currentShop = {
+    name: resolvedBranchName,
+    email: branchInfo?.email || "info@smartphone-apotheke.de",
+    whatsapp: branchInfo?.whatsapp || "+491782931142",
+    logo_url: branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
+  };
 
-  // دالة ذكية لتحديد رابط اللوغو تلقائياً (تعمل محلياً ومع سيرفر Hetzner دون تعديل)
+  // تحديد رابط اللوغو تلقائياً
   const getFullLogoUrl = (url) => {
     if (!url) return "";
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -34,9 +32,8 @@ const currentShop = {
 
   const shopLogo = getFullLogoUrl(currentShop.logo_url);
 
-  // حل جذري للطباعة: فتح نافذة مستقلة نظيفة 100% تحتوي على الإيصال وحده دون أي شوائب أو تكرار
+  // طباعة المعاينة عبر نافذة منبثقة
   const handlePrint = () => {
-    // التقاط الـ QR Code وتحويله إلى صورة Base64 لضمان ظهوره في النافذة الجديدة
     const canvas = document.querySelector("#abholschein canvas");
     const qrDataUrl = canvas ? canvas.toDataURL("image/png") : null;
 
@@ -46,11 +43,9 @@ const currentShop = {
       return;
     }
 
-    // استنساخ محتوى الإيصال وتعديل الـ QR Code بداخله ليصبح صورة حقيقية
     const tempContainer = document.createElement("div");
     tempContainer.innerHTML = document.getElementById("abholschein").innerHTML;
     
-    // البحث عن مكان الـ QR واستبداله بالصورة إن وجد
     const qrContainer = tempContainer.querySelector("canvas")?.parentElement;
     if (qrContainer && qrDataUrl) {
       qrContainer.innerHTML = `<img src="${qrDataUrl}" alt="QR Code" style="width: 120px; height: 120px; display: block; margin: 0 auto;" />`;
@@ -64,9 +59,7 @@ const currentShop = {
         <head>
           <title>Abholschein - ${order?.auftragsnummer || ""}</title>
           <style>
-            * {
-              box-sizing: border-box;
-            }
+            * { box-sizing: border-box; }
             body {
               font-family: 'Courier New', Courier, monospace;
               width: 80mm;
@@ -97,19 +90,40 @@ const currentShop = {
     printWindow.document.close();
   };
 
-  const downloadPdf = () => {
+  // توليد وتحميل PDF بمعالجة ذكية لأبعاد اللوغو
+  const downloadPdf = async () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrData = canvas ? canvas.toDataURL("image/png") : null;
     const doc = new jsPDF({ unit: "mm", format: [80, 210] });
     let y = 8;
 
-    // إضافة اللوجو في الـ PDF إذا كان متوفراً ودعم السيرفر
+    // إضافة اللوجو مع ضبط الأبعاد بذكاء لمنع المط والتكبير غير المتناسق
     if (shopLogo) {
       try {
-        doc.addImage(shopLogo, "PNG", 25, y, 30, 12);
-        y += 14;
+        const img = new Image();
+        img.src = shopLogo;
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+
+        if (img.width && img.height) {
+          const maxW = 35; // أقصى عرض مسموح في الـ PDF
+          const maxH = 14; // أقصى ارتفاع مسموح
+          let imgW = maxW;
+          let imgH = (img.height * maxW) / img.width;
+
+          if (imgH > maxH) {
+            imgH = maxH;
+            imgW = (img.width * maxH) / img.height;
+          }
+
+          const xPos = (80 - imgW) / 2; // وضع الصورة في المنتصف
+          doc.addImage(shopLogo, "PNG", xPos, y, imgW, imgH);
+          y += imgH + 3;
+        }
       } catch (e) {
-        // تجاهل الخطأ في حال تعذر تحميل الصورة
+        // الاستمرار في التوليد إذا تعذر تحميل اللوغو
       }
     }
 
@@ -220,9 +234,8 @@ const currentShop = {
             )}
             
             <div style={{ textAlign: "center", borderBottom: "1px dashed #000", paddingBottom: "3mm", marginBottom: "3mm" }}>
-              {/* عرض اللوغو ديناميكياً على السيرفر ومحلياً */}
               {shopLogo && (
-                <img src={shopLogo} alt="Logo" style={{ maxHeight: "40px", maxWidth: "120px", objectFit: "contain", margin: "0 auto 4px", display: "block" }} />
+                <img src={shopLogo} alt="Logo" style={{ maxHeight: "35px", maxWidth: "110px", objectFit: "contain", margin: "0 auto 4px", display: "block" }} />
               )}
               <div style={{ fontWeight: 700, fontSize: "12px", letterSpacing: "1px" }}>{currentShop.name}</div>
               {currentShop.whatsapp && <div style={{ fontSize: "8px" }}>WhatsApp: {currentShop.whatsapp}</div>}

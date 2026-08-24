@@ -31,9 +31,12 @@ BRANCHES = [
     },
      {
         "name": "Smartphone Apotheke",
+        "address": "Frankfurter Alle 41, 10247 Berlin",
+        "phone": "+49 177 9777771",
         "email": "info@smartphone-apotheke.de",
-        "whatsapp": "+491782931142",
-        "logo_url": "/logos/logo-icon.png"  # <-- يجب أن يكون هنا داخل القوسين
+        "steuernummer": "30/123/45678",
+        "tax_number": "DE355296654",
+        "logo_url": "/logos/logo-icon.png"
     },
      {
         "name": "M.T Postplatz",
@@ -61,7 +64,69 @@ BRANCHES = [
         "email": "info@phone-store.de",
         "whatsapp": "+491631222240"
     },
-
+         {
+        "name": "A 10 center",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "Linden Center",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "Victoria Center",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "Fixphone Spandau",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "Media Technik Obai",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "Tempelhof Hafen",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+            {
+        "name": "MediaPhone24",
+        "address": "",
+        "phone": "+49 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    }
 
 ]
 
