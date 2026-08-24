@@ -11,23 +11,39 @@ logger = logging.getLogger(__name__)
 BRANCHES = [
     {
         "name": "Phone Store Mobile",
-        "email": "info@phone-store.de",
-        "whatsapp": "+4915775111444",
+        "address": " Boxhagener str.123 , 10245 Berlin",
+        "phone": " 030 81302550 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": "/logos/basic-file.png"
     },
     {
         "name": "Praxis Smartphone",
-        "email": "info@Praxis.de",
-        "whatsapp": "+491631222227"
+        "address": " Schönhauser Allee 89-90, 10439 Berlin",
+        "phone": " 030 23299000 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": "/logos/handy_laptop_praxi-removebg-preview.png"
     },
     {
         "name": "Handy & Laptop Krankenhaus",
-        "email": "info@handykrankenhaus.de",
-        "whatsapp": "+491631222240"
+        "address": " Pablo-Neruda-Str.2-4, 12559 ",
+        "phone": " +49 1792087786 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
     },
     {
         "name": "Technik Phone",
-        "email": "info@technikphone.de",
-        "whatsapp": "+4915751540257"
+        "address": "Frankfurter Alle 53 , 10247 Berlin",
+        "phone": " 030 89650662 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": "/logos/basic-file.png"
     },
      {
         "name": "Smartphone Apotheke",
@@ -40,29 +56,49 @@ BRANCHES = [
     },
      {
         "name": "M.T Postplatz",
+        "address": "",
+        "phone": "+49 ",
         "email": "",
-        "whatsapp": "+"
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
     },
      {
         "name": "M.T Pragerst 12",
+       "address": "",
+        "phone": "+49 ",
         "email": "",
-        "whatsapp": "+"
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
     },
      {
         "name": "M.T Hauptbahnof 4",
+        "address": "",
+        "phone": "+49 ",
         "email": "",
-        "whatsapp": "+"
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
      },
      {
         "name": "M.T Wittenberg",
+        "address": "",
+        "phone": "+49 ",
         "email": "",
-        "whatsapp": "+"
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
     },
 
     {
         "name": "Kauf park Laden",
-        "email": "info@phone-store.de",
-        "whatsapp": "+491631222240"
+       "address": "Landsberger Ch 17, 16356 Ahrensfelde",
+        "phone": "01631222240 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
     },
          {
         "name": "A 10 center",
