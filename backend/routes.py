@@ -224,6 +224,7 @@ class OrderCreate(BaseModel):
     branch_id: str
     device_brand: str
     device_model: str
+    media: Optional[List[str]] = []
     imei: Optional[str] = ""
     imei_unreadable: Optional[bool] = False
     device_passcode: Optional[str] = ""
@@ -654,13 +655,25 @@ async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
 
 @router.post("/orders")
 async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
-    # Conditional IMEI validation: IMEI is mandatory unless the device is flagged
-    # as defective / IMEI unreadable.
+    # 1. التحقق من تفاصيل العميل الأساسية
+    if not (input.customer_name or "").strip():
+        raise HTTPException(status_code=400, detail="Kundenname ist erforderlich.")
+    if not (input.customer_phone or "").strip():
+        raise HTTPException(status_code=400, detail="Telefonnummer ist erforderlich.")
+
+    # 2. التحقق من تفاصيل الجهاز والمشكلة
+    if not (input.device_brand or "").strip() or not (input.device_model or "").strip():
+        raise HTTPException(status_code=400, detail="Gerätemarke und Modell sind erforderlich.")
+    if not (input.issue_description or "").strip():
+        raise HTTPException(status_code=400, detail="Fehlerbeschreibung (issue_description) ist erforderlich.")
+
+    # 3. التحقق من الـ IMEI
     if not (input.imei or "").strip() and not input.imei_unreadable:
         raise HTTPException(
             status_code=400,
             detail="IMEI ist erforderlich. Falls das Gerät defekt / die IMEI nicht lesbar ist, bitte die Option 'Gerät defekt / IMEI nicht lesbar' aktivieren.",
         )
+
     now = datetime.now(timezone.utc).isoformat()
     auftragsnummer = await next_auftragsnummer()
     status = "ZUGEWIESEN" if input.assigned_techniker_id else "ANGENOMMEN"
@@ -668,6 +681,7 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
     if current["role"] == "mitarbeiter":
         branch_id = current.get("branch_id") or input.branch_id
     warranty_months = input.warranty_months if input.warranty_months is not None else WARRANTY_DEFAULT_MONTHS
+    
     doc = {
         "auftragsnummer": auftragsnummer,
         "branch_id": branch_id,
@@ -701,7 +715,7 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "assigned_techniker_id": input.assigned_techniker_id,
         "status": status,
         "reject_reason": "",
-        "media": [],
+        "media": input.media if input.media else [],
         "status_history": [{"status": status, "at": now, "by": current["name"]}],
         "is_reclamation": bool(input.is_reclamation),
         "reclamation_of": input.reclamation_of or None,
@@ -711,18 +725,21 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "created_at": now,
         "updated_at": now,
     }
+    
     res = await db.orders.insert_one(doc)
     order = await db.orders.find_one({"_id": res.inserted_id})
+    
     if input.is_reclamation:
         await log_audit(str(res.inserted_id), "REKLAMATION",
                         f"Reklamation/Garantiefall zu {input.reclamation_of_number or '—'} angelegt", current["name"])
+                        
     await push_notification(
         kind="AUFTRAG", title=("Neue Reklamation angelegt" if input.is_reclamation else "Neuer Auftrag angelegt"),
         message=f"{current['name']} hat {'Reklamation' if input.is_reclamation else 'Auftrag'} {auftragsnummer} angelegt.",
         by=current["name"], by_role=current["role"],
         order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
     )
-    # Targeted real-time alert if the order was created already assigned to a technician
+    
     if input.assigned_techniker_id:
         await push_notification(
             kind="ASSIGNED", title="🔧 Neuer Auftrag zugewiesen",
@@ -731,8 +748,8 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
             order_id=str(res.inserted_id), auftragsnummer=auftragsnummer,
             target_user_id=input.assigned_techniker_id, target_role="techniker",
         )
+        
     return serialize_order(order, current)
-
 
 async def _touch_order(order_id, new_status, by_name, extra=None):
     now = datetime.now(timezone.utc).isoformat()

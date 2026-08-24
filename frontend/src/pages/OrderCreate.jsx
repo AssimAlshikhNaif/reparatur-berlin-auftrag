@@ -70,26 +70,37 @@ export default function OrderCreate() {
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
-  const validate = () => {
+const validate = () => {
     const e = {};
     if (!form.branch_id) e.branch_id = t("oc.errBranch");
-    if (!form.device_model.trim()) e.device_model = t("oc.errModel");
+    if (!form.device_brand || !form.device_brand.trim()) e.device_brand = t("oc.errBrand");
+    if (!form.device_model || !form.device_model.trim()) e.device_model = t("oc.errModel");
+    
     const reclamationPrefix = reclamationSource
       ? t("oc.reclamationPrefix", { nr: reclamationSource.auftragsnummer }).trim()
       : "";
-    const issue = form.issue_description.trim();
+    const issue = form.issue_description ? form.issue_description.trim() : "";
     if (!issue || (reclamationSource && issue === reclamationPrefix)) e.issue_description = t("oc.errIssue");
-    if (!form.imei.trim() && !form.imei_unreadable) e.imei = t("oc.errImei");
-    if (!form.customer_name.trim()) e.customer_name = t("oc.errName");
-    if (!form.customer_phone.trim()) e.customer_phone = t("oc.errPhone");
-    if (form.device_lock_type !== "none" && !form.device_passcode.trim()) {
+    
+    if ((!form.imei || !form.imei.trim()) && !form.imei_unreadable) e.imei = t("oc.errImei");
+    if (!form.customer_name || !form.customer_name.trim()) e.customer_name = t("oc.errName");
+    if (!form.customer_phone || !form.customer_phone.trim()) e.customer_phone = t("oc.errPhone");
+    
+    if (form.device_lock_type !== "none" && (!form.device_passcode || !form.device_passcode.trim())) {
       e.device_passcode = t("oc.errPasscode");
     }
+
+    if (!files || files.length === 0) {
+      toast.error(t("oc.errMediaRequired") || "Mindestens ein Foto ist erforderlich.");
+      e.media = "required";
+    }
+
     setErrors(e);
     const firstKey = Object.keys(e)[0];
-    if (firstKey) {
+    if (firstKey && firstKey !== "media") {
       const testidMap = {
         branch_id: "order-branch",
+        device_brand: "order-brand",
         device_model: "order-model",
         issue_description: "order-issue",
         imei: "order-imei",
@@ -117,9 +128,9 @@ export default function OrderCreate() {
     setFiles((prev) => [...prev, { file, url: URL.createObjectURL(file) }]);
   };
 
-  const submit = async (e) => {
+const submit = async (e) => {
     e.preventDefault();
-    if (submittingRef.current) return; // schon eine Anfrage läuft — Doppelklick ignorieren
+    if (submittingRef.current) return;
     if (!validate()) {
       toast.error(t("oc.validateFail"));
       return;
@@ -128,7 +139,18 @@ export default function OrderCreate() {
     setBusy(true);
     try {
       const payload = {
-        ...form,
+        branch_id: form.branch_id,
+        device_brand: form.device_brand || "",
+        device_model: form.device_model,
+        imei: form.imei || "",
+        imei_unreadable: !!form.imei_unreadable,
+        device_passcode: form.device_passcode || "",
+        device_lock_type: form.device_lock_type || "none",
+        issue_description: form.issue_description,
+        customer_name: form.customer_name,
+        customer_phone: form.customer_phone,
+        customer_email: form.customer_email || "",
+        customer_address: form.customer_address || "",
         estimated_price: form.estimated_price ? parseFloat(form.estimated_price) : null,
         diagnosis_fee: parseFloat(form.diagnosis_fee) || 0,
         labor_cost: parseFloat(form.labor_cost) || 0,
@@ -140,14 +162,20 @@ export default function OrderCreate() {
         is_reclamation: !!reclamationSource,
         reclamation_of: reclamationSource?.id || null,
         reclamation_of_number: reclamationSource?.auftragsnummer || null,
+        media: files.map(f => f.url)
       };
+
       const { data } = await api.post("/orders", payload);
-      for (const f of files) {
-        const fd = new FormData();
-        fd.append("file", f.file);
-        fd.append("media_type", "intake");
-        await api.post(`/orders/${data.id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      
+      if (files && files.length > 0) {
+        for (const f of files) {
+          const fd = new FormData();
+          fd.append("file", f.file);
+          fd.append("media_type", "intake");
+          await api.post(`/orders/${data.id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+        }
       }
+
       toast.success(t("oc.created", { nr: data.auftragsnummer }));
       navigate(`/auftrag/${data.id}`);
     } catch (err) {
@@ -157,7 +185,7 @@ export default function OrderCreate() {
       setBusy(false);
     }
   };
-
+  
   return (
     <div>
       <PageHeader label={reclamationSource ? t("oc.labelReclamation") : t("oc.labelCreate")} title={reclamationSource ? t("oc.titleReclamation") : t("oc.titleNew")} />
