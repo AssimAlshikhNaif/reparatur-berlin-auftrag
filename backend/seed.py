@@ -151,27 +151,28 @@ async def seed_all():
         name = branch_data["name"]
         existing = await db.branches.find_one({"name": name})
         
+        # تجهيز بيانات الفرع الكاملة
+        branch_doc = {
+            "name": name,
+            "address": branch_data.get("address", ""),
+            "phone": branch_data.get("phone", "+49 "),
+            "email": branch_data.get("email", ""),
+            "whatsapp": branch_data.get("whatsapp", ""),
+            "steuernummer": branch_data.get("steuernummer", ""),
+            "tax_number": branch_data.get("tax_number", ""),
+            "logo_url": branch_data.get("logo_url", "")
+        }
+        
         if existing:
-            # تحديث الإيميل والواتساب إذا تم تعديلهم
+            # تحديث جميع حقول الفرع بناءً على القائمة المحدثة
             await db.branches.update_one(
                 {"name": name},
-                {
-                    "$set": {
-                        "email": branch_data["email"],
-                        "whatsapp": branch_data["whatsapp"],
-                        "logo_url": branch_data.get("logo_url") or "", 
-        }
-                    }
-                
+                {"$set": branch_doc}
             )
             branch_map[name] = str(existing["_id"])
         else:
-            res = await db.branches.insert_one({
-                "name": name,
-                "email": branch_data["email"],
-                "whatsapp": branch_data["whatsapp"],
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            })
+            branch_doc["created_at"] = datetime.now(timezone.utc).isoformat()
+            res = await db.branches.insert_one(branch_doc)
             branch_map[name] = str(res.inserted_id)
 
     # Users (admin only)
@@ -194,7 +195,6 @@ async def seed_all():
                                       {"$set": {"password_hash": hash_password(pwd)}})
 
     logger.info("Seeding complete: %d branches, %d users", len(BRANCHES), len(STAFF))
-
 
 async def ensure_indexes():
     await db.users.create_index("email", unique=True)
