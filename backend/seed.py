@@ -28,6 +28,15 @@ BRANCHES = [
         "logo_url": "/logos/handy_laptop_praxi-removebg-preview.png"
     },
     {
+        "name": " Smartphone Tegel",
+        "address": " Gorkistr.17 , 13507 Berlin",
+        "phone": " 015733555555 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+    {
         "name": "Handy & Laptop Krankenhaus",
         "address": " Pablo-Neruda-Str.2-4, 12559 ",
         "phone": " +49 1792087786 ",
