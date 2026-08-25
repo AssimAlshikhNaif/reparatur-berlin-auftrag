@@ -38,8 +38,17 @@ BRANCHES = [
     },
     {
         "name": "Handy & Laptop Krankenhaus",
-        "address": " Pablo-Neruda-Str.2-4, 12559 ",
+        "address": " Pablo-Neruda-Str.2-4, 12559 Berlin ",
         "phone": " +49 1792087786 ",
+        "email": "",
+        "steuernummer": "",
+        "tax_number": "",
+        "logo_url": ""
+    },
+    {
+        "name": "Technik Kingdom Handy",
+        "address": " Bülowstraße 11, 10783 Berlin ",
+        "phone": " +49 1779766660 ",
         "email": "",
         "steuernummer": "",
         "tax_number": "",
@@ -129,8 +138,8 @@ BRANCHES = [
     },
             {
         "name": "Victoria Center",
-        "address": "",
-        "phone": "+49 ",
+        "address": " im Victoria-Center (Kaufland, Marktstraße 6, 10317 Berlin",
+        "phone": "+49 1639489567 ",
         "email": "",
         "steuernummer": "",
         "tax_number": "",
@@ -138,21 +147,21 @@ BRANCHES = [
     },
             {
         "name": "Fixphone Spandau",
-        "address": "",
-        "phone": "+49 ",
+        "address": " Neuendorfer Str. 90, 13585 Bezirk Spandau ",
+        "phone": "+49 15788833883 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
-        "logo_url": ""
+        "steuernummer": " 19/204/01447 ",
+        "tax_number": " DE453817232 ",
+        "logo_url": "/logos/PoneFix.png"
     },
             {
         "name": "Media Technik Obai",
-        "address": "",
-        "phone": "+49 ",
-        "email": "",
+        "address": " Dörpfeldstraße 21, 12489 Berlin",
+        "phone": "+49 15218432160 ",
+        "email": " mediatechnik235@gmail.com",
         "steuernummer": "",
         "tax_number": "",
-        "logo_url": ""
+        "logo_url": "/logos/mediatecnikberlin.png"
     },
             {
         "name": "Tempelhof Hafen",
@@ -165,12 +174,12 @@ BRANCHES = [
     },
             {
         "name": "MediaPhone24",
-        "address": "",
-        "phone": "+49 ",
-        "email": "",
-        "steuernummer": "",
-        "tax_number": "",
-        "logo_url": ""
+        "address": " Greifswalder Str. 157, 10409 Berlin ",
+        "phone": "+49 1787477747 ",
+        "email": " Info@mediaphone24.de ",
+        "steuernummer": "31/204/00736",
+        "tax_number": " DE453817232 ",
+        "logo_url": "/logos/Mediaphone24.png"
     }
 
 ]
