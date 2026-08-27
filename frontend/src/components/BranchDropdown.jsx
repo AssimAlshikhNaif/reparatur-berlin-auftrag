@@ -38,13 +38,13 @@ export default function BranchDropdown() {
   };
 
   return (
-    <div className="inline-block relative">
+    <div className="relative shrink-0">
       <button
         ref={buttonRef}
         type="button"
         data-testid="branch-dropdown-toggle"
         onClick={handleToggle}
-        className="flex items-center gap-1.5 border border-border rounded-lg px-3 h-9 text-sm text-foreground bg-card hover:bg-muted transition-colors shrink-0 cursor-pointer select-none"
+        className="flex items-center justify-center gap-1.5 border border-border rounded-lg px-2.5 sm:px-3 h-9 text-xs sm:text-sm text-foreground bg-card hover:bg-muted transition-colors shrink-0 cursor-pointer select-none"
       >
         <Buildings size={15} />
         <span className="inline">{t("branches.title", "Filialen")}</span>

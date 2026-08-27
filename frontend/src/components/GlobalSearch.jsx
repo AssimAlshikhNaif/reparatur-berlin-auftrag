@@ -45,7 +45,7 @@ export default function GlobalSearch({ compact = false }) {
   };
 
   return (
-    <div className={`relative ${compact ? "w-[180px] sm:w-[220px]" : "w-full max-w-md"}`}>
+    <div className={`relative w-full ${compact ? "sm:w-[220px]" : "md:max-w-md"} shrink`}>
       <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm">
         <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
         <input

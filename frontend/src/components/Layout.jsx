@@ -119,7 +119,7 @@ export default function Layout({ children }) {
       {/* Main content area that takes the rest of the flex space cleanly */}
       {/* Main content area that takes the rest of the flex space cleanly */}
       <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0">
-        <div className="flex items-center justify-between gap-2 h-12 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/90 backdrop-blur-xl z-30">
+        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-2 min-h-[3rem] py-2 px-3 sm:px-6 border-b border-border sticky top-0 bg-background z-30">
           <div className="flex items-center gap-3 min-w-0 py-1">
             {user.role === "admin" && <BranchDropdown />}
             <GlobalSearch compact={true} />
