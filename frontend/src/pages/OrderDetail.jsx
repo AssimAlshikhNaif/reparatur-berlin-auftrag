@@ -214,8 +214,7 @@ const deleteMedia = async (m, index) => {
       console.error("Delete media error:", e.response?.data || e);
       toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
     }
-  };
-  };
+  }; // هذا القوس كافي لإغلاق دالة deleteMedia فقط
 
   const uploadFiles = async (files) => {
     if (!files.length) return;
