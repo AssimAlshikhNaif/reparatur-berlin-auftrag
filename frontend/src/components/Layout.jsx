@@ -101,17 +101,17 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 min-h-[3.5rem] py-2 border-b border-border bg-background/90 backdrop-blur-xl flex-wrap">
-        <div className="flex items-center gap-2">
-          <Wall size={22} weight="duotone" className="text-accent" />
-          <span className="font-head font-bold text-sm">REPARATUR BERLIN</span>
+      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-3 h-14 border-b border-border bg-background/95 backdrop-blur-xl w-full box-border">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <Wall size={22} weight="duotone" className="text-accent shrink-0" />
+          <span className="font-head font-bold text-xs truncate">REPARATUR BERLIN</span>
         </div>
-        <button data-testid="mobile-menu-toggle" onClick={() => setOpen(!open)} className="text-foreground">
-          {open ? <X size={24} /> : <List size={24} />}
+        <button data-testid="mobile-menu-toggle" onClick={() => setOpen(!open)} className="text-foreground p-1 shrink-0 cursor-pointer">
+          {open ? <X size={22} /> : <List size={22} />}
         </button>
       </div>
       {open && (
-        <div className="md:hidden fixed inset-0 z-30 pt-14 bg-background/95 flex flex-col">
+        <div className="md:hidden fixed inset-0 z-30 pt-14 bg-background/95 flex flex-col w-full overflow-y-auto">
           <SidebarInner />
         </div>
       )}
