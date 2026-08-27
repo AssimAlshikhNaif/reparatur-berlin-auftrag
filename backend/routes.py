@@ -954,8 +954,10 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     decoded_id = urllib.parse.unquote(media_id)
 
     target_media = None
-    for m in media_list:
-        # نقوم بمقارنة جميع الاحتمالات الممكنة لمعرّف الصورة
+    target_index = -1
+
+    # 1. البحث بالطريقة الذكية (مطابقة النصوص أو الـ ID)
+    for i, m in enumerate(media_list):
         m_id = str(m.get("id", ""))
         m_oid = str(m.get("_id", ""))
         m_file = str(m.get("file_path", ""))
@@ -970,15 +972,17 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
             m_file.endswith(decoded_id) or
             m_storage.endswith(decoded_id)):
             target_media = m
+            target_index = i
             break
 
-    # إذا لم يتم العثور عليها بالمعرف، نتحقق إن كان الـ media_id عبارة عن رقم ترتيبي (Index)
-    if not target_media and decoded_id.isdigit():
+    # 2. إذا لم يتم العثور عليها، نتحقق إن كان الـ media_id عبارة عن رقم ترتيبي (Index)
+    if target_index == -1 and decoded_id.isdigit():
         idx = int(decoded_id)
         if 0 <= idx < len(media_list):
+            target_index = idx
             target_media = media_list[idx]
 
-    if not target_media:
+    if not target_media or target_index == -1:
         raise HTTPException(status_code=404, detail="Media not found")
 
     # حذف الملف الفعلي من السيرفر
@@ -991,16 +995,17 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
             except Exception:
                 pass
 
-    # إزالة العنصر من قاعدة البيانات
+    # إزالة العنصر من قاعدة البيانات باستخدام الـ index مباشرة (أضمن طريقة في MongoDB)
+    media_list.pop(target_index)
     await db.orders.update_one(
         {"_id": ObjectId(order_id)},
-        {"$pull": {"media": target_media}}
+        {"$set": {"media": media_list}}
     )
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
-
+    
 # ==================== COSTS ====================
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
