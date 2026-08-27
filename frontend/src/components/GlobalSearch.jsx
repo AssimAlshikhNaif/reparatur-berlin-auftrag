@@ -12,6 +12,7 @@ export default function GlobalSearch({ compact = false }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(false); // حالة فتح البحث على الموبايل
   const timer = useRef(null);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function GlobalSearch({ compact = false }) {
     }
     timer.current = setTimeout(async () => {
       setLoading(true);
-      setOpen(true); // <--- فتح النافذة فوراً عند بدء البحث لإظهار حالة التحميل أو لا توجد نتائج
+      setOpen(true);
       try {
         const { data } = await api.get("/search", { params: { q: term } });
         setResults(data);
@@ -41,35 +42,66 @@ export default function GlobalSearch({ compact = false }) {
     setOpen(false);
     setQ("");
     setResults([]);
+    setMobileExpanded(false);
     navigate(`/auftrag/${id}`);
   };
 
   return (
-    <div className={`relative w-full ${compact ? "sm:w-[220px]" : "md:max-w-md"} shrink`}>
-      <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm">
-        <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
-        <input
-          data-testid="global-search-input"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder={t("common.search")}
-          className="flex-1 min-w-0 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
-        />
-        {q && (
-          <button 
+    <div className="relative">
+      {/* زر الأيقونة للموبايل / أو الشريط العادي للشاشات الكبيرة */}
+      <div className="flex items-center">
+        {/* زر المكبرة يظهر فقط عندما يكون البحث مغلقاً على الموبايل */}
+        {!mobileExpanded && (
+          <button
             type="button"
-            onClick={(e) => { 
-              e.stopPropagation();
-              setQ(""); 
-              setResults([]); 
-              setOpen(false); 
-            }} 
-            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setMobileExpanded(true)}
+            className="md:hidden flex items-center justify-center bg-card border border-border rounded-lg w-9 h-9 text-foreground hover:bg-muted transition-colors cursor-pointer"
+            title={t("common.search")}
           >
-            <X size={14} />
+            <MagnifyingGlass size={16} />
           </button>
         )}
+
+        {/* حاوية البحث (تظهر دائماً على اللابتوب، وتظهر عند النقر على الموبايل) */}
+        <div className={`${mobileExpanded ? "absolute right-0 top-[-6px] z-50 bg-card p-1 shadow-xl border border-border rounded-lg flex w-[260px]" : "hidden md:flex"} items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm ${compact ? "w-[180px] sm:w-[220px]" : "w-full max-w-md"}`}>
+          <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
+          <input
+            data-testid="global-search-input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onFocus={() => results.length > 0 && setOpen(true)}
+            placeholder={t("common.search")}
+            autoFocus={mobileExpanded}
+            className="flex-1 min-w-0 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
+          />
+          {q && (
+            <button 
+              type="button"
+              onClick={(e) => { 
+                e.stopPropagation();
+                setQ(""); 
+                setResults([]); 
+                setOpen(false); 
+              }} 
+              className="text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
+          {mobileExpanded && (
+            <button
+              type="button"
+              onClick={() => {
+                setMobileExpanded(false);
+                setQ("");
+                setOpen(false);
+              }}
+              className="text-muted-foreground hover:text-foreground ml-1 cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       {open && (
@@ -89,7 +121,7 @@ export default function GlobalSearch({ compact = false }) {
                   key={o.id} 
                   type="button"
                   onClick={() => go(o.id)}
-                  className="w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/80 transition-colors"
+                  className="w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/80 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-sm text-foreground">{o.auftragsnummer}</span>
