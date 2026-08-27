@@ -185,7 +185,7 @@ const submit = async (e) => {
       setBusy(false);
     }
   };
-  
+
   return (
     <div>
       <PageHeader label={reclamationSource ? t("oc.labelReclamation") : t("oc.labelCreate")} title={reclamationSource ? t("oc.titleReclamation") : t("oc.titleNew")} />
