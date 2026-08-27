@@ -111,7 +111,7 @@ export default function NotificationBell() {
       <button
         data-testid="notification-bell"
         onClick={() => { setOpen((o) => !o); if (!open && unread > 0) markAllRead(); }}
-        className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-muted transition-colors"
+        className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-muted transition-colors cursor-pointer"
         title={t("notif.title")}
       >
         <Bell size={18} className={unread > 0 ? "text-accent" : "text-muted-foreground"} weight={unread > 0 ? "fill" : "regular"} />
@@ -127,16 +127,16 @@ export default function NotificationBell() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div data-testid="notification-panel"
-                className="absolute right-0 sm:right-0 left-4 sm:left-auto mt-2 w-[calc(100vw-2rem)] sm:w-96 max-h-[70vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
+                className="absolute right-0 sm:right-0 sm:left-auto mt-2 w-[85vw] sm:w-96 max-h-[70vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Bell size={15} className="text-accent" />
                 <span className="font-head font-semibold text-sm">{t("notif.title")}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={markAllRead} title={t("notif.markAllRead")} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Check size={15} /></button>
-                <button onClick={clearAll} title={t("notif.clearAll")} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><Trash size={15} /></button>
-                <button onClick={() => setOpen(false)} className="p-1.5 rounded hover:bg-muted text-muted-foreground"><X size={15} /></button>
+                <button onClick={markAllRead} title={t("notif.markAllRead")} className="p-1.5 rounded hover:bg-muted text-muted-foreground cursor-pointer"><Check size={15} /></button>
+                <button onClick={clearAll} title={t("notif.clearAll")} className="p-1.5 rounded hover:bg-muted text-muted-foreground cursor-pointer"><Trash size={15} /></button>
+                <button onClick={() => setOpen(false)} className="p-1.5 rounded hover:bg-muted text-muted-foreground cursor-pointer"><X size={15} /></button>
               </div>
             </div>
             <div className="overflow-y-auto">
@@ -145,7 +145,7 @@ export default function NotificationBell() {
               ) : (
                 items.map((n) => (
                   <button key={n.id} onClick={() => openItem(n)}
-                    className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/50 transition-colors ${!n.read ? "bg-accent/5" : ""}`}>
+                    className={`w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/50 transition-colors cursor-pointer ${!n.read ? "bg-accent/5" : ""}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[9px] uppercase tracking-wider text-accent">{n.kind}</span>
                       <span className="font-mono text-[9px] text-muted-foreground">{berlinDateTime(n.at)}</span>
