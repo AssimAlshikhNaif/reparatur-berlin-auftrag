@@ -188,6 +188,7 @@ SEED_PASSWORD = "Repair2026!"
 
 STAFF = [
     ("Admin User", "admin@repair.de", "admin"),
+    ("Chris", "chris@repair.de", "techniker"),
 ]
 
 

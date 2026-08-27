@@ -12,8 +12,7 @@ export default function LabelPrint({ order, onClose }) {
     return () => window.removeEventListener("afterprint", after);
   }, [onClose]);
 
-  // دالة طباعة معزولة تماماً تفتح نافذة مخصصة للملصق فقط وتطبعها مباشرة
-const handleDirectPrint = () => {
+  const handlePrint = () => {
     const printWindow = window.open("", "_blank", "width=400,height=400");
     if (printWindow) {
       printWindow.document.write(`
@@ -26,36 +25,36 @@ const handleDirectPrint = () => {
                 size: 50mm 30mm;
                 margin: 0;
               }
-              body, html {
+              body {
                 margin: 0;
                 padding: 0;
-                width: 50mm;
-                height: 30mm;
-                background-color: #ffffff;
-                font-family: 'Courier New', Courier, monospace;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-              }
-              .label-container {
                 width: 50mm;
                 height: 30mm;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                gap: 1.5mm;
+                background-color: #ffffff;
+                font-family: monospace;
+              }
+              .label-box {
+                width: 50mm;
+                height: 30mm;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 1mm;
                 background: #ffffff;
                 box-sizing: border-box;
-                padding: 1mm;
               }
-              .qr-box img {
-                width: 20mm;
-                height: 20mm;
+              .label-box img {
+                width: 24mm;
+                height: 24mm;
                 object-fit: contain;
               }
-              .order-text {
-                font-size: 12px;
+              .label-text {
+                font-size: 13px;
                 font-weight: bold;
                 color: #000000;
                 letter-spacing: 0.5px;
@@ -65,11 +64,9 @@ const handleDirectPrint = () => {
             </style>
           </head>
           <body>
-            <div class="label-container">
-              <div class="qr-box">
-                <img id="qr-img" src="" alt="QR" />
-              </div>
-              <div class="order-text">${order.auftragsnummer}</div>
+            <div class="label-box">
+              <img id="qr-img" src="" alt="QR" />
+              <div class="label-text">${order.auftragsnummer}</div>
             </div>
             <script>
               const canvas = window.opener.document.querySelector('#temp-qr-canvas canvas');
@@ -79,7 +76,7 @@ const handleDirectPrint = () => {
               setTimeout(() => {
                 window.print();
                 window.close();
-              }, 300);
+              }, 400);
             </script>
           </body>
         </html>
@@ -90,19 +87,18 @@ const handleDirectPrint = () => {
 
   return (
     <>
-      {/* عنصر QR وهمي مؤقت لنقل الصورة للنافذة المعزولة */}
       <div id="temp-qr-canvas" style={{ display: "none" }}>
-        <QRCodeCanvas value={order.auftragsnummer} size={120} level="M" includeMargin={false} bgColor="#ffffff" fgColor="#000000" />
+        <QRCodeCanvas value={order.auftragsnummer} size={150} level="M" includeMargin={false} bgColor="#ffffff" fgColor="#000000" />
       </div>
 
       <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className="bg-background border border-border w-full max-w-sm">
+        <div className="bg-background border border-border w-full max-w-sm shadow-lg">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="font-head font-semibold text-sm">{t("label.title")}</h3>
             <div className="flex items-center gap-2">
               <button 
                 data-testid="label-print-button" 
-                onClick={handleDirectPrint}
+                onClick={handlePrint}
                 className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-blue-600 transition-colors">
                 <Printer size={14} /> {t("common.print")}
               </button>
@@ -115,13 +111,15 @@ const handleDirectPrint = () => {
             </div>
           </div>
 
-          {/* المعاينة المرئية داخل الموقع */}
+          {/* معاينة واضحة بالقياس الحقيقي داخل النافذة */}
           <div className="p-6 flex justify-center bg-card">
             <div style={{ width: "50mm", height: "30mm", padding: "1mm", background: "#ffffff", color: "#000000", fontFamily: "monospace", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.5mm", border: "1px solid #ccc" }}>
               <div style={{ flexShrink: 0, lineHeight: 0, background: "#ffffff" }}>
-                <QRCodeCanvas value={order.auftragsnummer} size={70} level="M" includeMargin={false} bgColor="#ffffff" fgColor="#000000" />
+                <QRCodeCanvas value={order.auftragsnummer} size={75} level="M" includeMargin={false} bgColor="#ffffff" fgColor="#000000" />
               </div>
-              <div style={{ fontSize: "12px", fontWeight: 700, color: "#000000", letterSpacing: "0.5px", whiteSpace: "nowrap", textAlign: "center" }} data-testid="label-order-number">{order.auftragsnummer}</div>
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "#000000", letterSpacing: "0.5px", whiteSpace: "nowrap", textAlign: "center" }} data-testid="label-order-number">
+                {order.auftragsnummer}
+              </div>
             </div>
           </div>
           

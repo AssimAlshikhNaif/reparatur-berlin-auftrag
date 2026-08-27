@@ -88,6 +88,7 @@ export default function OrderDetail() {
 
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
   const isAdmin = user.role === "admin";
+  const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
 
   const deleteOrder = async () => {
     setDeleting(true);
