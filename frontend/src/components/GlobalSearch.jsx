@@ -12,7 +12,7 @@ export default function GlobalSearch({ compact = false }) {
   const [results, setResults] = useState([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mobileExpanded, setMobileExpanded] = useState(false); // حالة فتح البحث على الموبايل
+  const [mobileOpen, setMobileOpen] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -42,28 +42,94 @@ export default function GlobalSearch({ compact = false }) {
     setOpen(false);
     setQ("");
     setResults([]);
-    setMobileExpanded(false);
+    setMobileOpen(false);
     navigate(`/auftrag/${id}`);
   };
 
   return (
-    <div className="relative">
-      {/* زر الأيقونة للموبايل / أو الشريط العادي للشاشات الكبيرة */}
-      <div className="flex items-center">
-        {/* زر المكبرة يظهر فقط عندما يكون البحث مغلقاً على الموبايل */}
-        {!mobileExpanded && (
-          <button
-            type="button"
-            onClick={() => setMobileExpanded(true)}
-            className="md:hidden flex items-center justify-center bg-card border border-border rounded-lg w-9 h-9 text-foreground hover:bg-muted transition-colors cursor-pointer"
-            title={t("common.search")}
-          >
-            <MagnifyingGlass size={16} />
-          </button>
-        )}
+    <div className="relative inline-block">
+      {/* 1. نسخة الموبايل: زر أيقونة مكبرة فقط */}
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden flex items-center justify-center bg-card border border-border rounded-lg w-9 h-9 text-foreground hover:bg-muted transition-colors cursor-pointer"
+        title={t("common.search")}
+      >
+        <MagnifyingGlass size={16} />
+      </button>
 
-        {/* حاوية البحث (تظهر دائماً على اللابتوب، وتظهر عند النقر على الموبايل) */}
-        <div className={`${mobileExpanded ? "absolute right-0 top-[-6px] z-50 bg-card p-1 shadow-xl border border-border rounded-lg flex w-[260px]" : "hidden md:flex"} items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm ${compact ? "w-[180px] sm:w-[220px]" : "w-full max-w-md"}`}>
+      {/* نافذة البحث المنبثقة الخاصة بالموبايل عند النقر على الأيقونة */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-sm flex flex-col p-4 md:hidden">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-white font-bold text-base">{t("common.search")}</span>
+            <button 
+              type="button"
+              onClick={() => { setMobileOpen(false); setQ(""); setOpen(false); }}
+              className="text-white p-2 cursor-pointer"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          
+          <div className="relative w-full">
+            <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-12 shadow-md">
+              <MagnifyingGlass size={18} className="text-muted-foreground shrink-0" />
+              <input
+                data-testid="global-search-input-mobile"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("common.search")}
+                autoFocus
+                className="flex-1 min-w-0 bg-transparent text-base outline-none text-foreground placeholder:text-muted-foreground"
+              />
+              {q && (
+                <button 
+                  type="button"
+                  onClick={() => { setQ(""); setResults([]); setOpen(false); }} 
+                  className="text-muted-foreground"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            {/* نتائج البحث على الموبايل */}
+            {open && (
+              <div className="mt-3 max-h-[65vh] overflow-y-auto bg-card border border-border rounded-xl shadow-2xl">
+                {loading ? (
+                  <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.searching")}</div>
+                ) : results.length === 0 ? (
+                  <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.noResults")}</div>
+                ) : (
+                  results.map((o) => (
+                    <button 
+                      key={o.id} 
+                      type="button"
+                      onClick={() => go(o.id)}
+                      className="w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/80 transition-colors"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-sm text-foreground">{o.auftragsnummer}</span>
+                        <span className="text-[9px] font-mono uppercase text-muted-foreground">
+                          {t(`status.${o.status}`, STATUS_LABELS[o.status] || o.status)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {o.device_brand} {o.device_model} {o.customer_name ? ` · ${o.customer_name}` : ""}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 2. نسخة اللابتوب والشاشات الكبيرة: شريط البحث الطبيعي بالكامل */}
+      <div className={`hidden md:flex relative ${compact ? "w-[180px] sm:w-[220px]" : "w-full max-w-md"}`}>
+        <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm w-full">
           <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
           <input
             data-testid="global-search-input"
@@ -71,7 +137,6 @@ export default function GlobalSearch({ compact = false }) {
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => results.length > 0 && setOpen(true)}
             placeholder={t("common.search")}
-            autoFocus={mobileExpanded}
             className="flex-1 min-w-0 bg-transparent text-sm outline-none text-foreground placeholder:text-muted-foreground"
           />
           {q && (
@@ -88,70 +153,57 @@ export default function GlobalSearch({ compact = false }) {
               <X size={14} />
             </button>
           )}
-          {mobileExpanded && (
-            <button
-              type="button"
-              onClick={() => {
-                setMobileExpanded(false);
-                setQ("");
-                setOpen(false);
-              }}
-              className="text-muted-foreground hover:text-foreground ml-1 cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          )}
         </div>
-      </div>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div 
-            data-testid="global-search-results"
-            className="absolute left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
-          >
-            {loading ? (
-              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.searching")}</div>
-            ) : results.length === 0 ? (
-              <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.noResults")}</div>
-            ) : (
-              results.map((o) => (
-                <button 
-                  key={o.id} 
-                  type="button"
-                  onClick={() => go(o.id)}
-                  className="w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/80 transition-colors cursor-pointer"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-sm text-foreground">{o.auftragsnummer}</span>
-                    <div className="flex items-center gap-1.5">
-                      {o.under_warranty && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border border-emerald-700 text-emerald-300 bg-emerald-950">
-                          <ShieldCheck size={10} /> Garantie
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+            <div 
+              data-testid="global-search-results"
+              className="absolute left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
+            >
+              {loading ? (
+                <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.searching")}</div>
+              ) : results.length === 0 ? (
+                <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.noResults")}</div>
+              ) : (
+                results.map((o) => (
+                  <button 
+                    key={o.id} 
+                    type="button"
+                    onClick={() => go(o.id)}
+                    className="w-full text-left px-4 py-3 border-b border-border/50 hover:bg-muted/80 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-sm text-foreground">{o.auftragsnummer}</span>
+                      <div className="flex items-center gap-1.5">
+                        {o.under_warranty && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border border-emerald-700 text-emerald-300 bg-emerald-950">
+                            <ShieldCheck size= {10} /> Garantie
+                          </span>
+                        )}
+                        {o.imei_reminder && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border border-amber-700 text-amber-300 bg-amber-950">
+                            <Warning size={10} /> IMEI
+                          </span>
+                        )}
+                        <span className="text-[9px] font-mono uppercase text-muted-foreground">
+                          {t(`status.${o.status}`, STATUS_LABELS[o.status] || o.status)}
                         </span>
-                      )}
-                      {o.imei_reminder && (
-                        <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border border-amber-700 text-amber-300 bg-amber-950">
-                          <Warning size={10} /> IMEI
-                        </span>
-                      )}
-                      <span className="text-[9px] font-mono uppercase text-muted-foreground">
-                        {t(`status.${o.status}`, STATUS_LABELS[o.status] || o.status)}
-                      </span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {o.device_brand} {o.device_model}
-                    {o.customer_name ? ` · ${o.customer_name}` : ""}
-                    {o.imei ? ` · IMEI ${o.imei}` : ""}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </>
-      )}
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {o.device_brand} {o.device_model}
+                      {o.customer_name ? ` · ${o.customer_name}` : ""}
+                      {o.imei ? ` · IMEI ${o.imei}` : ""}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
