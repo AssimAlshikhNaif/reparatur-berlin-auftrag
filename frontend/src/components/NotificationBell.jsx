@@ -127,7 +127,7 @@ export default function NotificationBell() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div data-testid="notification-panel"
-                className="absolute right-0 sm:right-0 sm:left-auto mt-2 w-[85vw] sm:w-96 max-h-[70vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
+                className="absolute right-[-40px] sm:right-0 sm:left-auto mt-2 w-[85vw] sm:w-96 max-h-[70vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Bell size={15} className="text-accent" />
