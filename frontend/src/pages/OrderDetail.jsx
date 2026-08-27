@@ -204,14 +204,16 @@ export default function OrderDetail() {
     } finally { setSavingSig(false); }
   };
 
- const deleteMedia = async (m, index) => {
-    // نختار أثبت قيمة تدل على الصورة
-    const mediaId = m.filename || m.storage_path?.split("/").pop() || m.file_path?.split("/").pop() || m.id || m._id || index;
+const deleteMedia = async (m, index) => {
+    // نختار المعرف الأدق الذي يستطيع الباك إند مطبقته بسهولة
+    const mediaId = m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || m._id || m.id || String(index);
+    
     try {
       await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
       toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
       await load();
     } catch (e) {
+      console.error("Delete media error:", e.response?.data || e);
       toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
     }
   };
