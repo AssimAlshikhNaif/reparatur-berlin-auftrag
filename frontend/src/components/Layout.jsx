@@ -116,16 +116,20 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      {/* Main content area that takes the rest of the flex space cleanly */}
-      {/* Main content area that takes the rest of the flex space cleanly */}
+{/* Main content area that takes the rest of the flex space cleanly */}
       <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0">
-        <div className="flex flex-wrap md:flex-nowrap items-center justify-between gap-2 min-h-[3rem] py-2 px-3 sm:px-6 border-b border-border sticky top-0 bg-background z-30">
-          <div className="flex items-center gap-3 min-w-0 py-1">
-            {user.role === "admin" && <BranchDropdown />}
-            <GlobalSearch compact={true} />
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 py-2.5 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/95 backdrop-blur-md z-30">
+          
+          {/* قسم الفروع والبحث: يأخذ مساحة مريحة وغير متداخلة */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {user.role === "admin" && <div className="shrink-0"><BranchDropdown /></div>}
+            <div className="flex-1 md:w-80">
+              <GlobalSearch compact={true} />
+            </div>
           </div>
           
-          <div className="flex items-center gap-2 shrink-0">
+          {/* قسم الإشعارات، اللغة، والوضع الليلي */}
+          <div className="flex items-center justify-end gap-2 shrink-0 pt-1 md:pt-0 border-t md:border-t-0 border-border/40">
             {(user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker") && <NotificationBell />}
             <LanguageSwitcher />
             <ThemeToggle />
