@@ -10,17 +10,14 @@ export default function LabelPrint({ order, onClose }) {
     if (!canvas) return;
     const qrDataUrl = canvas.toDataURL("image/png");
 
-    const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
 
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(`
+    printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Label - ${order.auftragsnummer}</title>
+          <title>Label-${order.auftragsnummer}</title>
           <style>
             @page {
               size: 50mm 30mm;
@@ -34,11 +31,13 @@ export default function LabelPrint({ order, onClose }) {
             body, html {
               width: 50mm;
               height: 30mm;
-              background-color: #ffffff;
+              background: #ffffff;
               font-family: monospace;
-              overflow: hidden;
+              display: flex;
+              align-items: center;
+              justify-content: center;
             }
-            .label-box {
+            .label-sheet {
               width: 50mm;
               height: 30mm;
               display: flex;
@@ -46,11 +45,9 @@ export default function LabelPrint({ order, onClose }) {
               align-items: center;
               justify-content: center;
               background: #ffffff;
-              position: absolute;
-              top: 0;
-              left: 0;
+              padding: 1mm;
             }
-            .label-box img {
+            .label-sheet img {
               width: 18mm;
               height: 18mm;
               object-fit: contain;
@@ -67,7 +64,7 @@ export default function LabelPrint({ order, onClose }) {
           </style>
         </head>
         <body>
-          <div class="label-box">
+          <div class="label-sheet">
             <img src="${qrDataUrl}" alt="QR" />
             <div class="label-text">${order.auftragsnummer}</div>
           </div>
@@ -75,16 +72,13 @@ export default function LabelPrint({ order, onClose }) {
             window.onload = function() {
               setTimeout(function() {
                 window.print();
-                setTimeout(function() {
-                  window.frameElement.remove();
-                }, 500);
-              }, 200);
+              }, 300);
             };
           </script>
         </body>
       </html>
     `);
-    doc.close();
+    printWindow.document.close();
   };
 
   return (
