@@ -100,27 +100,18 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-3 h-14 border-b border-border bg-background/95 backdrop-blur-xl w-full box-border">
-        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-          <Wall size={22} weight="duotone" className="text-accent shrink-0" />
-          <span className="font-head font-bold text-xs truncate">REPARATUR BERLIN</span>
-        </div>
-        <button data-testid="mobile-menu-toggle" onClick={() => setOpen(!open)} className="text-foreground p-1 shrink-0 cursor-pointer">
-          {open ? <X size={22} /> : <List size={22} />}
-        </button>
-      </div>
+      {/* Mobile menu dropdown */}
       {open && (
-        <div className="md:hidden fixed inset-0 z-30 pt-14 bg-background/95 flex flex-col w-full overflow-y-auto">
+        <div className="md:hidden fixed inset-0 z-30 pt-14 bg-background/95 flex flex-col w-full max-w-full overflow-y-auto overflow-x-hidden">
           <SidebarInner />
         </div>
       )}
 
-{/* Main content area that takes the rest of the flex space cleanly */}
-      <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 py-2.5 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/95 backdrop-blur-md z-30">
+      {/* Main content area */}
+      <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-hidden">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 py-2.5 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/95 backdrop-blur-md z-30 w-full max-w-full box-border">
           
-          {/* قسم الفروع والبحث: يأخذ مساحة مريحة وغير متداخلة */}
+          {/* قسم الفروع والبحث */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             {user.role === "admin" && <div className="shrink-0"><BranchDropdown /></div>}
             <div className="flex-1 md:w-80">
@@ -134,6 +125,7 @@ export default function Layout({ children }) {
             <LanguageSwitcher />
             <ThemeToggle />
           </div>
+
         </div>
         <div className="flex-1">
           {children}
