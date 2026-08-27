@@ -101,7 +101,7 @@ export default function Layout({ children }) {
       </aside>
 
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 h-14 border-b border-border bg-background/90 backdrop-blur-xl">
+      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 min-h-[3.5rem] py-2 border-b border-border bg-background/90 backdrop-blur-xl flex-wrap">
         <div className="flex items-center gap-2">
           <Wall size={22} weight="duotone" className="text-accent" />
           <span className="font-head font-bold text-sm">REPARATUR BERLIN</span>
