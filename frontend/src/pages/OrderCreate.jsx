@@ -376,7 +376,7 @@ const submit = async (e) => {
             </button>
           </div>
           {files.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
               {files.map((f, i) => (
                 <div key={i} className="relative group border border-border aspect-square overflow-hidden bg-background">
                   {f.file.type.startsWith("video") ? (

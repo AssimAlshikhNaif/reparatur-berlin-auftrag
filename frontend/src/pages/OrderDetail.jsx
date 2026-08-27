@@ -518,7 +518,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               </div>
               <div className="p-4">
                 {canManage ? (
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                     <div>
                       <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
                       <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
@@ -661,7 +661,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               {intakeMedia.length === 0 ? (
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                {intakeMedia.map((m, index) => (
                <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
             ))}
@@ -678,7 +678,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               {repairMedia.length === 0 ? (
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
               ) : (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                <div className=" sm:grid-cols-4 gap-2 mb-3">
                  {repairMedia.map((m, index) => (
   <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
 ))}

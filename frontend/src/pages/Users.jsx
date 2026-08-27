@@ -111,7 +111,7 @@ export default function Users() {
               <label className={labelCls}>{t("usr.password")}</label>
               <input data-testid="user-password" required type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className={`${inputCls} font-mono`} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelCls}>{t("usr.role")}</label>
                 <select data-testid="user-role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className={inputCls}>

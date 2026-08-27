@@ -266,7 +266,7 @@ export default function Inventory() {
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
           <form onSubmit={add} className="bg-card border border-border rounded-xl max-w-lg w-full p-6 space-y-5 shadow-xl">
             <h3 className="font-head font-semibold text-lg">{t("inv.addTitle")}</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input data-testid="inv-sku" required placeholder={t("inv.phSku")} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className={`${inputCls} font-mono`} />
               <input required placeholder={t("inv.phModel")} value={form.device_model} onChange={(e) => setForm({ ...form, device_model: e.target.value })} className={inputCls} />
               <select value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputCls}>
