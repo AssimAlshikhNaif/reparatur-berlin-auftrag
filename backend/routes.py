@@ -912,7 +912,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
     if input.status == "FERTIG":
-        has_repair_media = any(m.get("media_type") == "repair" for m in order.get("media", []))
+        has_repair_media = any(isinstance(m, dict) and m.get("media_type") == "repair" for m in order.get("media", []))
         if not has_repair_media:
             raise HTTPException(status_code=400,
                                 detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
