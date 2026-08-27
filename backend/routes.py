@@ -956,13 +956,20 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     target_media = None
     target_index = -1
 
-    # 1. البحث بالطريقة الذكية (مطابقة النصوص أو الـ ID)
+    # 1. البحث بالطريقة الذكية مع دعم الأشكال المختلفة (نصوص أو كائنات)
     for i, m in enumerate(media_list):
-        m_id = str(m.get("id", ""))
-        m_oid = str(m.get("_id", ""))
-        m_file = str(m.get("file_path", ""))
-        m_storage = str(m.get("storage_path", ""))
-        m_filename = str(m.get("filename", ""))
+        if isinstance(m, str):
+            m_id = m
+            m_oid = m
+            m_file = m
+            m_storage = m
+            m_filename = m
+        else:
+            m_id = str(m.get("id", ""))
+            m_oid = str(m.get("_id", ""))
+            m_file = str(m.get("file_path", ""))
+            m_storage = str(m.get("storage_path", ""))
+            m_filename = str(m.get("filename", ""))
         
         if (decoded_id == m_id or 
             decoded_id == m_oid or 
@@ -985,8 +992,13 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     if not target_media or target_index == -1:
         raise HTTPException(status_code=404, detail="Media not found")
 
-    # حذف الملف الفعلي من السيرفر
-    file_path = target_media.get("file_path") or target_media.get("storage_path")
+    # 3. حذف الملف الفعلي من السيرفر بأمان تام (سواء كان الكائن دكشنري أو نص)
+    file_path = None
+    if isinstance(target_media, dict):
+        file_path = target_media.get("file_path") or target_media.get("storage_path")
+    elif isinstance(target_media, str):
+        file_path = target_media
+
     if file_path:
         full_path = os.path.join("/app", file_path) if not file_path.startswith("/") else file_path
         if os.path.exists(full_path):
@@ -995,7 +1007,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
             except Exception:
                 pass
 
-    # إزالة العنصر من قاعدة البيانات باستخدام الـ index مباشرة (أضمن طريقة في MongoDB)
+    # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
     media_list.pop(target_index)
     await db.orders.update_one(
         {"_id": ObjectId(order_id)},
@@ -1005,7 +1017,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
-    
+
 # ==================== COSTS ====================
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
