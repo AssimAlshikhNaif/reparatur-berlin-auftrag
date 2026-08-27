@@ -6,12 +6,10 @@ export default function LabelPrint({ order, onClose }) {
   const { t } = useTranslation();
 
   const handlePrint = () => {
-    // 1. توليد الـ Data URL للـ QR Code مباشرة من عنصر مؤقت
     const canvas = document.getElementById("label-qr-canvas");
     if (!canvas) return;
     const qrDataUrl = canvas.toDataURL("image/png");
 
-    // 2. إنشاء طابعة إطار مخفية (Hidden Iframe) لضمان التوافق التام مع المتصفحات
     const iframe = document.createElement("iframe");
     iframe.style.display = "none";
     document.body.appendChild(iframe);
@@ -28,17 +26,17 @@ export default function LabelPrint({ order, onClose }) {
               size: 50mm 30mm;
               margin: 0;
             }
-            body, html {
+            * {
+              box-sizing: border-box;
               margin: 0;
               padding: 0;
+            }
+            body, html {
               width: 50mm;
               height: 30mm;
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
               background-color: #ffffff;
               font-family: monospace;
+              overflow: hidden;
             }
             .label-box {
               width: 50mm;
@@ -47,19 +45,19 @@ export default function LabelPrint({ order, onClose }) {
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              gap: 1.5mm;
               background: #ffffff;
-              box-sizing: border-box;
-              margin: 0;
-              padding: 0;
+              position: absolute;
+              top: 0;
+              left: 0;
             }
             .label-box img {
-              width: 22mm;
-              height: 22mm;
+              width: 18mm;
+              height: 18mm;
               object-fit: contain;
+              margin-bottom: 1mm;
             }
             .label-text {
-              font-size: 12px;
+              font-size: 11px;
               font-weight: bold;
               color: #000000;
               letter-spacing: 0.5px;
@@ -110,21 +108,21 @@ export default function LabelPrint({ order, onClose }) {
           </div>
         </div>
 
-        {/* معاينة حقيقية للملصق داخل النافذة */}
+        {/* معاينة الملصق بالمقاس الحقيقي داخل النافذة */}
         <div className="p-6 flex justify-center bg-card">
-          <div style={{ width: "50mm", height: "30mm", padding: "1mm", background: "#ffffff", color: "#000000", fontFamily: "monospace", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1.5mm", border: "1px solid #ccc" }}>
+          <div style={{ width: "50mm", height: "30mm", padding: "1mm", background: "#ffffff", color: "#000000", fontFamily: "monospace", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1mm", border: "1px solid #ccc" }}>
             <div style={{ flexShrink: 0, lineHeight: 0, background: "#ffffff" }}>
               <QRCodeCanvas 
                 id="label-qr-canvas"
                 value={order.auftragsnummer} 
-                size={120} 
+                size={85} 
                 level="M" 
                 includeMargin={false} 
                 bgColor="#ffffff" 
                 fgColor="#000000" 
               />
             </div>
-            <div style={{ fontSize: "12px", fontWeight: 700, color: "#000000", letterSpacing: "0.5px", whiteSpace: "nowrap", textAlign: "center" }} data-testid="label-order-number">
+            <div style={{ fontSize: "11px", fontWeight: 700, color: "#000000", letterSpacing: "0.5px", whiteSpace: "nowrap", textAlign: "center" }} data-testid="label-order-number">
               {order.auftragsnummer}
             </div>
           </div>
