@@ -83,7 +83,7 @@ export default function Layout({ children }) {
         <button
           data-testid="logout-button"
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-mono uppercase tracking-wider border border-border text-foreground/80 hover:bg-muted hover:text-primary-foreground transition-colors rounded-lg"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-mono uppercase tracking-wider border border-border text-foreground/80 hover:bg-muted hover:text-primary-foreground transition-colors rounded-lg cursor-pointer"
         >
           <SignOut size={14} /> {t("common.logout")}
         </button>
@@ -92,13 +92,24 @@ export default function Layout({ children }) {
   );
 
   return (
-    <div className="min-h-screen bg-background grid-texture flex">
-      {/* Desktop sidebar as a persistent sticky element that naturally reserves its space */}
+    <div className="min-h-screen bg-background grid-texture flex w-full max-w-full overflow-x-hidden relative">
+      {/* Desktop sidebar */}
       <aside className="hidden md:block w-60 shrink-0 border-r border-border bg-background/70 backdrop-blur-sm sticky top-0 h-screen z-30">
         <div className="h-full flex flex-col">
           <SidebarInner />
         </div>
       </aside>
+
+      {/* Mobile top bar (شريط الموبايل العلوي مع زر القائمة الثلاثية الذي كان مفقوداً) */}
+      <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-3 h-14 border-b border-border bg-background/95 backdrop-blur-xl w-full max-w-full box-border">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <Wall size={22} weight="duotone" className="text-accent shrink-0" />
+          <span className="font-head font-bold text-xs truncate">REPARATUR BERLIN</span>
+        </div>
+        <button data-testid="mobile-menu-toggle" onClick={() => setOpen(!open)} className="text-foreground p-1 shrink-0 cursor-pointer">
+          {open ? <X size={22} /> : <List size={22} />}
+        </button>
+      </div>
 
       {/* Mobile menu dropdown */}
       {open && (
@@ -108,7 +119,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-hidden">
+      <main className="flex-1 flex flex-col min-w-0 pt-14 md:pt-0 overflow-x-hidden w-full max-w-full">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 py-2.5 px-3 sm:px-6 border-b border-border sticky top-0 bg-background/95 backdrop-blur-md z-30 w-full max-w-full box-border">
           
           {/* قسم الفروع والبحث */}
