@@ -1561,25 +1561,49 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
 
 
 # ==================== NOTIFICATIONS (Admin + Reception + targeted Technicians) ====================
-async def _notif_query(user: dict):
-    """Build the Mongo filter for the notifications a user may see.
-    - admin: all broadcast/untargeted notifications (target_user_id null/absent)
-    - techniker: only notifications targeted at their own user id (e.g. assignments)
-    - mitarbeiter: untargeted notifications for their branch's orders
-    (Mongo `{field: None}` also matches documents where the field is absent.)"""
+async def _notif_query(user: dict, branch_id_param: str = None):
+    """Build the Mongo filter for the notifications a user may see."""
     role = user["role"]
-    if role == "admin":
-        return {"target_user_id": None}
+    
     if role == "techniker":
         return {"target_user_id": str(user["_id"])}
-    orders = await db.orders.find({"branch_id": user.get("branch_id")}, {"_id": 1}).to_list(10000)
-    ids = [str(o["_id"]) for o in orders]
-    return {"target_user_id": None, "order_id": {"$in": ids}}
 
+    from bson import ObjectId
+    target_branch = branch_id_param or user.get("branch_id")
+
+    # إذا تم تحديد فرع معين
+    if target_branch:
+        query_branch_ids = [target_branch]
+        try:
+            query_branch_ids.append(ObjectId(target_branch))
+        except:
+            pass
+            
+        # جلب طلبات هذا الفرع
+        orders = await db.orders.find({"branch_id": {"$in": query_branch_ids}}, {"_id": 1}).to_list(10000)
+        
+        # جمع الـ IDs بصيغتي النص (String) و (ObjectId) لضمان المطابقة التامة مع الإشعارات
+        ids = [o["_id"] for o in orders]
+        str_ids = [str(o["_id"]) for o in orders]
+        all_order_ids = list(set(ids + str_ids))
+        
+        if not all_order_ids:
+            # إذا لم تكن هناك طلبات في هذا الفرع، نعرض إشعاراً وهمياً لا يعيد شيئاً لتجنب الأخطاء
+            return {"target_user_id": None, "order_id": {"$in": []}}
+
+        return {
+            "target_user_id": None,
+            "order_id": {"$in": all_order_ids}
+        }
+
+    # إذا لم يتم تحديد فرع (في الصفحة الرئيسية / Dashboard) -> نعرض كل الإشعارات العامة أو التي لها order_id
+    return {
+        "target_user_id": None
+    }
 
 @router.get("/notifications")
-async def list_notifications(limit: int = 50, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
-    q = await _notif_query(current)
+async def list_notifications(limit: int = 50, branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current, branch_id)
     items = await db.notifications.find(q).sort("at", -1).to_list(1000)
     unread = sum(1 for n in items if not n.get("read", False))
     view = items[:limit]
@@ -1601,49 +1625,17 @@ async def list_notifications(limit: int = 50, current=Depends(require_roles("adm
 
 
 @router.post("/notifications/read")
-async def mark_notifications_read(current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
-    q = await _notif_query(current)
+async def mark_notifications_read(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current, branch_id)
     await db.notifications.update_many({**q, "read": False}, {"$set": {"read": True}})
     return {"message": "Alle Benachrichtigungen als gelesen markiert"}
 
 
 @router.delete("/notifications")
-async def clear_notifications(current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
-    q = await _notif_query(current)
+async def clear_notifications(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+    q = await _notif_query(current, branch_id)
     await db.notifications.delete_many(q)
     return {"message": "Benachrichtigungen gelöscht"}
-
-
-# ==================== ADMIN: RESET TEST DATA (production launch) ====================
-class ResetOptions(BaseModel):
-    orders: bool = True       # orders + all order-related operational data
-    counters: bool = True     # order & invoice sequence counters
-    inventory: bool = False   # spare-parts stock (off by default)
-
-
-@router.post("/admin/reset-test-data")
-async def reset_test_data(opts: Optional[ResetOptions] = None, current=Depends(require_roles("admin"))):
-    """Admin-only. Selectively wipes chosen operational/test data. Master data
-    (users, branches) is always preserved. Inventory only cleared if requested."""
-    if opts is None:
-        opts = ResetOptions()
-    collections = []
-    if opts.orders:
-        collections += ["orders", "purchases", "chat_messages", "communications",
-                        "notifications", "audit_log", "files"]
-    if opts.counters:
-        collections.append("counters")
-    if opts.inventory:
-        collections.append("inventory")
-    if not collections:
-        raise HTTPException(status_code=400, detail="Bitte mindestens eine Option auswählen.")
-    deleted = {}
-    for c in collections:
-        res = await db[c].delete_many({})
-        deleted[c] = res.deleted_count
-    total = sum(deleted.values())
-    return {"message": "Ausgewählte Daten wurden gelöscht.", "deleted": deleted, "total": total}
-
 
 # ==================== INVOICE (Rechnung, GoBD per-branch) ====================
 @router.post("/orders/{order_id}/invoice")

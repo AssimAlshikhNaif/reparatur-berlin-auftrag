@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import { berlinDateTime } from "@/lib/datetime";
 
 const POLL_MS = 5000;
 
-// Play a short two-tone "ding" using the Web Audio API (no asset needed).
 function playBeep() {
   try {
     const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -31,13 +30,13 @@ function playBeep() {
       osc.stop(t + 0.18);
     });
     setTimeout(() => ctx.close(), 800);
-  } catch (e) {
-    /* audio not available */
-  }
+  } catch (e) {}
 }
 
 export default function NotificationBell() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const branchId = searchParams.get("branch_id") || "";
   const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
@@ -48,18 +47,25 @@ export default function NotificationBell() {
 
   const poll = useCallback(async () => {
     try {
-      const { data } = await api.get("/notifications", { params: { limit: 50 } });
-      const list = data.items || [];
-      setItems(list);
-      setUnread(data.unread || 0);
+      // إرسال branch_id الحالي مباشرة مع طلب الـ API للباك إند ليقوم بالفلترة بشكل صحيح وسريع
+      const params = { limit: 50 };
+      if (branchId) {
+        params.branch_id = branchId;
+      }
+
+      const { data } = await api.get("/notifications", { params });
+      const fetchedItems = data.items || [];
+
+      setItems(fetchedItems);
+      setUnread(data.unread !== undefined ? data.unread : fetchedItems.filter(n => !n.read).length);
 
       if (!initialised.current) {
-        // Baseline: mark everything already present as seen, don't alert
-        list.forEach((n) => seenIds.current.add(n.id));
+        fetchedItems.forEach((n) => seenIds.current.add(n.id));
         initialised.current = true;
         return;
       }
-      const fresh = list.filter((n) => !seenIds.current.has(n.id));
+
+      const fresh = fetchedItems.filter((n) => !seenIds.current.has(n.id));
       fresh.forEach((n) => seenIds.current.add(n.id));
       if (fresh.length > 0) {
         if (soundOn.current) playBeep();
@@ -70,35 +76,36 @@ export default function NotificationBell() {
             ? { label: t("notif.open"), onClick: () => navigate(`/auftrag/${top.order_id}`) }
             : undefined,
         });
-        if (fresh.length > 1) {
-          toast(t("notif.moreNew", { n: fresh.length - 1 }));
-        }
       }
     } catch (e) {
-      /* ignore poll errors */
+      /* ignore */
     }
-  }, [navigate, t]);
+  }, [branchId, navigate, t]);
 
   useEffect(() => {
+    initialised.current = false;
+    seenIds.current.clear();
     poll();
     const iv = setInterval(poll, POLL_MS);
     return () => clearInterval(iv);
-  }, [poll]);
+  }, [poll, branchId]);
 
   const markAllRead = async () => {
     try {
-      await api.post("/notifications/read");
+      const params = branchId ? { branch_id: branchId } : {};
+      await api.post("/notifications/read", null, { params });
       setUnread(0);
       setItems((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (e) { /* noop */ }
+    } catch (e) {}
   };
 
   const clearAll = async () => {
     try {
-      await api.delete("/notifications");
+      const params = branchId ? { branch_id: branchId } : {};
+      await api.delete("/notifications", { params });
       setItems([]);
       setUnread(0);
-    } catch (e) { /* noop */ }
+    } catch (e) {}
   };
 
   const openItem = (n) => {
@@ -127,7 +134,7 @@ export default function NotificationBell() {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
           <div data-testid="notification-panel"
-     className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-auto sm:mt-2 w-auto sm:w-96 max-h-[75vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
+            className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-auto sm:mt-2 w-auto sm:w-96 max-h-[75vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <div className="flex items-center gap-2">
                 <Bell size={15} className="text-accent" />
