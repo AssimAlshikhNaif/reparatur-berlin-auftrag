@@ -10,31 +10,26 @@ export default function LabelPrint({ order, onClose }) {
     const canvas = document.getElementById("label-qr-canvas");
     if (!canvas) return;
     
-    // إنشاء كفانفاس مؤقت بحجم الملصق الحقيقي 50x30 مم بدقة عالية
     const tempCanvas = document.createElement("canvas");
     const ctx = tempCanvas.getContext("2d");
     tempCanvas.width = 400; // 50mm approx
     tempCanvas.height = 240; // 30mm approx
 
-    // خلفية بيضاء صافية
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-    // رسم ال QR Code في المنتصف
     const qrImg = new Image();
     qrImg.src = canvas.toDataURL("image/png");
     qrImg.onload = () => {
-      const qrSize = 140;
+      const qrSize = 130;
       const xQR = (tempCanvas.width - qrSize) / 2;
-      ctx.drawImage(qrImg, xQR, 20, qrSize, qrSize);
+      ctx.drawImage(qrImg, xQR, 15, qrSize, qrSize);
 
-      // كتابة رقم الطلب بالأسفل بخون غامق وواضح
       ctx.fillStyle = "#000000";
       ctx.font = "bold 22px monospace";
       ctx.textAlign = "center";
-      ctx.fillText(order.auftragsnummer, tempCanvas.width / 2, 205);
+      ctx.fillText(order.auftragsnummer, tempCanvas.width / 2, 200);
 
-      // تحميل الصورة
       const link = document.createElement("a");
       link.download = `Label-${order.auftragsnummer}.png`;
       link.href = tempCanvas.toDataURL("image/png");
@@ -47,7 +42,7 @@ export default function LabelPrint({ order, onClose }) {
     if (!canvas) return;
     const qrDataUrl = canvas.toDataURL("image/png");
     
-    const printWindow = window.open("", "_blank", "width=400,height=300");
+    const printWindow = window.open("", "_blank", "width=400,height=400");
     if (!printWindow) return;
 
     printWindow.document.write(`
@@ -60,6 +55,9 @@ export default function LabelPrint({ order, onClose }) {
               size: 50mm 30mm;
               margin: 0;
             }
+            * {
+              box-sizing: border-box;
+            }
             body {
               width: 50mm;
               height: 30mm;
@@ -71,22 +69,38 @@ export default function LabelPrint({ order, onClose }) {
               align-items: center;
               justify-content: center;
               font-family: monospace;
+              overflow: hidden;
+            }
+            .label-container {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              width: 50mm;
+              height: 30mm;
+              /* ضبط اتجاه العناصر لتظهر أفقياً بشكل صحيح داخل الملصق */
             }
             img {
-              width: 17mm;
-              height: 17mm;
+              width: 15mm;
+              height: 15mm;
+              object-fit: contain;
               margin-bottom: 1mm;
             }
             .text {
               font-size: 11px;
               font-weight: bold;
               color: black;
+              text-align: center;
+              line-height: 1;
+              letter-spacing: 0.5px;
             }
           </style>
         </head>
         <body>
-          <img src="${qrDataUrl}" />
-          <div class="text">${order.auftragsnummer}</div>
+          <div class="label-container">
+            <img src="${qrDataUrl}" />
+            <div class="text">${order.auftragsnummer}</div>
+          </div>
           <script>
             window.onload = () => {
               setTimeout(() => {
