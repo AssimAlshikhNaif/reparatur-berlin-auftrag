@@ -1677,25 +1677,31 @@ async def save_inspection(order_id: str, input: InspectionInput, current=Depends
     await _assert_order_access(order, current)
     now = datetime.now(timezone.utc).isoformat()
     
+    update_field = "intake_inspection" if input.inspection_type == "intake" else "inspection"
+    
+    # التحقق هل الفحص موجود مسبقاً لنحافظ على اسم الموظف الأصلي
+    existing_inspection = order.get(update_field, {})
+    original_creator = existing_inspection.get("by", current["name"])
+    original_time = existing_inspection.get("at", now)
+
     inspection_data = {
         "checklist": input.checklist or {},
         "display_type": input.display_type or "",
         "battery_health": input.battery_health or "",
         "notes": input.notes or "",
-        "by": current["name"],
-        "role": current["role"],
-        "at": now,
+        "by": original_creator,             # يبقى اسم الموظف الأصلي الذي أنشأ الفحص
+        "role": existing_inspection.get("role", current["role"]),
+        "at": original_time,                # وقت الإنشاء الأصلي
+        "last_edited_by": current["name"],  # اسم الأدمن الذي قام بالتعديل الأخير
+        "updated_at": now                   # وقت التعديل الأخير
     }
-    
-    # اختيار الحقل بناءً على نوع الفحص المرسل من الفرونت إند
-    update_field = "intake_inspection" if input.inspection_type == "intake" else "inspection"
     
     await db.orders.update_one(
         {"_id": ObjectId(order_id)},
         {"$set": {update_field: inspection_data, "updated_at": now}}
     )
     
-    await log_audit(order_id, "PRUEFPROTOKOLL", f"{update_field} gespeichert", current["name"])
+    await log_audit(order_id, "PRUEFPROTOKOLL", f"{update_field} aktualisiert von {current['name']}", current["name"])
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(updated_order, current)

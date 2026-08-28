@@ -52,20 +52,19 @@ export default function LabelPrint({ order, onClose }) {
           <title>Label-${order.auftragsnummer}</title>
           <style>
             @page {
-              size: 50mm 30mm;
+              size: 30mm 50mm;
               margin: 0;
             }
             * {
               box-sizing: border-box;
             }
             body {
-              width: 50mm;
-              height: 30mm;
+              width: 30mm;
+              height: 50mm;
               margin: 0;
               padding: 0;
               background: white;
               display: flex;
-              flex-direction: column;
               align-items: center;
               justify-content: center;
               font-family: monospace;
@@ -78,11 +77,12 @@ export default function LabelPrint({ order, onClose }) {
               justify-content: center;
               width: 50mm;
               height: 30mm;
-              /* ضبط اتجاه العناصر لتظهر أفقياً بشكل صحيح داخل الملصق */
+              transform: rotate(90deg);
+              transform-origin: center center;
             }
             img {
-              width: 15mm;
-              height: 15mm;
+              width: 14mm;
+              height: 14mm;
               object-fit: contain;
               margin-bottom: 1mm;
             }
