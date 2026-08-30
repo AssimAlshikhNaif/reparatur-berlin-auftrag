@@ -60,25 +60,13 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
             body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #111; font-size: 8px; line-height: 1.15; background: #fff; }
             .document-container { width: 100%; box-sizing: border-box; }
             .shop-logo { max-height: 25px !important; max-width: 80px !important; object-fit: contain; display: block; }
-            .check-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; margin-bottom: 4px; }
-            .check-item { width: 32%; border: 1px solid #ddd; padding: 2px 4px; border-radius: 2px; background: #fafafa; font-size: 7.5px; display: flex; justify-content: space-between; align-items: center; }
-            .section-block { margin-bottom: 3px; page-break-inside: avoid; }
-            .legal-box { font-size: 6.5px; line-height: 1.08; text-align: justify; color: #333; }
-            .top-info-box { border: 1.5px solid #888; padding: 4px 6px; border-radius: 3px; background: #fafafa; }
-            .media-grid { 
-              display: flex !important; 
-              flex-wrap: wrap !important; 
-              gap: 4px !important; 
-              margin-top: 3px !important; 
-            }
-            .media-thumb { 
-              width: 42px !important; 
-              height: 42px !important; 
-              object-fit: cover !important; 
-              border: 1px solid #777 !important; 
-              border-radius: 2px !important; 
-              display: inline-block !important; 
-            }
+            .check-grid { display: flex !important; flex-wrap: wrap !important; gap: 3px !important; margin-top: 2px !important; margin-bottom: 4px !important; }
+            .check-item { width: 32% !important; border: 1px solid #ddd !important; padding: 2px 4px !important; border-radius: 2px !important; background: #fafafa !important; font-size: 7.5px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; box-sizing: border-box !important; }
+            .section-block { margin-bottom: 3px !important; page-break-inside: avoid !important; }
+            .legal-box { font-size: 6.5px !important; line-height: 1.08 !important; text-align: justify !important; color: #333 !important; }
+            .top-info-box { border: 1.5px solid #888 !important; padding: 4px 6px !important; border-radius: 3px !important; background: #fafafa !important; }
+            .media-grid { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; margin-top: 3px !important; }
+            .media-thumb { width: 42px !important; height: 42px !important; object-fit: cover !important; border: 1px solid #777 !important; border-radius: 2px !important; display: inline-block !important; }
           </style>
         </head>
         <body>
