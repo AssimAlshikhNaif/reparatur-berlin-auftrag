@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Printer, X } from "@phosphor-icons/react";
 import { berlinDate } from "@/lib/datetime";
+import { fileUrl } from "@/lib/api";
 import { LIABILITY_WAIVER, AGB_FULL, DSGVO_FULL } from "@/lib/constants";
 
 export default function ContractPrint({ order, branchName, branchInfo, onClose }) {
@@ -21,23 +22,31 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
   };
 
   const getIntakeMediaList = () => {
-    const rawMedia = order?.intake_media || 
-                     order?.intakeMedia || 
-                     order?.intake_inspection?.media || 
-                     order?.intake_inspection?.photos || 
-                     order?.photos || 
+    const rawMedia = order?.intake_media ||
+                     order?.intakeMedia ||
+                     order?.intake_inspection?.media ||
+                     order?.intake_inspection?.photos ||
+                     order?.photos ||
                      order?.media || [];
 
     if (!Array.isArray(rawMedia)) return [];
 
-    return rawMedia.map(m => {
-      if (!m) return null;
-      if (typeof m === 'string') return m;
-      if (typeof m === 'object') {
-        return m.url || m.path || m.file_url || m.secure_url || m.preview || m.uri || null;
-      }
-      return null;
-    }).filter(Boolean);
+    return rawMedia
+      .filter((m) => m && !m.is_video)
+      .map((m) => {
+        if (!m) return null;
+        if (typeof m === "string") return m.startsWith("http") || m.startsWith("blob:") ? m : fileUrl(m);
+        if (typeof m === "object") {
+          // Die Medien-Objekte speichern nur den relativen Speicherpfad
+          // (storage_path); die eigentliche, authentifizierte Bild-URL wird
+          // über fileUrl() zusammengebaut (mit Zugriffstoken als Query-Param,
+          // damit das Bild auch im separaten Druckfenster lädt).
+          if (m.storage_path) return fileUrl(m.storage_path);
+          return m.url || m.file_url || m.secure_url || null;
+        }
+        return null;
+      })
+      .filter(Boolean);
   };
 
   const intakeMediaList = getIntakeMediaList();
