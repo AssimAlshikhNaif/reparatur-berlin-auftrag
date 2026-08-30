@@ -32,33 +32,44 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     if (!Array.isArray(rawMedia)) return [];
 
     return rawMedia
-      .filter((m) => {
-        if (!m) return false;
-        if (typeof m === "object" && m.is_video) return false;
-        
-        // التحقق من أن النصوص ليست كلمات عشوائية أو "Intake"
-        if (typeof m === "string") {
-          const lower = m.toLowerCase();
-          if (lower.includes("intake") || lower.length < 5) return false;
-          return lower.startsWith("http") || lower.startsWith("blob:") || lower.startsWith("/storage") || lower.startsWith("data:image");
-        }
-        return true;
-      })
       .map((m) => {
+        if (!m) return null;
+        if (typeof m === "object" && m.is_video) return null;
+
+        let path = null;
         if (typeof m === "string") {
-          return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("data:image") ? m : fileUrl(m);
+          path = m;
+        } else if (typeof m === "object" && m !== null) {
+          path = m.storage_path || m.url || m.file_url || m.secure_url || m.path || m.preview;
         }
-        if (typeof m === "object" && m !== null) {
-          const path = m.storage_path || m.url || m.file_url || m.secure_url || m.path || m.preview;
-          if (path && typeof path === "string") {
-            const lowerPath = path.toLowerCase();
-            if (lowerPath.includes("intake")) return null;
-            return lowerPath.startsWith("http") || lowerPath.startsWith("blob:") ? path : fileUrl(path);
-          }
-        }
-        return null;
+
+        if (!path || typeof path !== "string") return null;
+
+        const lower = path.toLowerCase();
+        
+        // استبعاد قاطع لأي عنصر نصي غير متعلق بصورة أو يحتوي على مصطلحات وهمية
+        if (lower.includes("intake") || lower.length < 6) return null;
+
+        // التحقق من أن الرابط أو المسار يعود لصورة حقيقية عبر الامتداد أو البروتوكول
+        const isImage = 
+          lower.startsWith("http://") || 
+          lower.startsWith("https://") || 
+          lower.startsWith("blob:") || 
+          lower.startsWith("data:image") ||
+          lower.includes(".jpg") || 
+          lower.includes(".jpeg") || 
+          lower.includes(".png") || 
+          lower.includes(".webp") ||
+          lower.includes("uploads/") ||
+          lower.includes("storage/");
+
+        if (!isImage) return null;
+
+        return lower.startsWith("http") || lower.startsWith("blob:") || lower.startsWith("data:image") 
+          ? path 
+          : fileUrl(path);
       })
-      .filter((url) => url && typeof url === "string" && url.length > 5 && !url.toLowerCase().includes("intake"));
+      .filter(Boolean);
   };
 
   const intakeMediaList = getIntakeMediaList();
@@ -111,7 +122,6 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     if (typeof data === 'object' && data !== null) {
       let items = [];
       Object.keys(data).forEach(categoryKey => {
-        // تجاهل مفاتيح الوسائط أو الملاحظات غير المرتبطة بالفحص المباشر
         if (['media', 'photos', 'notes', 'signature'].includes(categoryKey)) return;
         
         const categoryValue = data[categoryKey];
@@ -269,7 +279,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               </div>
             )}
 
-            {/* جدول الفحص بخواص Inline مباشرة ليظهر مرتباً ومنظماً أفقياً */}
+            {/* جدول الفحص مرتب ومنظم أفقياً */}
             {hasChecklist && (
               <div className="section-block">
                 <h2 style={{ fontSize: "9px", marginBottom: "2px", fontWeight: "800", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Prüfprotokoll (Mitarbeiter)</h2>
