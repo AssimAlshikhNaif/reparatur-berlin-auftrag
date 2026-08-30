@@ -5,7 +5,10 @@ import { Printer, Download, X } from "@phosphor-icons/react";
 export default function LabelPrint({ order, onClose }) {
   const { t } = useTranslation();
 
-  // تنزيل الملصق كصورة PNG لطباعتها بسهولة من تطبيق Phomemo أو الكمبيوتر
+  // استخراج اسم الفرع من الطلب
+  const branchName = order.branch_name || order.branch || "";
+
+  // تنزيل الملصق كصورة PNG مع اسم الفرع
   const handleDownloadImage = () => {
     const canvas = document.getElementById("label-qr-canvas");
     if (!canvas) return;
@@ -18,17 +21,26 @@ export default function LabelPrint({ order, onClose }) {
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
+    // كتابة اسم الفرع في الأعلى إذا وجد
+    if (branchName) {
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold 16px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(branchName, tempCanvas.width / 2, 28);
+    }
+
     const qrImg = new Image();
     qrImg.src = canvas.toDataURL("image/png");
     qrImg.onload = () => {
-      const qrSize = 130;
+      const qrSize = 115;
       const xQR = (tempCanvas.width - qrSize) / 2;
-      ctx.drawImage(qrImg, xQR, 15, qrSize, qrSize);
+      const yQR = branchName ? 35 : 15;
+      ctx.drawImage(qrImg, xQR, yQR, qrSize, qrSize);
 
       ctx.fillStyle = "#000000";
       ctx.font = "bold 22px monospace";
       ctx.textAlign = "center";
-      ctx.fillText(order.auftragsnummer, tempCanvas.width / 2, 200);
+      ctx.fillText(order.auftragsnummer, tempCanvas.width / 2, 205);
 
       const link = document.createElement("a");
       link.download = `Label-${order.auftragsnummer}.png`;
@@ -79,12 +91,19 @@ export default function LabelPrint({ order, onClose }) {
               height: 30mm;
               transform: rotate(90deg);
               transform-origin: center center;
+              gap: 1px;
+            }
+            .branch-text {
+              font-size: 9px;
+              font-weight: bold;
+              color: black;
+              text-align: center;
+              line-height: 1;
             }
             img {
-              width: 14mm;
-              height: 14mm;
+              width: 13mm;
+              height: 13mm;
               object-fit: contain;
-              margin-bottom: 1mm;
             }
             .text {
               font-size: 11px;
@@ -98,6 +117,7 @@ export default function LabelPrint({ order, onClose }) {
         </head>
         <body>
           <div class="label-container">
+            ${branchName ? `<div class="branch-text">${branchName}</div>` : ''}
             <img src="${qrDataUrl}" />
             <div class="text">${order.auftragsnummer}</div>
           </div>
@@ -142,12 +162,17 @@ export default function LabelPrint({ order, onClose }) {
 
         {/* المعاينة الحقيقية للملصق */}
         <div className="p-6 flex justify-center bg-card">
-          <div style={{ width: "50mm", height: "30mm", padding: "1mm", background: "#ffffff", color: "#000000", fontFamily: "monospace", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1mm", border: "1px solid #ccc" }}>
+          <div style={{ width: "50mm", height: "30mm", padding: "1mm", background: "#ffffff", color: "#000000", fontFamily: "monospace", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", border: "1px solid #ccc" }}>
+            {branchName && (
+              <div style={{ fontSize: "9px", fontWeight: 700, color: "#000000", textAlign: "center", lineHeight: 1 }}>
+                {branchName}
+              </div>
+            )}
             <div style={{ flexShrink: 0, lineHeight: 0, background: "#ffffff" }}>
               <QRCodeCanvas 
                 id="label-qr-canvas"
                 value={order.auftragsnummer} 
-                size={80} 
+                size={70} 
                 level="M" 
                 includeMargin={false} 
                 bgColor="#ffffff" 
