@@ -42,12 +42,12 @@ const getIntakeMediaList = () => {
 
       if (!imgUrl) return null;
 
-      // إذا كان الرابط يبدأ بـ http أو https أو يحتوي على بيانات سحابية
-      if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:')) {
+      // إذا كان الرابط يبدأ بـ blob: أو http أو https أو data: نتركه كما هو تماماً دون دمج دومين
+      if (imgUrl.startsWith('blob:') || imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:')) {
         return imgUrl;
       }
 
-      // إذا كان مساراً يبدأ بـ api أو uploads، ندمجه مع دومين السيرفر الحالي
+      // إذا كان مساراً نسبياً بحتاً
       const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`;
       return `${window.location.origin}${cleanPath}`;
     }).filter(Boolean);
@@ -79,21 +79,18 @@ const getIntakeMediaList = () => {
             .legal-box { font-size: 6.5px; line-height: 1.08; text-align: justify; color: #333; }
             .top-info-box { border: 1px solid #bbb; padding: 3px 5px; border-radius: 3px; background: #fbfbfb; }
             .media-grid { 
-  display: flex; 
-  flex-wrap: wrap; 
-  gap: 5px; 
-  margin-top: 4px; 
-  margin-bottom: 6px; 
-  page-break-inside: avoid; 
+  display: flex !important; 
+  flex-wrap: wrap !important; 
+  gap: 4px !important; 
+  margin-top: 3px !important; 
 }
 .media-thumb { 
-  width: 48px !important; 
-  height: 48px !important; 
+  width: 40px !important; 
+  height: 40px !important; 
   object-fit: cover !important; 
   border: 1px solid #999 !important; 
-  border-radius: 3px !important; 
-  display: block !important; 
-  background-color: #f0f0f0; 
+  border-radius: 2px !important; 
+  display: inline-block !important; 
 }
           </style>
         </head>
