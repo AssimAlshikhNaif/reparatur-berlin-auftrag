@@ -32,13 +32,21 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     if (!Array.isArray(rawMedia)) return [];
 
     return rawMedia
-      .filter((m) => m && !m.is_video)
+      .filter((m) => {
+        if (!m || m.is_video) return false;
+        // إذا كان عنصراً نصياً، نتأكد أنه رابط حقيقي وليس مجرد نص أو أيقونة وهمية
+        if (typeof m === "string") {
+          return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("/storage") || m.startsWith("data:image");
+        }
+        return true;
+      })
       .map((m) => {
-        if (!m) return null;
-        if (typeof m === "string") return m.startsWith("http") || m.startsWith("blob:") ? m : fileUrl(m);
-        if (typeof m === "object") {
-          if (m.storage_path) return fileUrl(m.storage_path);
-          return m.url || m.file_url || m.secure_url || null;
+        if (typeof m === "string") return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("data:image") ? m : fileUrl(m);
+        if (typeof m === "object" && m !== null) {
+          const path = m.storage_path || m.url || m.file_url || m.secure_url || m.path || m.preview;
+          if (path) {
+            return typeof path === "string" && (path.startsWith("http") || path.startsWith("blob:")) ? path : fileUrl(path);
+          }
         }
         return null;
       })
