@@ -54,41 +54,40 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     const receiptHTML = tempContainer.innerHTML;
 
     printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Abholschein - ${order?.auftragsnummer || ""}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 80mm;
-              margin: 0 auto;
-              padding: 2mm;
-              background: #fff;
-              color: #000;
-            }
-            @page {
-              size: 80mm auto;
-              margin: 0;
-            }
-          </style>
-        </head>
-        <body>
-          <div style="width: 80mm; margin: 0 auto;">
-            ${receiptHTML}
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-  };
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <title>Abholschein - ${order?.auftragsnummer || ""}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          font-family: 'Courier New', Courier, monospace;
+          width: 80mm;
+          margin: 0;
+          padding: 0;
+          background: #fff;
+          color: #000;
+        }
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
+      </style>
+    </head>
+    <body>
+      <div style="width: 80mm; margin: 0; padding: 0;">
+        ${receiptHTML}
+      </div>
+      <script>
+        window.onload = function() {
+          window.print();
+          window.close();
+        };
+      </script>
+    </html>
+  `);
+  printWindow.document.close();
+};
 
   // توليد وتحميل PDF بمعالجة ذكية لأبعاد اللوغو
   const downloadPdf = async () => {

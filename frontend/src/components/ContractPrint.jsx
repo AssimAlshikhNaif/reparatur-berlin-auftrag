@@ -20,6 +20,40 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     logo_url: branchInfo?.logo_url || branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
   };
 
+  const getIntakeMediaList = () => {
+    const rawMedia = order?.intake_media || 
+                     order?.intakeMedia || 
+                     order?.intake_inspection?.media || 
+                     order?.intake_inspection?.photos || 
+                     order?.photos || 
+                     order?.media || [];
+
+    if (!Array.isArray(rawMedia)) return [];
+
+    return rawMedia.map(m => {
+      if (!m) return null;
+      let imgUrl = null;
+      
+      if (typeof m === 'string') {
+        imgUrl = m;
+      } else if (typeof m === 'object') {
+        imgUrl = m.url || m.path || m.file_url || m.secure_url || m.preview || m.uri || null;
+      }
+
+      if (!imgUrl) return null;
+
+      // إذا كان الرابط على السيرفر يبدأ بمسار نسبي، نجعله يتوافق مع الدومين الرسمي تلقائياً
+      if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:')) {
+        return imgUrl;
+      }
+
+      const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`;
+      return `${window.location.origin}${cleanPath}`;
+    }).filter(Boolean);
+  };
+
+  const intakeMediaList = getIntakeMediaList();
+
   const handlePrint = () => {
     const printWindow = window.open("", "_blank", "width=800,height=900");
     if (!printWindow) {
@@ -34,15 +68,17 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
         <head>
           <title>Reparaturvertrag - ${order?.auftragsnummer || order?.orderNumber || ""}</title>
           <style>
-            @page { size: A4; margin: 10mm; }
-            body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #111; font-size: 10.5px; line-height: 1.4; background: #fff; }
+            @page { size: A4; margin: 4mm; }
+            body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #111; font-size: 8px; line-height: 1.15; background: #fff; }
             .document-container { width: 100%; box-sizing: border-box; }
-            .shop-logo { max-height: 35px !important; max-width: 120px !important; object-fit: contain; display: block; }
-            .check-table { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 10px; }
-            .check-table th, .check-table td { border: 1px solid #ddd; padding: 5px 8px; font-size: 9.5px; }
-            .check-table th { background: #f8f9fa; }
-            .section-block { margin-bottom: 12px; }
-            .legal-box { font-size: 9px; line-height: 1.35; text-align: justify; }
+            .shop-logo { max-height: 25px !important; max-width: 80px !important; object-fit: contain; display: block; }
+            .check-grid { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; margin-bottom: 4px; }
+            .check-item { width: 32%; border: 1px solid #ddd; padding: 2px 4px; border-radius: 2px; background: #fafafa; font-size: 7.5px; display: flex; justify-content: space-between; align-items: center; }
+            .section-block { margin-bottom: 3px; page-break-inside: avoid; }
+            .legal-box { font-size: 6.5px; line-height: 1.08; text-align: justify; color: #333; }
+            .top-info-box { border: 1px solid #bbb; padding: 3px 5px; border-radius: 3px; background: #fbfbfb; }
+            .media-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+            .media-thumb { width: 45px; height: 45px; object-fit: cover; border: 1px solid #ccc; border-radius: 2px; display: block; }
           </style>
         </head>
         <body>
@@ -54,7 +90,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               window.focus();
               window.print();
               window.close();
-            }, 300);
+            }, 400);
           </script>
         </body>
       </html>
@@ -63,7 +99,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
   };
 
   const getFlattenedChecklist = () => {
-    const data = order?.inspection || order?.checklist || order?.checkpoints || order?.test_results || order?.testResults || order?.checks || {};
+    const data = order?.intake_inspection?.checklist || order?.intake_inspection || order?.inspection || order?.checklist || {};
     
     if (Array.isArray(data)) return data;
     
@@ -107,31 +143,31 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
   const hasChecklist = checkListItems.length > 0 || Boolean(order?.repair_notes);
 
   const renderHeader = () => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #111", paddingBottom: "8px", marginBottom: "10px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #111", paddingBottom: "2px", marginBottom: "3px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
         {currentShop.logo_url && (
-          <img src={currentShop.logo_url} alt="Logo" style={{ maxHeight: "35px", maxWidth: "120px", objectFit: "contain" }} />
+          <img src={currentShop.logo_url} alt="Logo" style={{ maxHeight: "25px", maxWidth: "80px", objectFit: "contain" }} />
         )}
-        <h1 style={{ fontSize: "14px", fontWeight: "bold", margin: 0 }}>{currentShop.name}</h1>
+        <h1 style={{ fontSize: "10.5px", fontWeight: "bold", margin: 0 }}>{currentShop.name}</h1>
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: "11px", fontWeight: "bold" }}>{t("print.contractTitle")}</div>
-        <div style={{ fontSize: "9.5px" }}><strong>Nr.:</strong> {order?.auftragsnummer || order?.orderNumber || "—"} | <strong>Datum:</strong> {order?.created_at ? berlinDate(order.created_at) : berlinDate()}</div>
+        <div style={{ fontSize: "9px", fontWeight: "bold" }}>{t("print.contractTitle")}</div>
+        <div style={{ fontSize: "7.5px" }}><strong>Nr.:</strong> {order?.auftragsnummer || order?.orderNumber || "—"} | <strong>Datum:</strong> {order?.created_at ? berlinDate(order.created_at) : berlinDate()}</div>
       </div>
     </div>
   );
 
   const renderSignatureBlock = () => (
-    <div className="signature-section" style={{ borderTop: "2px solid #333", paddingTop: "10px", marginTop: "15px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", pageBreakInside: "avoid", breakInside: "avoid" }}>
+    <div className="signature-section" style={{ borderTop: "1.5px solid #222", paddingTop: "3px", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", pageBreakInside: "avoid" }}>
       <div>
-        <div style={{ fontSize: "10px", marginBottom: "12px", fontWeight: "bold" }}>Berlin, {berlinDate()}</div>
-        <div style={{ borderTop: "1px solid #000", width: "140px", paddingTop: "3px", fontSize: "9.5px", textAlign: "center" }}>{t("print.signatureShop")}</div>
+        <div style={{ fontSize: "7.5px", marginBottom: "4px", fontWeight: "bold" }}>Berlin, {berlinDate()}</div>
+        <div style={{ borderTop: "1px solid #000", width: "90px", paddingTop: "2px", fontSize: "7px", textAlign: "center" }}>{t("print.signatureShop")}</div>
       </div>
       <div style={{ textAlign: "center" }}>
         {order?.intake_signature || order?.signature ? (
-          <img src={order.intake_signature || order.signature} alt="Unterschrift" style={{ maxHeight: "30px", margin: "0 auto 3px", display: "block" }} />
-        ) : <div style={{ height: "30px" }} />}
-        <div style={{ borderTop: "1px solid #000", width: "150px", paddingTop: "3px", fontSize: "9.5px" }}>{t("print.signatureCustomer")}</div>
+          <img src={order.intake_signature || order.signature} alt="Unterschrift" style={{ maxHeight: "18px", margin: "0 auto 2px", display: "block" }} />
+        ) : <div style={{ height: "18px" }} />}
+        <div style={{ borderTop: "1px solid #000", width: "100px", paddingTop: "2px", fontSize: "7px" }}>{t("print.signatureCustomer")}</div>
       </div>
     </div>
   );
@@ -140,7 +176,6 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-background border border-border max-w-4xl w-full max-h-[92vh] flex flex-col rounded-xl shadow-2xl">
         
-        {/* شريط التحكم العلوي */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card">
           <h3 className="font-head font-semibold text-base">{t("print.contractTitle")} · {order?.auftragsnummer || order?.orderNumber}</h3>
           <div className="flex items-center gap-3">
@@ -153,19 +188,18 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
           </div>
         </div>
 
-        {/* نافذة المعاينة الداخلية */}
         <div className="p-8 bg-muted/40 overflow-y-auto flex-1 flex flex-col items-center gap-6">
-          <div id="vertrag" style={{ width: "190mm", background: "#ffffff", color: "#111111", padding: "12mm", boxSizing: "border-box", boxShadow: "0 0 10px rgba(0,0,0,0.1)", borderRadius: "4px" }}>
+          <div id="vertrag" style={{ width: "190mm", background: "#ffffff", color: "#111111", padding: "4mm", boxSizing: "border-box", boxShadow: "0 0 10px rgba(0,0,0,0.1)", borderRadius: "4px" }}>
             
             {order.status === "STORNIERT" && (
               <div data-testid="print-canceled-banner" style={{
-                textAlign: "center", border: "3px solid #c00", color: "#c00",
-                fontWeight: 700, fontSize: "20px", letterSpacing: "4px",
-                padding: "4px", margin: "8px 0", transform: "rotate(-1.5deg)",
+                textAlign: "center", border: "2px solid #c00", color: "#c00",
+                fontWeight: 700, fontSize: "14px", letterSpacing: "2px",
+                padding: "2px", margin: "2px 0", transform: "rotate(-1.5deg)",
               }}>
                 STORNIERT
                 {order.cancel_reason && (
-                  <div style={{ fontWeight: 400, fontSize: "10.5px", letterSpacing: "normal", marginTop: "2px" }}>
+                  <div style={{ fontWeight: 400, fontSize: "8px", letterSpacing: "normal", marginTop: "1px" }}>
                     Grund: {order.cancel_reason}
                   </div>
                 )}
@@ -174,24 +208,23 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
             
             {renderHeader()}
             
-            <div style={{ fontSize: "9.5px", color: "#555", marginBottom: "10px" }}>
+            <div style={{ fontSize: "7px", color: "#444", marginBottom: "3px" }}>
               {currentShop.address} | WhatsApp: {currentShop.whatsapp} | E-Mail: {currentShop.email}
             </div>
 
-            {/* بيانات الزبون والجهاز بجانب بعضهما */}
-            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-              <div style={{ flex: 1, border: "1px solid #ddd", padding: "6px 8px", borderRadius: "4px", background: "#fcfcfc" }}>
-                <div style={{ fontWeight: "bold", fontSize: "10px", borderBottom: "1px solid #eee", paddingBottom: "3px", marginBottom: "5px" }}>{t("print.customerData")}</div>
-                <div style={{ fontSize: "9.5px", lineHeight: "1.4" }}>
+            <div style={{ display: "flex", gap: "4px", marginBottom: "3px" }}>
+              <div className="top-info-box" style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: "8.5px", borderBottom: "1px solid #ddd", paddingBottom: "1px", marginBottom: "2px" }}>{t("print.customerData")}</div>
+                <div style={{ fontSize: "8px", lineHeight: "1.15" }}>
                   <div><strong>Name:</strong> {order?.customer_name || order?.customerName || "—"}</div>
                   <div><strong>Telefon:</strong> {order?.customer_phone || order?.customerPhone || "—"}</div>
                   <div><strong>E-Mail:</strong> {order?.customer_email || order?.customerEmail || "—"}</div>
                   <div><strong>Adresse:</strong> {order?.customer_address || order?.customerAddress || "—"}</div>
                 </div>
               </div>
-              <div style={{ flex: 1, border: "1px solid #ddd", padding: "6px 8px", borderRadius: "4px", background: "#fcfcfc" }}>
-                <div style={{ fontWeight: "bold", fontSize: "10px", borderBottom: "1px solid #eee", paddingBottom: "3px", marginBottom: "5px" }}>{t("print.deviceData")}</div>
-                <div style={{ fontSize: "9.5px", lineHeight: "1.4" }}>
+              <div className="top-info-box" style={{ flex: 1 }}>
+                <div style={{ fontWeight: "bold", fontSize: "8.5px", borderBottom: "1px solid #ddd", paddingBottom: "1px", marginBottom: "2px" }}>{t("print.deviceData")}</div>
+                <div style={{ fontSize: "8px", lineHeight: "1.15" }}>
                   <div><strong>Gerät:</strong> {order?.device_brand || order?.brand || ""} {order?.device_model || order?.model || "—"}</div>
                   <div><strong>IMEI/SN:</strong> {order?.imei || order?.serialNumber || "—"}</div>
                   <div><strong>Sperre:</strong> {order?.device_lock_type && order?.device_lock_type !== "none" ? order.device_lock_type : "—"}</div>
@@ -201,67 +234,63 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               </div>
             </div>
 
-            {/* شروط المسؤولية */}
-            <div className="section-block" style={{ border: "1px solid #ccc", padding: "6px 8px", borderRadius: "4px", background: "#fff" }}>
-              <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "4px" }}>{t("print.termsTitle")} (Haftungsausschluss)</div>
-              <div className="legal-box">{LIABILITY_WAIVER}</div>
-            </div>
+            {/* صور الاستلام */}
+            {intakeMediaList.length > 0 && (
+              <div className="section-block">
+                <div style={{ fontSize: "8.5px", fontWeight: "bold", marginBottom: "2px", borderBottom: "1.5px solid #111", paddingBottom: "1px" }}>Zustandsprotokoll Fotos (Eingang)</div>
+                <div className="media-grid">
+                  {intakeMediaList.map((url, idx) => (
+                    <img key={idx} src={url} alt={`Intake ${idx + 1}`} className="media-thumb" />
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* بروتوكول الفحص (يظهر فقط إذا وجد) */}
             {hasChecklist && (
               <div className="section-block">
-                <h2 style={{ fontSize: "11.5px", marginBottom: "6px", fontWeight: "bold", borderBottom: "1px solid #eee", paddingBottom: "2px" }}>Endkontrolle / Prüfprotokoll</h2>
+                <h2 style={{ fontSize: "8.5px", marginBottom: "2px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Prüfprotokoll (Mitarbeiter)</h2>
                 {checkListItems.length > 0 && (
-                  <table className="check-table">
-                    <thead>
-                      <tr>
-                        <th>Testpunkt</th>
-                        <th style={{ textAlign: "center", width: "15%" }}>Status</th>
-                        <th style={{ width: "45%" }}>Anmerkung</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {checkListItems.map((item, index) => {
-                        const statusVal = item.status || item.result || item.value || "—";
-                        const isOk = statusVal === "OK" || statusVal === "true" || statusVal === true;
-                        return (
-                          <tr key={index}>
-                            <td>
-                              {item.category && <span style={{ display: "block", fontSize: "6.5px", color: "#666", textTransform: "uppercase" }}>{item.category}</span>}
-                              <strong>{item.name || item.key || item.label || item.title || `Punkt ${index + 1}`}</strong>
-                            </td>
-                            <td style={{ textAlign: "center", fontWeight: "bold", color: isOk ? "#28a745" : "#d9534f" }}>
-                              {isOk ? "OK" : statusVal}
-                            </td>
-                            <td style={{ color: "#333" }}>{item.note || item.comment || item.remarks || "—"}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  <div className="check-grid">
+                    {checkListItems.map((item, index) => {
+                      const statusVal = item.status || item.result || item.value || "—";
+                      const isOk = statusVal === "OK" || statusVal === "true" || statusVal === true;
+                      return (
+                        <div key={index} className="check-item">
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
+                            <strong>{item.name || item.key || item.label || item.title || `Punkt ${index + 1}`}</strong>
+                          </span>
+                          <span style={{ fontWeight: "bold", color: isOk ? "#155724" : "#721c24" }}>
+                            {isOk ? "OK" : statusVal}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
                 {order?.repair_notes && (
-                  <div style={{ border: "1px solid #ddd", padding: "6px 8px", borderRadius: "4px", background: "#fafafa" }}>
-                    <div style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "3px" }}>Reparaturnotizen:</div>
-                    <div style={{ fontSize: "9px", color: "#333" }}>{order.repair_notes}</div>
+                  <div style={{ border: "1px solid #ccc", padding: "2px 4px", borderRadius: "2px", background: "#fbfbfb", marginTop: "2px" }}>
+                    <div style={{ fontSize: "7.5px", fontWeight: "bold", marginBottom: "1px" }}>Reparaturnotizen:</div>
+                    <div style={{ fontSize: "7px", color: "#333" }}>{order.repair_notes}</div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* الشروط العامة AGB */}
+            <div className="section-block" style={{ border: "1px solid #ccc", padding: "2px 4px", borderRadius: "2px", background: "#fff" }}>
+              <div style={{ fontWeight: "bold", fontSize: "8px", marginBottom: "1px" }}>{t("print.termsTitle")} (Haftungsausschluss)</div>
+              <div className="legal-box">{LIABILITY_WAIVER}</div>
+            </div>
+
             <div className="section-block">
-              <h2 style={{ fontSize: "11.5px", marginBottom: "6px", fontWeight: "bold", borderBottom: "1px solid #eee", paddingBottom: "2px" }}>Allgemeine Geschäftsbedingungen (AGB)</h2>
+              <h2 style={{ fontSize: "8.5px", marginBottom: "1px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Allgemeine Geschäftsbedingungen (AGB)</h2>
               <div className="legal-box">{AGB_FULL}</div>
             </div>
 
-            {/* سياسة الخصوصية DSGVO */}
             <div className="section-block">
-              <h2 style={{ fontSize: "11.5px", marginBottom: "6px", fontWeight: "bold", borderBottom: "1px solid #eee", paddingBottom: "2px" }}>Datenschutzerklärung (DSGVO)</h2>
+              <h2 style={{ fontSize: "8.5px", marginBottom: "1px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Datenschutzerklärung (DSGVO)</h2>
               <div className="legal-box">{DSGVO_FULL}</div>
             </div>
 
-            {/* التوقيع يظهر حصرياً في النهاية */}
             {renderSignatureBlock()}
 
           </div>

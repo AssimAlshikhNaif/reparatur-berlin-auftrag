@@ -703,11 +703,13 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
 {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
 <div className="space-y-6">
   
-  {/* 1. فحص الاستلام (Eingangsprüfung) */}
+  {/* 1. فحص الاستلام (Eingangsprüfung - يجريه الموظف ويراه التقني والآدمن) */}
   <Section title="Eingangsprüfung (Mitarbeiter)" icon={ClipboardText}>
     {(() => {
       const hasIntake = Boolean(order.intake_inspection?.checklist && Object.keys(order.intake_inspection.checklist).length > 0);
-      const isReadOnly = hasIntake && !canManage && !isMitarbeiter;
+      
+      // الصلاحية: الموظف أو الآدمن يستطيعان التعديل، بينما التقني يراه (قراءة فقط)
+      const isReadOnly = !canManage && !isMitarbeiter; 
       
       return (
         <div className="space-y-3">
@@ -728,11 +730,13 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
     })()}
   </Section>
 
-  {/* 2. فحص النهاية (Endkontrolle) */}
+  {/* 2. فحص النهاية (Endkontrolle - يجريه التقني ويراه الموظف والآدمن) */}
   {(isTech || canManage || isMitarbeiter) && (
     <Section title={t("inspection.title")} icon={ClipboardText}>
       {(() => {
         const hasEnd = Boolean(order.inspection?.checklist && Object.keys(order.inspection.checklist).length > 0);
+        
+        // الصلاحية: التقني أو الآدمن يستطيعان التعديل. الموظف يراه (قراءة فقط) ولا يمكنه تعديله.
         const isReadOnly = (hasEnd && order.status === "ABGEHOLT") || (!isTech && !canManage);
 
         return (
@@ -755,11 +759,9 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
       })()}
     </Section>
   )}
-
 </div>
-
             {/* Digitale Unterschriften */}
-            {canManage && (
+            {canManage && ( 
               <Section title={t("detail.signatures")} icon={Signature}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Intake / Abholschein */}
