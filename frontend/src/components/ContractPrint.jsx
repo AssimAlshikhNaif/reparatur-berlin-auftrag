@@ -22,11 +22,11 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
   };
 
   const getIntakeMediaList = () => {
-    const rawMedia = order?.intake_media ||
-                     order?.intakeMedia ||
-                     order?.intake_inspection?.media ||
-                     order?.intake_inspection?.photos ||
-                     order?.photos ||
+    const rawMedia = order?.intake_media || 
+                     order?.intakeMedia || 
+                     order?.intake_inspection?.media || 
+                     order?.intake_inspection?.photos || 
+                     order?.photos || 
                      order?.media || [];
 
     if (!Array.isArray(rawMedia)) return [];
@@ -37,10 +37,6 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
         if (!m) return null;
         if (typeof m === "string") return m.startsWith("http") || m.startsWith("blob:") ? m : fileUrl(m);
         if (typeof m === "object") {
-          // Die Medien-Objekte speichern nur den relativen Speicherpfad
-          // (storage_path); die eigentliche, authentifizierte Bild-URL wird
-          // über fileUrl() zusammengebaut (mit Zugriffstoken als Query-Param,
-          // damit das Bild auch im separaten Druckfenster lädt).
           if (m.storage_path) return fileUrl(m.storage_path);
           return m.url || m.file_url || m.secure_url || null;
         }
@@ -73,9 +69,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
             .check-item { width: 32% !important; border: 1px solid #ddd !important; padding: 2px 4px !important; border-radius: 2px !important; background: #fafafa !important; font-size: 7.5px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; box-sizing: border-box !important; }
             .section-block { margin-bottom: 3px !important; page-break-inside: avoid !important; }
             .legal-box { font-size: 6.5px !important; line-height: 1.08 !important; text-align: justify !important; color: #333 !important; }
-            .top-info-box { border: 1.5px solid #888 !important; padding: 4px 6px !important; border-radius: 3px !important; background: #fafafa !important; }
-            .media-grid { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; margin-top: 3px !important; }
-            .media-thumb { width: 42px !important; height: 42px !important; object-fit: cover !important; border: 1px solid #777 !important; border-radius: 2px !important; display: inline-block !important; }
+            .top-info-box { border: 1.5px solid #888 !important; padding: 5px 8px !important; border-radius: 3px !important; background: #fafafa !important; }
           </style>
         </head>
         <body>
@@ -209,36 +203,48 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               {currentShop.address} | WhatsApp: {currentShop.whatsapp} | E-Mail: {currentShop.email}
             </div>
 
-            {/* بيانات العميل والجهاز بشكل بارز واحترافي */}
-            <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
+            {/* بيانات العميل والجهاز بخط كبير وبارز جداً */}
+            <div style={{ display: "flex", gap: "6px", marginBottom: "5px" }}>
               <div className="top-info-box" style={{ flex: 1 }}>
-                <div style={{ fontWeight: "800", fontSize: "9px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "3px", color: "#000" }}>{t("print.customerData")}</div>
-                <div style={{ fontSize: "8.5px", lineHeight: "1.25" }}>
-                  <div><strong>Name:</strong> <span style={{ fontSize: "9.5px", fontWeight: "800" }}>{order?.customer_name || order?.customerName || "—"}</span></div>
-                  <div><strong>Telefon:</strong> <span style={{ fontWeight: "700" }}>{order?.customer_phone || order?.customerPhone || "—"}</span></div>
+                <div style={{ fontWeight: "800", fontSize: "10px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "4px", color: "#000" }}>{t("print.customerData")}</div>
+                <div style={{ fontSize: "9.5px", lineHeight: "1.35" }}>
+                  <div><strong>Name:</strong> <span style={{ fontSize: "11px", fontWeight: "800" }}>{order?.customer_name || order?.customerName || "—"}</span></div>
+                  <div><strong>Telefon:</strong> <span style={{ fontSize: "10px", fontWeight: "700" }}>{order?.customer_phone || order?.customerPhone || "—"}</span></div>
                   <div><strong>E-Mail:</strong> {order?.customer_email || order?.customerEmail || "—"}</div>
                   <div><strong>Adresse:</strong> {order?.customer_address || order?.customerAddress || "—"}</div>
                 </div>
               </div>
               <div className="top-info-box" style={{ flex: 1 }}>
-                <div style={{ fontWeight: "800", fontSize: "9px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "3px", color: "#000" }}>{t("print.deviceData")}</div>
-                <div style={{ fontSize: "8.5px", lineHeight: "1.25" }}>
-                  <div><strong>Gerät:</strong> <span style={{ fontSize: "9.5px", fontWeight: "800" }}>{order?.device_brand || order?.brand || ""} {order?.device_model || order?.model || "—"}</span></div>
-                  <div><strong>IMEI/SN:</strong> <span style={{ fontWeight: "700" }}>{order?.imei || order?.serialNumber || "—"}</span></div>
+                <div style={{ fontWeight: "800", fontSize: "10px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "4px", color: "#000" }}>{t("print.deviceData")}</div>
+                <div style={{ fontSize: "9.5px", lineHeight: "1.35" }}>
+                  <div><strong>Gerät:</strong> <span style={{ fontSize: "11px", fontWeight: "800" }}>{order?.device_brand || order?.brand || ""} {order?.device_model || order?.model || "—"}</span></div>
+                  <div><strong>IMEI/SN:</strong> <span style={{ fontSize: "10px", fontWeight: "700" }}>{order?.imei || order?.serialNumber || "—"}</span></div>
                   <div><strong>Sperre:</strong> {order?.device_lock_type && order?.device_lock_type !== "none" ? order.device_lock_type : "—"}</div>
-                  <div><strong>Fehler:</strong> <span style={{ fontWeight: "700" }}>{order?.issue_description || order?.issue || "—"}</span></div>
+                  <div><strong>Fehler:</strong> <span style={{ fontSize: "10px", fontWeight: "700" }}>{order?.issue_description || order?.issue || "—"}</span></div>
                   {order?.battery_health && <div><strong>Akku-Gesundheit:</strong> {order.battery_health}%</div>}
                 </div>
               </div>
             </div>
 
-            {/* صور الاستلام */}
+            {/* صور الاستلام بشكل مصغر ومترتب أفقياً */}
             {intakeMediaList.length > 0 && (
               <div className="section-block">
                 <div style={{ fontSize: "9px", fontWeight: "800", marginBottom: "2px", borderBottom: "1.5px solid #111", paddingBottom: "1px" }}>Zustandsprotokoll Fotos (Eingang)</div>
-                <div className="media-grid">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "3px" }}>
                   {intakeMediaList.map((url, idx) => (
-                    <img key={idx} src={url} alt={`Intake ${idx + 1}`} className="media-thumb" />
+                    <img 
+                      key={idx} 
+                      src={url} 
+                      alt={`Intake ${idx + 1}`} 
+                      style={{ 
+                        width: "38px", 
+                        height: "38px", 
+                        objectFit: "cover", 
+                        border: "1px solid #777", 
+                        borderRadius: "2px", 
+                        display: "inline-block" 
+                      }} 
+                    />
                   ))}
                 </div>
               </div>
