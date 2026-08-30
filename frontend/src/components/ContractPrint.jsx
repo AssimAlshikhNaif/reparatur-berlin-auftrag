@@ -20,7 +20,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     logo_url: branchInfo?.logo_url || branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
   };
 
-  const getIntakeMediaList = () => {
+const getIntakeMediaList = () => {
     const rawMedia = order?.intake_media || 
                      order?.intakeMedia || 
                      order?.intake_inspection?.media || 
@@ -42,11 +42,12 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
 
       if (!imgUrl) return null;
 
-      // إذا كان الرابط على السيرفر يبدأ بمسار نسبي، نجعله يتوافق مع الدومين الرسمي تلقائياً
+      // إذا كان الرابط يبدأ بـ http أو https أو يحتوي على بيانات سحابية
       if (imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:')) {
         return imgUrl;
       }
 
+      // إذا كان مساراً يبدأ بـ api أو uploads، ندمجه مع دومين السيرفر الحالي
       const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`;
       return `${window.location.origin}${cleanPath}`;
     }).filter(Boolean);
@@ -77,8 +78,23 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
             .section-block { margin-bottom: 3px; page-break-inside: avoid; }
             .legal-box { font-size: 6.5px; line-height: 1.08; text-align: justify; color: #333; }
             .top-info-box { border: 1px solid #bbb; padding: 3px 5px; border-radius: 3px; background: #fbfbfb; }
-            .media-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-            .media-thumb { width: 45px; height: 45px; object-fit: cover; border: 1px solid #ccc; border-radius: 2px; display: block; }
+            .media-grid { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 5px; 
+  margin-top: 4px; 
+  margin-bottom: 6px; 
+  page-break-inside: avoid; 
+}
+.media-thumb { 
+  width: 48px !important; 
+  height: 48px !important; 
+  object-fit: cover !important; 
+  border: 1px solid #999 !important; 
+  border-radius: 3px !important; 
+  display: block !important; 
+  background-color: #f0f0f0; 
+}
           </style>
         </head>
         <body>
