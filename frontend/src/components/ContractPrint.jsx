@@ -33,24 +33,32 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
 
     return rawMedia
       .filter((m) => {
-        if (!m || m.is_video) return false;
-        // إذا كان عنصراً نصياً، نتأكد أنه رابط حقيقي وليس مجرد نص أو أيقونة وهمية
+        if (!m) return false;
+        if (typeof m === "object" && m.is_video) return false;
+        
+        // التحقق من أن النصوص ليست كلمات عشوائية أو "Intake"
         if (typeof m === "string") {
-          return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("/storage") || m.startsWith("data:image");
+          const lower = m.toLowerCase();
+          if (lower.includes("intake") || lower.length < 5) return false;
+          return lower.startsWith("http") || lower.startsWith("blob:") || lower.startsWith("/storage") || lower.startsWith("data:image");
         }
         return true;
       })
       .map((m) => {
-        if (typeof m === "string") return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("data:image") ? m : fileUrl(m);
+        if (typeof m === "string") {
+          return m.startsWith("http") || m.startsWith("blob:") || m.startsWith("data:image") ? m : fileUrl(m);
+        }
         if (typeof m === "object" && m !== null) {
           const path = m.storage_path || m.url || m.file_url || m.secure_url || m.path || m.preview;
-          if (path) {
-            return typeof path === "string" && (path.startsWith("http") || path.startsWith("blob:")) ? path : fileUrl(path);
+          if (path && typeof path === "string") {
+            const lowerPath = path.toLowerCase();
+            if (lowerPath.includes("intake")) return null;
+            return lowerPath.startsWith("http") || lowerPath.startsWith("blob:") ? path : fileUrl(path);
           }
         }
         return null;
       })
-      .filter(Boolean);
+      .filter((url) => url && typeof url === "string" && url.length > 5 && !url.toLowerCase().includes("intake"));
   };
 
   const intakeMediaList = getIntakeMediaList();
@@ -73,8 +81,6 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
             body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #111; font-size: 8px; line-height: 1.15; background: #fff; }
             .document-container { width: 100%; box-sizing: border-box; }
             .shop-logo { max-height: 25px !important; max-width: 80px !important; object-fit: contain; display: block; }
-            .check-grid { display: flex !important; flex-wrap: wrap !important; gap: 3px !important; margin-top: 2px !important; margin-bottom: 4px !important; }
-            .check-item { width: 32% !important; border: 1px solid #ddd !important; padding: 2px 4px !important; border-radius: 2px !important; background: #fafafa !important; font-size: 7.5px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; box-sizing: border-box !important; }
             .section-block { margin-bottom: 3px !important; page-break-inside: avoid !important; }
             .legal-box { font-size: 6.5px !important; line-height: 1.08 !important; text-align: justify !important; color: #333 !important; }
             .top-info-box { border: 1.5px solid #888 !important; padding: 5px 8px !important; border-radius: 3px !important; background: #fafafa !important; }
@@ -105,6 +111,9 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     if (typeof data === 'object' && data !== null) {
       let items = [];
       Object.keys(data).forEach(categoryKey => {
+        // تجاهل مفاتيح الوسائط أو الملاحظات غير المرتبطة بالفحص المباشر
+        if (['media', 'photos', 'notes', 'signature'].includes(categoryKey)) return;
+        
         const categoryValue = data[categoryKey];
         if (Array.isArray(categoryValue)) {
           categoryValue.forEach(item => {
@@ -124,10 +133,12 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
           });
         } else if (typeof categoryValue === 'object') {
           Object.keys(categoryValue).forEach(subKey => {
+            const subVal = categoryValue[subKey];
+            const actualStatus = typeof subVal === 'object' && subVal !== null ? (subVal.status || subVal.result || subVal.value || "OK") : subVal;
             items.push({
               name: subKey,
-              status: categoryValue[subKey]?.status || categoryValue[subKey] || "OK",
-              note: categoryValue[subKey]?.note || "",
+              status: actualStatus,
+              note: typeof subVal === 'object' && subVal !== null ? (subVal.note || "") : "",
               category: categoryKey
             });
           });
@@ -234,7 +245,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               </div>
             </div>
 
-            {/* صور الاستلام بشكل مصغر ومترتب أفقياً */}
+            {/* صور الاستلام بصيغة أفقية ومصغرة جداً بدون أي شوائب */}
             {intakeMediaList.length > 0 && (
               <div className="section-block">
                 <div style={{ fontSize: "9px", fontWeight: "800", marginBottom: "2px", borderBottom: "1.5px solid #111", paddingBottom: "1px" }}>Zustandsprotokoll Fotos (Eingang)</div>
@@ -245,8 +256,8 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
                       src={url} 
                       alt={`Intake ${idx + 1}`} 
                       style={{ 
-                        width: "38px", 
-                        height: "38px", 
+                        width: "36px", 
+                        height: "36px", 
                         objectFit: "cover", 
                         border: "1px solid #777", 
                         borderRadius: "2px", 
@@ -258,16 +269,17 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
               </div>
             )}
 
+            {/* جدول الفحص بخواص Inline مباشرة ليظهر مرتباً ومنظماً أفقياً */}
             {hasChecklist && (
               <div className="section-block">
                 <h2 style={{ fontSize: "9px", marginBottom: "2px", fontWeight: "800", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Prüfprotokoll (Mitarbeiter)</h2>
                 {checkListItems.length > 0 && (
-                  <div className="check-grid">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "3px", marginTop: "2px", marginBottom: "4px" }}>
                     {checkListItems.map((item, index) => {
                       const statusVal = item.status || item.result || item.value || "—";
                       const isOk = statusVal === "OK" || statusVal === "true" || statusVal === true;
                       return (
-                        <div key={index} className="check-item">
+                        <div key={index} style={{ width: "32%", border: "1px solid #ddd", padding: "2px 4px", borderRadius: "2px", background: "#fafafa", fontSize: "7.5px", display: "flex", justifyContent: "space-between", alignItems: "center", boxSizing: "border-box" }}>
                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>
                             <strong>{item.name || item.key || item.label || item.title || `Punkt ${index + 1}`}</strong>
                           </span>
