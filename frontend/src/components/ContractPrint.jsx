@@ -20,7 +20,7 @@ export default function ContractPrint({ order, branchName, branchInfo, onClose }
     logo_url: branchInfo?.logo_url || branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
   };
 
-const getIntakeMediaList = () => {
+  const getIntakeMediaList = () => {
     const rawMedia = order?.intake_media || 
                      order?.intakeMedia || 
                      order?.intake_inspection?.media || 
@@ -32,24 +32,11 @@ const getIntakeMediaList = () => {
 
     return rawMedia.map(m => {
       if (!m) return null;
-      let imgUrl = null;
-      
-      if (typeof m === 'string') {
-        imgUrl = m;
-      } else if (typeof m === 'object') {
-        imgUrl = m.url || m.path || m.file_url || m.secure_url || m.preview || m.uri || null;
+      if (typeof m === 'string') return m;
+      if (typeof m === 'object') {
+        return m.url || m.path || m.file_url || m.secure_url || m.preview || m.uri || null;
       }
-
-      if (!imgUrl) return null;
-
-      // إذا كان الرابط يبدأ بـ blob: أو http أو https أو data: نتركه كما هو تماماً دون دمج دومين
-      if (imgUrl.startsWith('blob:') || imgUrl.startsWith('http://') || imgUrl.startsWith('https://') || imgUrl.startsWith('data:')) {
-        return imgUrl;
-      }
-
-      // إذا كان مساراً نسبياً بحتاً
-      const cleanPath = imgUrl.startsWith('/') ? imgUrl : `/${imgUrl}`;
-      return `${window.location.origin}${cleanPath}`;
+      return null;
     }).filter(Boolean);
   };
 
@@ -77,21 +64,21 @@ const getIntakeMediaList = () => {
             .check-item { width: 32%; border: 1px solid #ddd; padding: 2px 4px; border-radius: 2px; background: #fafafa; font-size: 7.5px; display: flex; justify-content: space-between; align-items: center; }
             .section-block { margin-bottom: 3px; page-break-inside: avoid; }
             .legal-box { font-size: 6.5px; line-height: 1.08; text-align: justify; color: #333; }
-            .top-info-box { border: 1px solid #bbb; padding: 3px 5px; border-radius: 3px; background: #fbfbfb; }
+            .top-info-box { border: 1.5px solid #888; padding: 4px 6px; border-radius: 3px; background: #fafafa; }
             .media-grid { 
-  display: flex !important; 
-  flex-wrap: wrap !important; 
-  gap: 4px !important; 
-  margin-top: 3px !important; 
-}
-.media-thumb { 
-  width: 40px !important; 
-  height: 40px !important; 
-  object-fit: cover !important; 
-  border: 1px solid #999 !important; 
-  border-radius: 2px !important; 
-  display: inline-block !important; 
-}
+              display: flex !important; 
+              flex-wrap: wrap !important; 
+              gap: 4px !important; 
+              margin-top: 3px !important; 
+            }
+            .media-thumb { 
+              width: 42px !important; 
+              height: 42px !important; 
+              object-fit: cover !important; 
+              border: 1px solid #777 !important; 
+              border-radius: 2px !important; 
+              display: inline-block !important; 
+            }
           </style>
         </head>
         <body>
@@ -156,31 +143,31 @@ const getIntakeMediaList = () => {
   const hasChecklist = checkListItems.length > 0 || Boolean(order?.repair_notes);
 
   const renderHeader = () => (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1.5px solid #111", paddingBottom: "2px", marginBottom: "3px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #111", paddingBottom: "3px", marginBottom: "3px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
         {currentShop.logo_url && (
-          <img src={currentShop.logo_url} alt="Logo" style={{ maxHeight: "25px", maxWidth: "80px", objectFit: "contain" }} />
+          <img src={currentShop.logo_url} alt="Logo" style={{ maxHeight: "28px", maxWidth: "90px", objectFit: "contain" }} />
         )}
-        <h1 style={{ fontSize: "10.5px", fontWeight: "bold", margin: 0 }}>{currentShop.name}</h1>
+        <h1 style={{ fontSize: "12px", fontWeight: "800", margin: 0, letterSpacing: "-0.2px" }}>{currentShop.name}</h1>
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontSize: "9px", fontWeight: "bold" }}>{t("print.contractTitle")}</div>
-        <div style={{ fontSize: "7.5px" }}><strong>Nr.:</strong> {order?.auftragsnummer || order?.orderNumber || "—"} | <strong>Datum:</strong> {order?.created_at ? berlinDate(order.created_at) : berlinDate()}</div>
+        <div style={{ fontSize: "10px", fontWeight: "800" }}>{t("print.contractTitle")}</div>
+        <div style={{ fontSize: "8px" }}><strong>Nr.:</strong> {order?.auftragsnummer || order?.orderNumber || "—"} | <strong>Datum:</strong> {order?.created_at ? berlinDate(order.created_at) : berlinDate()}</div>
       </div>
     </div>
   );
 
   const renderSignatureBlock = () => (
-    <div className="signature-section" style={{ borderTop: "1.5px solid #222", paddingTop: "3px", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", pageBreakInside: "avoid" }}>
+    <div className="signature-section" style={{ borderTop: "1.5px solid #222", paddingTop: "4px", marginTop: "4px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", pageBreakInside: "avoid" }}>
       <div>
-        <div style={{ fontSize: "7.5px", marginBottom: "4px", fontWeight: "bold" }}>Berlin, {berlinDate()}</div>
-        <div style={{ borderTop: "1px solid #000", width: "90px", paddingTop: "2px", fontSize: "7px", textAlign: "center" }}>{t("print.signatureShop")}</div>
+        <div style={{ fontSize: "8px", marginBottom: "6px", fontWeight: "bold" }}>Berlin, {berlinDate()}</div>
+        <div style={{ borderTop: "1px solid #000", width: "100px", paddingTop: "2px", fontSize: "7.5px", textAlign: "center" }}>{t("print.signatureShop")}</div>
       </div>
       <div style={{ textAlign: "center" }}>
         {order?.intake_signature || order?.signature ? (
-          <img src={order.intake_signature || order.signature} alt="Unterschrift" style={{ maxHeight: "18px", margin: "0 auto 2px", display: "block" }} />
-        ) : <div style={{ height: "18px" }} />}
-        <div style={{ borderTop: "1px solid #000", width: "100px", paddingTop: "2px", fontSize: "7px" }}>{t("print.signatureCustomer")}</div>
+          <img src={order.intake_signature || order.signature} alt="Unterschrift" style={{ maxHeight: "22px", margin: "0 auto 2px", display: "block" }} />
+        ) : <div style={{ height: "22px" }} />}
+        <div style={{ borderTop: "1px solid #000", width: "110px", paddingTop: "2px", fontSize: "7.5px" }}>{t("print.signatureCustomer")}</div>
       </div>
     </div>
   );
@@ -221,27 +208,28 @@ const getIntakeMediaList = () => {
             
             {renderHeader()}
             
-            <div style={{ fontSize: "7px", color: "#444", marginBottom: "3px" }}>
+            <div style={{ fontSize: "7.5px", color: "#444", marginBottom: "4px" }}>
               {currentShop.address} | WhatsApp: {currentShop.whatsapp} | E-Mail: {currentShop.email}
             </div>
 
-            <div style={{ display: "flex", gap: "4px", marginBottom: "3px" }}>
+            {/* بيانات العميل والجهاز بشكل بارز واحترافي */}
+            <div style={{ display: "flex", gap: "6px", marginBottom: "4px" }}>
               <div className="top-info-box" style={{ flex: 1 }}>
-                <div style={{ fontWeight: "bold", fontSize: "8.5px", borderBottom: "1px solid #ddd", paddingBottom: "1px", marginBottom: "2px" }}>{t("print.customerData")}</div>
-                <div style={{ fontSize: "8px", lineHeight: "1.15" }}>
-                  <div><strong>Name:</strong> {order?.customer_name || order?.customerName || "—"}</div>
-                  <div><strong>Telefon:</strong> {order?.customer_phone || order?.customerPhone || "—"}</div>
+                <div style={{ fontWeight: "800", fontSize: "9px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "3px", color: "#000" }}>{t("print.customerData")}</div>
+                <div style={{ fontSize: "8.5px", lineHeight: "1.25" }}>
+                  <div><strong>Name:</strong> <span style={{ fontSize: "9.5px", fontWeight: "800" }}>{order?.customer_name || order?.customerName || "—"}</span></div>
+                  <div><strong>Telefon:</strong> <span style={{ fontWeight: "700" }}>{order?.customer_phone || order?.customerPhone || "—"}</span></div>
                   <div><strong>E-Mail:</strong> {order?.customer_email || order?.customerEmail || "—"}</div>
                   <div><strong>Adresse:</strong> {order?.customer_address || order?.customerAddress || "—"}</div>
                 </div>
               </div>
               <div className="top-info-box" style={{ flex: 1 }}>
-                <div style={{ fontWeight: "bold", fontSize: "8.5px", borderBottom: "1px solid #ddd", paddingBottom: "1px", marginBottom: "2px" }}>{t("print.deviceData")}</div>
-                <div style={{ fontSize: "8px", lineHeight: "1.15" }}>
-                  <div><strong>Gerät:</strong> {order?.device_brand || order?.brand || ""} {order?.device_model || order?.model || "—"}</div>
-                  <div><strong>IMEI/SN:</strong> {order?.imei || order?.serialNumber || "—"}</div>
+                <div style={{ fontWeight: "800", fontSize: "9px", borderBottom: "1.5px solid #bbb", paddingBottom: "2px", marginBottom: "3px", color: "#000" }}>{t("print.deviceData")}</div>
+                <div style={{ fontSize: "8.5px", lineHeight: "1.25" }}>
+                  <div><strong>Gerät:</strong> <span style={{ fontSize: "9.5px", fontWeight: "800" }}>{order?.device_brand || order?.brand || ""} {order?.device_model || order?.model || "—"}</span></div>
+                  <div><strong>IMEI/SN:</strong> <span style={{ fontWeight: "700" }}>{order?.imei || order?.serialNumber || "—"}</span></div>
                   <div><strong>Sperre:</strong> {order?.device_lock_type && order?.device_lock_type !== "none" ? order.device_lock_type : "—"}</div>
-                  <div><strong>Fehler:</strong> {order?.issue_description || order?.issue || "—"}</div>
+                  <div><strong>Fehler:</strong> <span style={{ fontWeight: "700" }}>{order?.issue_description || order?.issue || "—"}</span></div>
                   {order?.battery_health && <div><strong>Akku-Gesundheit:</strong> {order.battery_health}%</div>}
                 </div>
               </div>
@@ -250,7 +238,7 @@ const getIntakeMediaList = () => {
             {/* صور الاستلام */}
             {intakeMediaList.length > 0 && (
               <div className="section-block">
-                <div style={{ fontSize: "8.5px", fontWeight: "bold", marginBottom: "2px", borderBottom: "1.5px solid #111", paddingBottom: "1px" }}>Zustandsprotokoll Fotos (Eingang)</div>
+                <div style={{ fontSize: "9px", fontWeight: "800", marginBottom: "2px", borderBottom: "1.5px solid #111", paddingBottom: "1px" }}>Zustandsprotokoll Fotos (Eingang)</div>
                 <div className="media-grid">
                   {intakeMediaList.map((url, idx) => (
                     <img key={idx} src={url} alt={`Intake ${idx + 1}`} className="media-thumb" />
@@ -261,7 +249,7 @@ const getIntakeMediaList = () => {
 
             {hasChecklist && (
               <div className="section-block">
-                <h2 style={{ fontSize: "8.5px", marginBottom: "2px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Prüfprotokoll (Mitarbeiter)</h2>
+                <h2 style={{ fontSize: "9px", marginBottom: "2px", fontWeight: "800", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Prüfprotokoll (Mitarbeiter)</h2>
                 {checkListItems.length > 0 && (
                   <div className="check-grid">
                     {checkListItems.map((item, index) => {
@@ -282,25 +270,25 @@ const getIntakeMediaList = () => {
                 )}
                 {order?.repair_notes && (
                   <div style={{ border: "1px solid #ccc", padding: "2px 4px", borderRadius: "2px", background: "#fbfbfb", marginTop: "2px" }}>
-                    <div style={{ fontSize: "7.5px", fontWeight: "bold", marginBottom: "1px" }}>Reparaturnotizen:</div>
-                    <div style={{ fontSize: "7px", color: "#333" }}>{order.repair_notes}</div>
+                    <div style={{ fontSize: "8px", fontWeight: "bold", marginBottom: "1px" }}>Reparaturnotizen:</div>
+                    <div style={{ fontSize: "7.5px", color: "#333" }}>{order.repair_notes}</div>
                   </div>
                 )}
               </div>
             )}
 
             <div className="section-block" style={{ border: "1px solid #ccc", padding: "2px 4px", borderRadius: "2px", background: "#fff" }}>
-              <div style={{ fontWeight: "bold", fontSize: "8px", marginBottom: "1px" }}>{t("print.termsTitle")} (Haftungsausschluss)</div>
+              <div style={{ fontWeight: "bold", fontSize: "8.5px", marginBottom: "1px" }}>{t("print.termsTitle")} (Haftungsausschluss)</div>
               <div className="legal-box">{LIABILITY_WAIVER}</div>
             </div>
 
             <div className="section-block">
-              <h2 style={{ fontSize: "8.5px", marginBottom: "1px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Allgemeine Geschäftsbedingungen (AGB)</h2>
+              <h2 style={{ fontSize: "9px", marginBottom: "1px", fontWeight: "800", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Allgemeine Geschäftsbedingungen (AGB)</h2>
               <div className="legal-box">{AGB_FULL}</div>
             </div>
 
             <div className="section-block">
-              <h2 style={{ fontSize: "8.5px", marginBottom: "1px", fontWeight: "bold", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Datenschutzerklärung (DSGVO)</h2>
+              <h2 style={{ fontSize: "9px", marginBottom: "1px", fontWeight: "800", borderBottom: "1.5px solid #ccc", paddingBottom: "1px" }}>Datenschutzerklärung (DSGVO)</h2>
               <div className="legal-box">{DSGVO_FULL}</div>
             </div>
 
