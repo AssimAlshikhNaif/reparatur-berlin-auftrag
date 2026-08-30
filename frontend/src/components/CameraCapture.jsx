@@ -18,7 +18,7 @@ export default function CameraCapture({ onCapture, onClose }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
-        audio: mode === "video",
+        audio: true, // تفعيل الصوت دائماً منذ البداية لضمان عمل الميكروفون مع الفيديو بدون تأخير
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
