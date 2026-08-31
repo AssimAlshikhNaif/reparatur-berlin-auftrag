@@ -2,35 +2,36 @@ import { QRCodeCanvas } from "qrcode.react";
 import { jsPDF } from "jspdf";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
+import { fileUrl } from "@/lib/api";
 import { WAIVER_BULLETS } from "@/lib/constants";
 
 export default function Abholschein({ order, branchName, branchInfo, onClose }) {
   const printTs = berlinNow();
 
-  // 1. خريطة تربط كل فرع باللوغو الخاص به
-  const branchLogos = {
-    "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+  const resolvedBranchName = branchInfo?.name || order?.branch_name || order?.branch?.name || branchName || "Reparatur Berlin";
+
+  // جلب شعار الفرع بدقة من بيانات الفرع الحقيقية أو الطلب وتجنب القيم الوهمية
+  const getBranchLogo = () => {
+    const rawLogo = branchInfo?.logo_url || branchInfo?.logo || order?.branch?.logo_url || order?.branch?.logo;
+    if (rawLogo) {
+      return rawLogo.startsWith("http") || rawLogo.startsWith("/") || rawLogo.startsWith("blob:") || rawLogo.startsWith("data:image") ? rawLogo : fileUrl(rawLogo);
+    }
+    const branchLogosMap = {
+      "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
+      "Phone Store Mobile": "/logos/phone-store-mobile.png",
+    };
+    return branchLogosMap[resolvedBranchName] || "/logos/logo-icon.png";
   };
 
-  const resolvedBranchName = branchInfo?.name || branchName || "Smartphone Apotheke";
+  const shopLogo = getBranchLogo();
 
-  // 2. بيانات المتجر الحالي
+  // بيانات المتجر الحالي مستمدة بدقة من الفرع الحقيقي المرتبط بالطلب
   const currentShop = {
     name: resolvedBranchName,
-    email: branchInfo?.email || "info@smartphone-apotheke.de",
-    whatsapp: branchInfo?.whatsapp || "+491782931142",
-    logo_url: branchLogos[resolvedBranchName] || "/logos/logo-icon.png",
+    email: branchInfo?.email || order?.branch?.email || "",
+    whatsapp: branchInfo?.whatsapp || order?.branch?.whatsapp || "",
+    logo_url: shopLogo,
   };
-
-  // تحديد رابط اللوغو تلقائياً
-  const getFullLogoUrl = (url) => {
-    if (!url) return "";
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-    return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
-  };
-
-  const shopLogo = getFullLogoUrl(currentShop.logo_url);
 
   // طباعة المعاينة عبر نافذة منبثقة
   const handlePrint = () => {
@@ -96,7 +97,6 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     const doc = new jsPDF({ unit: "mm", format: [80, 210] });
     let y = 8;
 
-    // إضافة اللوجو مع ضبط الأبعاد بذكاء لمنع المط والتكبير غير المتناسق
     if (shopLogo) {
       try {
         const img = new Image();
@@ -107,8 +107,8 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
         });
 
         if (img.width && img.height) {
-          const maxW = 35; // أقصى عرض مسموح في الـ PDF
-          const maxH = 14; // أقصى ارتفاع مسموح
+          const maxW = 35;
+          const maxH = 14;
           let imgW = maxW;
           let imgH = (img.height * maxW) / img.width;
 
@@ -117,7 +117,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
             imgW = (img.width * maxH) / img.height;
           }
 
-          const xPos = (80 - imgW) / 2; // وضع الصورة في المنتصف
+          const xPos = (80 - imgW) / 2;
           doc.addImage(shopLogo, "PNG", xPos, y, imgW, imgH);
           y += imgH + 3;
         }
