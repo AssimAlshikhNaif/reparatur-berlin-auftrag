@@ -108,8 +108,25 @@ export default function NotificationBell() {
     } catch (e) {}
   };
 
-  const openItem = (n) => {
+  // فتح وإغلاق القائمة دون التأثير على حالة القراءة تلقائياً
+  const toggleOpen = () => {
+    setOpen((o) => !o);
+  };
+
+  // تحديث حالة الإشعار المحدد فقط عند النقر عليه لفتحه
+  const openItem = async (n) => {
     setOpen(false);
+
+    if (!n.read) {
+      try {
+        const params = branchId ? { branch_id: branchId } : {};
+        // محاولة تحديث الإشعار الفردي كمقروء في الباك إند
+        await api.post(`/notifications/${n.id}/read`, null, { params });
+        setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item));
+        setUnread((prev) => Math.max(0, prev - 1));
+      } catch (e) {}
+    }
+
     if (n.order_id) navigate(`/auftrag/${n.order_id}`);
   };
 
@@ -117,7 +134,7 @@ export default function NotificationBell() {
     <div className="relative">
       <button
         data-testid="notification-bell"
-        onClick={() => { setOpen((o) => !o); if (!open && unread > 0) markAllRead(); }}
+        onClick={toggleOpen}
         className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-muted transition-colors cursor-pointer"
         title={t("notif.title")}
       >
