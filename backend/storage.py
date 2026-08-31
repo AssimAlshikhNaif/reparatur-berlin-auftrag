@@ -46,16 +46,42 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 def get_object(path: str):
     """
-    استرجاع الملف محلياً من المجلد الخارجي.
+    استرجاع الملف محلياً من المجلد الخارجي مع تصحيح المسارات المتكررة.
     """
+    if not path:
+        raise FileNotFoundError("Empty path")
+        
+    # تنظيف المسار من أي إشارات زائدة في البداية
     safe_path = path.lstrip("/\\")
+    
+    # إذا كان المسار يبدأ باسم التطبيق مكرراً أو يحتوي على المسار كاملاً بطريقة خاطئة، نقوم بمعالجته
+    # مثلاً إزالة اسم التطبيق الأول إذا كان UPLOAD_DIR يشير إليه أساساً
+    parts = Path(safe_path).parts
+    if len(parts) > 1 and parts[0] == "repair-berlin":
+        # تجنب التكرار إذا كان المسار يبدأ بـ repair-berlin/repair-berlin
+        safe_path = str(Path(*parts[1:]))
+
     file_path = os.path.join(UPLOAD_DIR, safe_path)
     
+    # محاولة ثانية إن لم يتم العثور عليه: البحث بالاسم الأخير فقط داخل مجلد orders للتاكد بنسبة 100%
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File not found: {path}")
+        # تجربة البحث المباشر في حال كان الملف مخزناً بمسار مختلف قليلاً
+        filename = os.path.basename(path)
+        # البحث في المجلدات الفرعية لـ UPLOAD_DIR
+        for root, dirs, files in os.walk(UPLOAD_DIR):
+            if filename in files:
+                file_path = os.path.join(root, filename)
+                break
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {path} (checked at {file_path})")
         
     # تحديد نوع المحتوى بناءً على الامتداد أو جعله افتراضياً
     content_type = "image/jpeg" if path.endswith((".jpg", ".jpeg")) else "application/octet-stream"
+    if path.endswith(".png"):
+        content_type = "image/png"
+    elif path.endswith((".mp4", ".webm")):
+        content_type = "video/webm" if path.endswith(".webm") else "video/mp4"
     
     with open(file_path, "rb") as f:
         content = f.read()
