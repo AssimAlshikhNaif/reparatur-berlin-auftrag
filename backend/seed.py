@@ -16,7 +16,7 @@ BRANCHES = [
         "email": "",
         "steuernummer": "",
         "tax_number": "",
-        "logo_url": "/logos/basic-file.png"
+        "logo_url": "/logos/phone store.png"
     },
     {
         "name": "Praxis Smartphone",
