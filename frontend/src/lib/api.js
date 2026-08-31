@@ -11,12 +11,17 @@ const api = axios.create({
   withCredentials: true,
 });
 
-let accessToken = localStorage.getItem("rb_token") || null;
+let accessToken = localStorage.getItem("rb_token") || localStorage.getItem("token") || null;
 
 export function setToken(token) {
   accessToken = token;
-  if (token) localStorage.setItem("rb_token", token);
-  else localStorage.removeItem("rb_token");
+  if (token) {
+    localStorage.setItem("rb_token", token);
+    localStorage.setItem("token", token); // حفظه بالطريقتين لضمان التوافق
+  } else {
+    localStorage.removeItem("rb_token");
+    localStorage.removeItem("token");
+  }
 }
 
 export function getToken() {
@@ -29,7 +34,16 @@ api.interceptors.request.use((config) => {
 });
 
 export function fileUrl(storagePath) {
-  return `${API}/files/${storagePath}?auth=${accessToken}`;
+  if (!storagePath) return "";
+  if (storagePath.startsWith("http")) return storagePath;
+  
+  // جلب التوكن من أي مفتاح محتمل لضمان عدم فشله أبداً
+  const token = localStorage.getItem("rb_token") || localStorage.getItem("token") || accessToken || "";
+  
+  // تنظيف مسار الملف لضمان عدم تكرار الشرطة المائلة
+  const cleanPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
+  
+  return `${API}/files/${cleanPath}?auth=${token}`;
 }
 
 export function formatApiErrorDetail(detail) {
