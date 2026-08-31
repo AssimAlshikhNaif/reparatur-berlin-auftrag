@@ -1742,3 +1742,59 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
         if s.get("is_reclamation") or s.get("under_warranty"):
             out.append(s)
     return out
+
+from fastapi.responses import Response
+
+@router.get("/files/{file_path:path}")
+async def serve_file(file_path: str):
+    """
+    Endpoint موحد لجلب أي ملف أو صورة مرفقة بالظهور تلقائياً وتجنب أخطاء 404.
+    """
+    # تنظيف المسار لضمان الأمان
+    safe_path = file_path.lstrip("/\\")
+    
+    # تجنب تكرار مجلد uploads أو repair-berlin إذا وجد
+    if safe_path.startswith("uploads/"):
+        safe_path = safe_path[len("uploads/"):]
+        
+    possible_dirs = ["/app/uploads", "uploads", "."]
+    target_file = None
+    
+    for d in possible_dirs:
+        full_p = os.path.join(d, safe_path)
+        if os.path.exists(full_p) and os.path.isfile(full_p):
+            target_file = full_p
+            break
+            
+    # محاولة أخيرة بالبحث بالاسم فقط إذا لم يُعثر على المسار الكامل
+    if not target_file:
+        filename = os.path.basename(safe_path)
+        for d in possible_dirs:
+            if os.path.exists(d):
+                for root, dirs, files in os.walk(d):
+                    if filename in files:
+                        target_file = os.path.join(root, filename)
+                        break
+                if target_file:
+                    break
+
+    if not target_file or not os.path.exists(target_file):
+        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        
+    # تحديد نوع الملف (ContentType) بدقة
+    content_type = "application/octet-stream"
+    if target_file.endswith((".jpg", ".jpeg")):
+        content_type = "image/jpeg"
+    elif target_file.endswith(".png"):
+        content_type = "image/png"
+    elif target_file.endswith(".webp"):
+        content_type = "image/webp"
+    elif target_file.endswith(".webm"):
+        content_type = "video/webm"
+    elif target_file.endswith(".mp4"):
+        content_type = "video/mp4"
+        
+    with open(target_file, "rb") as f:
+        content = f.read()
+        
+    return Response(content=content, media_type=content_type)
