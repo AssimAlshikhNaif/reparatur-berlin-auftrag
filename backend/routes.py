@@ -8,6 +8,8 @@ from bson import ObjectId
 from fastapi import (APIRouter, HTTPException, Depends, UploadFile, File,
                      Query, Header, WebSocket, WebSocketDisconnect, Response, Form)
 from pydantic import BaseModel
+from fastapi.responses import Response
+
 
 from db import db
 from auth import get_current_user, require_roles, decode_user_from_token
@@ -1743,56 +1745,53 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
             out.append(s)
     return out
 
-from fastapi.responses import Response
-
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str):
     """
-    Endpoint موحد لجلب أي ملف أو صورة مرفقة بالظهور تلقائياً وتجنب أخطاء 404.
+    استرجاع الصور والملفات من المجلد الخارجي الحقيقي /var/www/repair-berlin-uploads
     """
-    # تنظيف المسار لضمان الأمان
     safe_path = file_path.lstrip("/\\")
     
-    # تجنب تكرار مجلد uploads أو repair-berlin إذا وجد
+    # إزالة تكرار مسار repair-berlin إذا وجد
+    if safe_path.startswith("repair-berlin/"):
+        safe_path = safe_path[len("repair-berlin/"):]
     if safe_path.startswith("uploads/"):
         safe_path = safe_path[len("uploads/"):]
-        
-    possible_dirs = ["/app/uploads", "uploads", "."]
+
+    # المجلد الخارجي الأساسي المعتمد في storage.py
+    UPLOAD_DIR = "/var/www/repair-berlin-uploads"
+    
     target_file = None
     
-    for d in possible_dirs:
-        full_p = os.path.join(d, safe_path)
-        if os.path.exists(full_p) and os.path.isfile(full_p):
-            target_file = full_p
-            break
-            
-    # محاولة أخيرة بالبحث بالاسم فقط إذا لم يُعثر على المسار الكامل
-    if not target_file:
+    # 1. التجربة الأولى: البحث المباشر في المجلد الرئيسي
+    primary_path = os.path.join(UPLOAD_DIR, safe_path)
+    if os.path.exists(primary_path) and os.path.isfile(primary_path):
+        target_file = primary_path
+    else:
+        # 2. التجربة الثانية: البحث بالاسم الأخير فقط داخل كل المجلدات الفرعية لضمان إيجاد الصورة 100%
         filename = os.path.basename(safe_path)
-        for d in possible_dirs:
-            if os.path.exists(d):
-                for root, dirs, files in os.walk(d):
-                    if filename in files:
-                        target_file = os.path.join(root, filename)
-                        break
-                if target_file:
+        if os.path.exists(UPLOAD_DIR):
+            for root, dirs, files in os.walk(UPLOAD_DIR):
+                if filename in files:
+                    target_file = os.path.join(root, filename)
                     break
 
     if not target_file or not os.path.exists(target_file):
-        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
+        raise HTTPException(status_code=404, detail=f"File not found in storage: {safe_path}")
         
     # تحديد نوع الملف (ContentType) بدقة
     content_type = "application/octet-stream"
-    if target_file.endswith((".jpg", ".jpeg")):
+    lower_path = target_file.lower()
+    if lower_path.endswith((".jpg", ".jpeg")):
         content_type = "image/jpeg"
-    elif target_file.endswith(".png"):
+    elif lower_path.endswith(".png"):
         content_type = "image/png"
-    elif target_file.endswith(".webp"):
+    elif lower_path.endswith(".webp"):
         content_type = "image/webp"
-    elif target_file.endswith(".webm"):
-        content_type = "video/webm"
-    elif target_file.endswith(".mp4"):
+    elif lower_path.endswith((".mp4", ".mov")):
         content_type = "video/mp4"
+    elif lower_path.endswith(".webm"):
+        content_type = "video/webm"
         
     with open(target_file, "rb") as f:
         content = f.read()
