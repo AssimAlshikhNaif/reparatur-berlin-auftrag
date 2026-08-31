@@ -69,7 +69,7 @@ export default function CameraCapture({ onCapture, onClose }) {
       }
       
       setCapturedCount((prev) => prev + 1);
-      toast.success(`تم التقاط الصورة (${capturedCount + 1})، يمكنك التقاط غيرها أو الإغلاق`);
+      toast.success(`Foto aufgenommen (${capturedCount + 1})، Weitere aufnehmen oder schließen`);
     }, "image/jpeg", 0.9);
   };
 
@@ -119,10 +119,10 @@ export default function CameraCapture({ onCapture, onClose }) {
         rec.start(1000);
         recorderRef.current = rec;
         setRecording(true);
-        toast.info("بدء تسجيل الفيديو...");
+        toast.info("Videoaufnahme starten...");
       } catch (err) {
         console.error("MediaRecorder error:", err);
-        toast.error("فشل بدء تسجيل الفيديو في هذا المتصفح");
+        toast.error("Videoaufnahme konnte in diesem Browser nicht gestartet werden");
       }
     } else {
       if (recorderRef.current && recorderRef.current.state === "recording") {
@@ -142,7 +142,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           </h3>
         </div>
         <button data-testid="camera-close" onClick={() => { stopStream(); onClose(); }} className="text-muted-foreground hover:text-primary-foreground flex items-center gap-1 bg-muted px-3 py-1 rounded-lg text-xs font-semibold">
-          <X size={18} /> تم / إغلاق
+          <X size={18} /> Fertig / Schließen
         </button>
       </div>
 
@@ -150,12 +150,12 @@ export default function CameraCapture({ onCapture, onClose }) {
         <video ref={videoRef} autoPlay playsInline muted className="max-h-full max-w-full" />
         {capturedCount > 0 && (
           <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-mono border border-white/20">
-            تم التقاط: {capturedCount} صورة 📸
+            Aufgenommen: {capturedCount} Foto 📸
           </div>
         )}
         {recording && (
           <div className="absolute top-4 right-4 bg-red-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-mono animate-pulse flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> جاري تسجيل الفيديو...
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> Video wird aufgenommen...
           </div>
         )}
       </div>
@@ -175,8 +175,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           {mode === "photo" ? (
             <button data-testid="camera-shutter" onClick={takePhoto} disabled={!ready}
               className="flex items-center gap-2 bg-accent text-foreground font-head font-semibold text-sm uppercase tracking-wider px-8 py-3 rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-40 shadow-lg">
-              <Circle size={18} weight="fill" /> التقاط صورة أخرى
-            </button>
+              <Circle size={18} weight="fill" /> "Weiteres Foto aufnehmen"            </button>
           ) : (
             <button data-testid="camera-record" onClick={toggleRecording} disabled={!ready}
               className={`flex items-center gap-2 font-head font-semibold text-sm uppercase tracking-wider px-8 py-3 rounded-lg transition-colors disabled:opacity-40 ${recording ? "bg-red-600 text-foreground hover:bg-red-500" : "bg-accent text-foreground hover:bg-blue-500"}`}>
@@ -185,7 +184,7 @@ export default function CameraCapture({ onCapture, onClose }) {
           )}
         </div>
         <p className="text-center text-[11px] font-mono text-muted-foreground mt-3">
-          اضغط على زر الالتقاط عدة مرات كما تحب، وعند الانتهاء اضغط على زر "تم / إغلاق" في الأعلى.
+         "Tippen Sie beliebig oft auf den Aufnahme-Button, und wenn Sie fertig sind, klicken Sie oben auf „Fertig / Schließen“.
         </p>
       </div>
     </div>
