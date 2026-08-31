@@ -1324,58 +1324,65 @@ async def analytics(current=Depends(require_roles("admin"))):
 
 # ==================== MEDIA ====================
 @router.post("/orders/{order_id}/media")
-async def upload_media(order_id: str, media_type: str = Form("intake"),
-                       file: UploadFile = File(...), current=Depends(get_current_user)):
+async def upload_media(
+    order_id: str, 
+    media_type: str = Form("intake"),
+    file: UploadFile = File(...), 
+    current=Depends(get_current_user)
+):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "bin"
+    
+    ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "bin"
     path = f"{APP_NAME}/orders/{order_id}/{uuid.uuid4()}.{ext}"
-    data = await file.read()
+    
+    # قراءة الملف على دفعات لتجنب امتلاء الذاكرة وتجاوز قيود الـ Payload
+    CHUNK_SIZE = 1024 * 1024  # 1MB لكل دفعة
+    data_chunks = []
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        data_chunks.append(chunk)
+    data = b"".join(data_chunks)
+    
     ct = file.content_type or "application/octet-stream"
     result = put_object(path, data, ct)
+    
     media_item = {
         "id": str(uuid.uuid4()),
         "storage_path": result["path"],
-        "original_filename": file.filename,
+        "original_filename": file.filename or "recording.webm",
         "content_type": ct,
         "media_type": media_type,
         "is_video": ct.startswith("video"),
         "uploaded_by": current["name"],
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
+    
     await db.files.insert_one({**media_item, "order_id": order_id, "is_deleted": False})
-    await db.orders.update_one({"_id": ObjectId(order_id)},
-                              {"$push": {"media": media_item},
-                               "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
-    await push_notification(
-        kind="MEDIEN", title="Neue Medien hochgeladen",
-        message=f"{current['name']} hat {media_type}-Medien zu {order.get('auftragsnummer','')} hinzugefügt.",
-        by=current["name"], by_role=current["role"],
-        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {
+            "$push": {"media": media_item},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+        }
     )
+    
+    await push_notification(
+        kind="MEDIEN", 
+        title="Neue Medien hochgeladen",
+        message=f"{current['name']} hat {media_type}-Medien zu {order.get('auftragsnummer','')} hinzugefügt.",
+        by=current["name"], 
+        by_role=current["role"],
+        order_id=order_id, 
+        auftragsnummer=order.get("auftragsnummer"),
+    )
+    
     return media_item
-
-
-@router.get("/files/{path:path}")
-async def serve_file(path: str, authorization: str = Header(None), auth: str = Query(None)):
-    token = None
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:]
-    elif auth:
-        token = auth
-    if not token:
-        raise HTTPException(status_code=401, detail="Nicht authentifiziert")
-    user = await decode_user_from_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Ungültiger Token")
-    record = await db.files.find_one({"storage_path": path, "is_deleted": False})
-    if not record:
-        raise HTTPException(status_code=404, detail="Datei nicht gefunden")
-    data, ct = get_object(path)
-    return Response(content=data, media_type=record.get("content_type", ct))
 
 
 # ==================== CHAT ====================
