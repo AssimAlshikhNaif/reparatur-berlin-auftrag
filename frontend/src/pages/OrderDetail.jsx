@@ -1020,7 +1020,11 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
 }
 
 function MediaThumb({ m, onDelete }) {
-  const url = fileUrl(m.storage_path);
+  // جلب التوكن وإضافته للرابط لكي يسمح السيرفر بعرض الصورة
+  const token = localStorage.getItem("token") || "";
+  const rawUrl = fileUrl(m.storage_path);
+  const url = rawUrl.includes("?") ? `${rawUrl}&auth=${token}` : `${rawUrl}?auth=${token}`;
+
   return (
     <div className="relative group aspect-square border border-border overflow-hidden bg-background hover:border-accent transition-colors">
       <a href={url} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
