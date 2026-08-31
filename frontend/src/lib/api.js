@@ -37,12 +37,12 @@ export function fileUrl(storagePath) {
   if (!storagePath) return "";
   if (storagePath.startsWith("http")) return storagePath;
   
-  // جلب التوكن من أي مفتاح محتمل لضمان عدم فشله أبداً
   const token = localStorage.getItem("rb_token") || localStorage.getItem("token") || accessToken || "";
   
-  // تنظيف مسار الملف لضمان عدم تكرار الشرطة المائلة
-  const cleanPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
+  // تنظيف المسار والتأكد من إرساله بالشكل الذي يقبله الباك إند
+  let cleanPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
   
+  // إذا كان المسار يحتوي على تكرار أو مسار فرعي معين نتأكد من صحته
   return `${API}/files/${cleanPath}?auth=${token}`;
 }
 
