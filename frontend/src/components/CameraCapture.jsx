@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Camera, VideoCamera, X, Circle, StopCircle, ArrowClockwise } from "@phosphor-icons/react";
+import { Camera, VideoCamera, X, Circle, StopCircle } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 export default function CameraCapture({ onCapture, onClose }) {
@@ -12,7 +12,7 @@ export default function CameraCapture({ onCapture, onClose }) {
   const [mode, setMode] = useState("photo"); // photo | video
   const [recording, setRecording] = useState(false);
   const [ready, setReady] = useState(false);
-  const [capturedCount, setCapturedCount] = useState(0); // عداد للصور الملتقطة في الجلسة الحالية
+  const [capturedCount, setCapturedCount] = useState(0);
 
   const startStream = async () => {
     try {
@@ -43,7 +43,6 @@ export default function CameraCapture({ onCapture, onClose }) {
     // eslint-disable-next-line
   }, []);
 
-  // restart stream when switching mode (audio requirement differs)
   const switchMode = async (m) => {
     if (recording) return;
     setMode(m);
@@ -66,10 +65,9 @@ export default function CameraCapture({ onCapture, onClose }) {
       const file = new File([blob], `foto-${Date.now()}.jpg`, { type: "image/jpeg" });
       
       if (typeof onCapture === "function") {
-        onCapture(file); // إرسال الصورة الملتقطة حالياً للقائمة في الخلفية
+        onCapture(file);
       }
       
-      // زيادة العداد وإظهار تنبيه يوضح أنه يمكنه أخذ صور أخرى
       setCapturedCount((prev) => prev + 1);
       toast.success(`تم التقاط الصورة (${capturedCount + 1})، يمكنك التقاط غيرها أو الإغلاق`);
     }, "image/jpeg", 0.9);
@@ -78,20 +76,58 @@ export default function CameraCapture({ onCapture, onClose }) {
   const toggleRecording = () => {
     if (!recording) {
       chunksRef.current = [];
-      const mime = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
-      const rec = new MediaRecorder(streamRef.current, mime ? { mimeType: mime } : undefined);
-      rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
-      rec.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        const file = new File([blob], `video-${Date.now()}.webm`, { type: "video/webm" });
-        onCapture(file);
-        toast.success(t("cam.videoTaken"));
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
+      
+      // اختيار الصيغة المدعومة الأنسب لضمان استقرار الفيديو على السيرفر والمتصفحات
+      const mimeTypes = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+        "video/mp4"
+      ];
+      let selectedMime = "";
+      for (const mime of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mime)) {
+          selectedMime = mime;
+          break;
+        }
+      }
+
+      const options = selectedMime ? { mimeType: selectedMime } : undefined;
+      
+      try {
+        const rec = new MediaRecorder(streamRef.current, options);
+        
+        rec.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            chunksRef.current.push(e.data);
+          }
+        };
+
+        rec.onstop = () => {
+          const blobType = selectedMime.includes("mp4") ? "video/mp4" : "video/webm";
+          const ext = blobType.includes("mp4") ? "mp4" : "webm";
+          const blob = new Blob(chunksRef.current, { type: blobType });
+          const file = new File([blob], `video-${Date.now()}.${ext}`, { type: blobType });
+          
+          if (typeof onCapture === "function") {
+            onCapture(file);
+          }
+          toast.success(t("cam.videoTaken"));
+        };
+
+        // تمرير timeslice بقيمة 1000ms يحل نهائياً مشكلة انقطاع الفيديو بعد ثوانٍ معدودة على السيرفر
+        rec.start(1000);
+        recorderRef.current = rec;
+        setRecording(true);
+        toast.info("بدء تسجيل الفيديو...");
+      } catch (err) {
+        console.error("MediaRecorder error:", err);
+        toast.error("فشل بدء تسجيل الفيديو في هذا المتصفح");
+      }
     } else {
-      recorderRef.current.stop();
+      if (recorderRef.current && recorderRef.current.state === "recording") {
+        recorderRef.current.stop();
+      }
       setRecording(false);
     }
   };
@@ -115,6 +151,11 @@ export default function CameraCapture({ onCapture, onClose }) {
         {capturedCount > 0 && (
           <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-mono border border-white/20">
             تم التقاط: {capturedCount} صورة 📸
+          </div>
+        )}
+        {recording && (
+          <div className="absolute top-4 right-4 bg-red-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-mono animate-pulse flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> جاري تسجيل الفيديو...
           </div>
         )}
       </div>
