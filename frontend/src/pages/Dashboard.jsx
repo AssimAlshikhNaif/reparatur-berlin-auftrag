@@ -178,20 +178,35 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+useEffect(() => {
     let isMounted = true;
 
     async function loadDashboardData() {
       try {
         setLoading(true);
-        const [s, orders] = await Promise.all([
+        
+        // استخدام allSettled لضمان أن فشل أو تأخر أحد الطلبات لا يجمد الصفحة بالكامل
+        const results = await Promise.allSettled([
           api.get("/stats"),
           api.get("/orders", { params: { sla: true } }),
         ]);
 
         if (isMounted) {
-          setStats(s.data || {});
-          setSlaOrders(orders.data || []);
+          const statsResult = results[0];
+          const ordersResult = results[1];
+
+          if (statsResult.status === "fulfilled") {
+            setStats(statsResult.value.data || {});
+          } else {
+            console.warn("Stats load failed:", statsResult.reason);
+          }
+
+          if (ordersResult.status === "fulfilled") {
+            setSlaOrders(ordersResult.value.data || []);
+          } else {
+            console.warn("SLA orders load failed:", ordersResult.reason);
+            setSlaOrders([]); // تعيين مصفوفة فارغة لتجنب الانهيار
+          }
         }
       } catch (err) {
         console.error("Dashboard-Ladefehler:", err);
@@ -207,7 +222,6 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
       isMounted = false;
     };
   }, [setStats, setSlaOrders, t]);
-
   if (loading || !stats) {
     return (
       <div className="p-8 font-mono text-muted-foreground animate-pulse text-sm">

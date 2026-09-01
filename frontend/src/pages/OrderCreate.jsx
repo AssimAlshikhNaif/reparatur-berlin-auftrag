@@ -55,16 +55,39 @@ export default function OrderCreate() {
   const taxTotal = grossTotal - netTotal;
 
   useEffect(() => {
+    let isMounted = true;
+
     (async () => {
-      const [b, tk] = await Promise.all([api.get("/branches"), api.get("/technicians")]);
-      setBranches(b.data);
-      setTechnicians(tk.data);
-      if (isMitarbeiter && user.branch_id) {
-        setForm((f) => ({ ...f, branch_id: user.branch_id }));
-      } else if (b.data.length) {
-        setForm((f) => ({ ...f, branch_id: f.branch_id || b.data[0].id }));
+      try {
+        const results = await Promise.allSettled([
+          api.get("/branches"),
+          api.get("/technicians"),
+        ]);
+
+        if (!isMounted) return;
+
+        const branchesResult = results[0];
+        const techsResult = results[1];
+
+        const branchesData = branchesResult.status === "fulfilled" ? (branchesResult.value.data || []) : [];
+        const techData = techsResult.status === "fulfilled" ? (techsResult.value.data || []) : [];
+
+        setBranches(branchesData);
+        setTechnicians(techData);
+
+        if (isMitarbeiter && user?.branch_id) {
+          setForm((f) => ({ ...f, branch_id: user.branch_id }));
+        } else if (branchesData.length) {
+          setForm((f) => ({ ...f, branch_id: f.branch_id || branchesData[0].id }));
+        }
+      } catch (err) {
+        console.error("Error loading form dependencies:", err);
       }
     })();
+
+    return () => {
+      isMounted = false;
+    };
     // eslint-disable-next-line
   }, []);
 
