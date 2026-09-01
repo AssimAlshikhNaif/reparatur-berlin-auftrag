@@ -35,15 +35,14 @@ const load = async () => {
           console.error("Reklamationen load error:", err);
           setOrders([]);
         }
-        return;
+      } else {
+        const params = {};
+        if (statusFilter) params.status = statusFilter;
+        if (branchId) params.branch_id = branchId;
+
+        const { data } = await api.get("/orders", { params });
+        setOrders(Array.isArray(data) ? data : []);
       }
-
-      const params = {};
-      if (statusFilter) params.status = statusFilter;
-      if (branchId) params.branch_id = branchId;
-
-      const { data } = await api.get("/orders", { params });
-      setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Orders load error:", err);
       setOrders([]);
