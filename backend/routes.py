@@ -643,7 +643,7 @@ async def list_orders(
     status: Optional[str] = None, 
     sla: Optional[bool] = None,
     branch_id: Optional[str] = None, 
-    limit: int, 
+    limit: int = 50,  # <-- إضافة قيمة افتراضية هنا تحل المشكلة جذرياً
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
@@ -655,7 +655,7 @@ async def list_orders(
     
     # جلب الطلبات بسرعة
     orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
-    
+
     try:
         bmap, umap = await _name_maps()
     except Exception:
