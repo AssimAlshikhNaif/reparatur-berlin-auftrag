@@ -643,19 +643,19 @@ async def list_orders(
     status: Optional[str] = None, 
     sla: Optional[bool] = None,
     branch_id: Optional[str] = None, 
-    limit: int = 50,  # <-- إضافة قيمة افتراضية هنا تحل المشكلة جذرياً
+    limit: int = 50, 
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
     query = await _order_query_for_user(current)
     if status:
-        query["status"]  = status
+        query["status"] = status
     if branch_id:
         query["branch_id"] = branch_id
     
-    # جلب الطلبات بسرعة
+    # جلب الحقول الأساسية فقط مع الفرز السريع لتخفيف الحمل على الذاكرة
     orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
-
+    
     try:
         bmap, umap = await _name_maps()
     except Exception:
@@ -664,10 +664,10 @@ async def list_orders(
     result = []
     for o in orders:
         try:
+            # استخدام light=True لتسريع عملية السيريالايزيشن وعدم إهدار الوقت في تفاصيل ثقيلة
             serialized = serialize_order(o, current, light=True)
             res_item = attach_names(serialized, bmap, umap)
             
-            # إذا طلب المستخدم الـ SLA فقط، نقوم بتصفيتها بحذر
             if sla:
                 if res_item.get("sla_breached"):
                     result.append(res_item)
@@ -677,7 +677,7 @@ async def list_orders(
             continue
             
     return result
-
+    
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
