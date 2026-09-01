@@ -23,25 +23,40 @@ export default function Orders() {
   const [printOrder, setPrintOrder] = useState(null);
   const canManage = user.role === "admin" || user.role === "mitarbeiter";
 
-  const load = async () => {
-    setLoading(true);
-    if (statusFilter === "REKLAMATION") {
-      try {
-        const { data } = await api.get("/reklamationen");
-        setOrders(branchId ? data.filter((o) => o.branch_id === branchId) : data);
-      } catch { setOrders([]); }
+const load = async () => {
+    try {
+      setLoading(true);
+
+      if (statusFilter === "REKLAMATION") {
+        try {
+          const { data } = await api.get("/reklamationen");
+          setOrders(Array.isArray(data) ? (branchId ? data.filter((o) => o.branch_id === branchId) : data) : []);
+        } catch (err) {
+          console.error("Reklamationen load error:", err);
+          setOrders([]);
+        }
+        return;
+      }
+
+      const params = {};
+      if (statusFilter) params.status = statusFilter;
+      if (branchId) params.branch_id = branchId;
+
+      const { data } = await api.get("/orders", { params });
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Orders load error:", err);
+      toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("orders.loadError"));
+      setOrders([]);
+    } finally {
       setLoading(false);
-      return;
     }
-    const params = {};
-    if (statusFilter) params.status = statusFilter;
-    if (branchId) params.branch_id = branchId;
-    const { data } = await api.get("/orders", { params });
-    setOrders(data);
-    setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [statusFilter, branchId]);
+  useEffect(() => { 
+    load(); 
+    /* eslint-disable-next-line */ 
+  }, [statusFilter, branchId]);
 
   const clearBranchFilter = () => {
     const next = new URLSearchParams(searchParams);

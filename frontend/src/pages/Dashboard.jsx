@@ -222,7 +222,8 @@ useEffect(() => {
       isMounted = false;
     };
   }, [setStats, setSlaOrders, t]);
-  if (loading || !stats) {
+
+  if (loading) {
     return (
       <div className="p-8 font-mono text-muted-foreground animate-pulse text-sm">
         {t("dashboard.loading")}
