@@ -116,7 +116,7 @@ BRANCHES = [
         "email": "",
         "steuernummer": "",
         "tax_number": "",
-        "logo_url": ""
+        "logo_url": "\logos\kauf park laden.png"
     },
          {
         "name": "A 10 center",

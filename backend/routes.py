@@ -666,14 +666,15 @@ async def list_orders(
         except Exception:
             query["branch_id"] = branch_id
     
-    # استخدام projection للاستفادة الكاملة من الـ Indexes وجلب البيانات في أجزاء من الميلي ثانية
+    # Projection شامل لجلب رقم الطلب، الحقول الأساسية، ومعرفات الموظفين والتقنيين
     try:
         orders = await db.orders.find(
             query,
             {
-                "customer_name": 1, "device_model": 1, "status": 1, 
-                "created_at": 1, "branch_id": 1, "order_number": 1, 
-                "is_reclamation": 1, "warranty_until": 1, "technician_id": 1
+                "auftragsnummer": 1, "customer_name": 1, "device_model": 1, 
+                "status": 1, "created_at": 1, "branch_id": 1, 
+                "is_reclamation": 1, "warranty_until": 1, 
+                "user_id": 1, "created_by": 1, "technician_id": 1, "mitarbeiter_id": 1
             }
         ).sort("created_at", -1).skip(skip).to_list(length=limit)
     except Exception as e:
