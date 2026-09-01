@@ -1661,9 +1661,9 @@ async def _notif_query(user: dict, branch_id_param: str = None):
 @router.get("/notifications")
 async def list_notifications(limit: int = 50, branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
     q = await _notif_query(current, branch_id)
-    items = await db.notifications.find(q).sort("at", -1).to_list(1000)
-    unread = sum(1 for n in items if not n.get("read", False))
-    view = items[:limit]
+    # جلب العدد المطلوب فقط لتخفيف الحمل
+    items = await db.notifications.find(q).sort("at", -1).limit(limit).to_list(limit)
+    unread = await db.notifications.count_documents({**q, "read": False})
     return {
         "unread": unread,
         "items": [{
@@ -1677,7 +1677,7 @@ async def list_notifications(limit: int = 50, branch_id: str = None, current=Dep
             "auftragsnummer": n.get("auftragsnummer"),
             "read": n.get("read", False),
             "at": n.get("at"),
-        } for n in view],
+        } for n in items],
     }
 
 
