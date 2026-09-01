@@ -7,7 +7,7 @@ import { Bell, Check, Trash, X } from "@phosphor-icons/react";
 import { berlinDateTime } from "@/lib/datetime";
 
 // زيادة فترة التحديث قليلاً (15 ثانية) لمنع تكدس الطلبات واستهلاك اتصالات المتصفح
-const POLL_MS = 15000;
+const POLL_MS = 60000;
 
 function playBeep() {
   try {
