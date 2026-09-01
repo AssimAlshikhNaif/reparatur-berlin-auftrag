@@ -1376,49 +1376,77 @@ def _hours_between(status_history, from_status, to_status):
 
 
 @router.get("/analytics")
-async def analytics(current=Depends(require_roles("admin"))):
-    orders = await db.orders.find().to_list(5000)
-    users = await db.users.find().to_list(500)
-    mitarbeiter = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"], "role": u["role"],
-                                   "created": 0, "delivered": 0, "revenue": 0.0}
-                   for u in users if u["role"] in ("mitarbeiter", "admin")}
-    techniker = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"],
-                                  "assigned": 0, "resolved": 0, "revenue": 0.0,
-                                  "_times": []}
-                 for u in users if u["role"] == "techniker"}
+async def analytics(
+    branch_id: Optional[str] = None,
+    current=Depends(require_roles("admin"))
+):
+    print(">>> ENTERED /analytics ENDPOINT <<<")
+    try:
+        query = await _order_query_for_user(current)
+        if branch_id:
+            try:
+                query["$or"] = [
+                    {"branch_id": branch_id},
+                    {"branch_id": ObjectId(branch_id)}
+                ]
+            except Exception:
+                query["branch_id"] = branch_id
 
-    for o in orders:
-        gross = compute_costs(o)["gross"]
-        cb = o.get("created_by")
-        if cb in mitarbeiter:
-            mitarbeiter[cb]["created"] += 1
-            if o["status"] == "ABGEHOLT":
-                mitarbeiter[cb]["delivered"] += 1
-                mitarbeiter[cb]["revenue"] = round(mitarbeiter[cb]["revenue"] + gross, 2)
-        tid = o.get("assigned_techniker_id")
-        if tid in techniker:
-            techniker[tid]["assigned"] += 1
-            if o["status"] in ("FERTIG", "ABGEHOLT"):
-                techniker[tid]["resolved"] += 1
-                if o["status"] == "ABGEHOLT":
-                    techniker[tid]["revenue"] = round(techniker[tid]["revenue"] + gross, 2)
-                hrs = _hours_between(o.get("status_history", []), "AKZEPTIERT", "FERTIG")
-                if hrs is None:
-                    hrs = _hours_between(o.get("status_history", []), "ZUGEWIESEN", "FERTIG")
-                if hrs is not None:
-                    techniker[tid]["_times"].append(hrs)
+        # 1. جلب المستخدمين مرة واحدة (عدددهم صغير عادة ولا يسبب ضغطاً)
+        users = await db.users.find().to_list(500)
+        mitarbeiter = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"], "role": u["role"],
+                                     "created": 0, "delivered": 0, "revenue": 0.0}
+                       for u in users if u["role"] in ("mitarbeiter", "admin")}
+        techniker = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"],
+                                    "assigned": 0, "resolved": 0, "revenue": 0.0,
+                                    "_times": []}
+                     for u in users if u["role"] == "techniker"}
 
-    tech_list = []
-    for t in techniker.values():
-        times = t.pop("_times")
-        t["avg_hours"] = round(sum(times) / len(times), 1) if times else None
-        tech_list.append(t)
+        # 2. استخدام Projection جبار وسريع لجلب الحقول اللازمة فقط ودون جلب كل تفاصيل الـ 5000 طلب الثقيلة
+        orders = await db.orders.find(
+            query,
+            {
+                "created_by": 1, "assigned_techniker_id": 1, "status": 1,
+                "total_price": 1, "status_history": 1, "branch_id": 1, "created_at": 1
+            }
+        ).sort("created_at", -1).limit(2000).to_list(length=2000)
 
-    return {
-        "mitarbeiter": sorted(mitarbeiter.values(), key=lambda x: -x["revenue"]),
-        "techniker": sorted(tech_list, key=lambda x: -x["resolved"]),
-    }
+        for o in orders:
+            gross = compute_costs(o)["gross"]
+            cb = o.get("created_by")
+            if cb in mitarbeiter:
+                mitarbeiter[cb]["created"] += 1
+                if o.get("status") == "ABGEHOLT":
+                    mitarbeiter[cb]["delivered"] += 1
+                    mitarbeiter[cb]["revenue"] = round(mitarbeiter[cb]["revenue"] + gross, 2)
+                    
+            tid = o.get("assigned_techniker_id")
+            if tid in techniker:
+                techniker[tid]["assigned"] += 1
+                status = o.get("status")
+                if status in ("FERTIG", "ABGEHOLT"):
+                    techniker[tid]["resolved"] += 1
+                    if status == "ABGEHOLT":
+                        techniker[tid]["revenue"] = round(techniker[tid]["revenue"] + gross, 2)
+                    hrs = _hours_between(o.get("status_history", []), "AKZEPTIERT", "FERTIG")
+                    if hrs is None:
+                        hrs = _hours_between(o.get("status_history", []), "ZUGEWIESEN", "FERTIG")
+                    if hrs is not None:
+                        techniker[tid]["_times"].append(hrs)
 
+        tech_list = []
+        for t in techniker.values():
+            times = t.pop("_times")
+            t["avg_hours"] = round(sum(times) / len(times), 1) if times else None
+            tech_list.append(t)
+
+        return {
+            "mitarbeiter": sorted(mitarbeiter.values(), key=lambda x: -x["revenue"]),
+            "techniker": sorted(tech_list, key=lambda x: -x["resolved"]),
+        }
+    except Exception as e:
+        print(f"Error in analytics: {e}")
+        return {"mitarbeiter": [], "techniker": []}
 
 # ==================== MEDIA ====================
 @router.post("/orders/{order_id}/media")
