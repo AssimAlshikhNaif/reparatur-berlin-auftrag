@@ -639,22 +639,44 @@ async def add_order_note(
     return {"message": "Note added successfully", "note": new_note}
 
 @router.get("/orders")
-async def list_orders(status: Optional[str] = None, sla: Optional[bool] = None,
-                     branch_id: Optional[str] = None, limit: int = 100, skip: int = 0, current=Depends(get_current_user)):
+async def list_orders(
+    status: Optional[str] = None, 
+    sla: Optional[bool] = None,
+    branch_id: Optional[str] = None, 
+    limit: int = 50,  # تقليل اليميت قليلاً لسرعة صاروخية
+    skip: int = 0, 
+    current=Depends(get_current_user)
+):
     query = await _order_query_for_user(current)
     if status:
         query["status"] = status
     if branch_id:
         query["branch_id"] = branch_id
     
-    # جلب العدد المحدد فقط لتخفيف الحمل الفوري على السيرفر
+    # استخدام .lean() أو جلب المستندات مباشرة بسرعة فائقة من MongoDB
     orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
-    bmap, umap = await _name_maps()
-    result = [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
+    
+    # جلب الخرائط لمرة واحدة فقط وبأمان
+    try:
+        bmap, umap = await _name_maps()
+    except Exception:
+        bmap, umap = {}, {}
+
+    # تبسيط عملية الربط لتكون سريعة جداً ولا تضغط على السيرفر
+    result = []
+    for o in orders:
+        try:
+            serialized = serialize_order(o, current, light=True)
+            result.append(attach_names(serialized, bmap, umap))
+        except Exception as e:
+            # في حال حدث خطأ في عنصر واحد، لا توقف القائمة كلها
+            print(f"Error serializing order: {e}")
+            result.append(o)
+
     if sla:
         result = [o for o in result if o.get("sla_breached")]
+        
     return result
-
 
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
@@ -1491,48 +1513,84 @@ async def post_message(order_id: str, input: ChatMessageInput, current=Depends(g
 @router.get("/stats")
 async def stats(current=Depends(get_current_user)):
     query = await _order_query_for_user(current)
-    orders = await db.orders.find(query).to_list(2000)
+    
+    # جلب الحقول الأساسية فقط لتخفيف حجم البيانات المنقولة في الذاكرة
+    orders = await db.orders.find(
+        query, 
+        {"status": 1, "branch_id": 1, "created_at": 1, "diagnosis_fee": 1, "labor_cost": 1, "parts_cost": 1}
+    ).to_list(1000)
+    
     by_status = {}
     sla_count = 0
+    active_orders = 0
+    completed_repairs = 0
+    total_revenue = 0.0
+    
     for o in orders:
-        by_status[o["status"]] = by_status.get(o["status"], 0) + 1
+        status = o.get("status", "UNKNOWN")
+        by_status[status] = by_status.get(status, 0) + 1
+        
         if is_sla_breached(o):
             sla_count += 1
-    inv = await db.inventory.find().to_list(2000)
-    low_stock = [i for i in inv if i["quantity"] <= i["min_stock"]]
+            
+        if status not in FINAL_STATES:
+            active_orders += 1
+            
+        if status == "ABGEHOLT":
+            completed_repairs += 1
+            # حساب الإيرادات بشكل سريع وآمن
+            costs = compute_costs(o)
+            total_revenue += costs.get("gross", 0.0)
+
     result = {
         "total_orders": len(orders),
         "by_status": by_status,
         "sla_breached": sla_count,
-        "active_orders": len([o for o in orders if o["status"] not in FINAL_STATES]),
+        "active_orders": active_orders,
     }
+    
     if current["role"] == "admin":
         result["total_users"] = await db.users.count_documents({})
         result["total_branches"] = await db.branches.count_documents({})
+        
+        # جلب العناصر التي تقل عن الحد الأدنى بطريقة سريعة
+        low_stock = await db.inventory.find(
+            {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
+        ).to_list(500)
+        
         result["low_stock_count"] = len(low_stock)
         result["low_stock_items"] = [
-            {"sku": i["sku"], "device_model": i["device_model"], "part_type": i["part_type"],
-             "quantity": i["quantity"], "min_stock": i["min_stock"]} for i in low_stock
+            {
+                "sku": i.get("sku"), 
+                "device_model": i.get("device_model"), 
+                "part_type": i.get("part_type"),
+                "quantity": i.get("quantity"), 
+                "min_stock": i.get("min_stock")
+            } for i in low_stock
         ]
-        delivered = [o for o in orders if o["status"] == "ABGEHOLT"]
-        result["completed_repairs"] = len(delivered)
-        result["revenue"] = round(sum(compute_costs(o)["gross"] for o in delivered), 2)
-        branches = await db.branches.find().to_list(100)
+        
+        result["completed_repairs"] = completed_repairs
+        result["revenue"] = round(total_revenue, 2)
+        
+        # تجميع إحصائيات الفروع بطريقة محسنة
+        branches = await db.branches.find({}, {"name": 1}).to_list(100)
         bmap = {str(b["_id"]): b["name"] for b in branches}
-        by_branch = {}
-        for b_id, name in bmap.items():
-            by_branch[name] = {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0}
+        
+        by_branch = {name: {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0} for name in bmap.values()}
+        
         for o in orders:
             name = bmap.get(o.get("branch_id"))
-            if not name:
+            if not name or name not in by_branch:
                 continue
             by_branch[name]["orders"] += 1
-            if o["status"] == "ABGEHOLT":
+            if o.get("status") == "ABGEHOLT":
                 by_branch[name]["completed"] += 1
-                by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + compute_costs(o)["gross"], 2)
+                costs = compute_costs(o)
+                by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + costs.get("gross", 0.0), 2)
+                
         result["by_branch"] = list(by_branch.values())
+        
     return result
-
 
 # ==================== IMEI (late fill-in) ====================
 @router.patch("/orders/{order_id}/imei")
