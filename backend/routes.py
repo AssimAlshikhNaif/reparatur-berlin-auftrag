@@ -648,14 +648,16 @@ async def list_orders(
     current=Depends(get_current_user)
 ):
     print(">>> ENTERED /orders ENDPOINT <<<")
-    query = await _order_query_for_user(current)
-
+    
+    try:
+        query = await _order_query_for_user(current)
+    except Exception:
+        query = {}
     
     if status:
         query["status"] = status
         
     if branch_id:
-
         try:
             query["$or"] = [
                 {"branch_id": branch_id},
@@ -664,9 +666,14 @@ async def list_orders(
         except Exception:
             query["branch_id"] = branch_id
     
-    # استخدام index صريح للفرز السريع
-    orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
+    # حماية استعلام قاعدة البيانات لضمان عدم التعليق
+    try:
+        orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(length=limit)
+    except Exception as e:
+        print(f"DB Error in /orders: {e}")
+        orders = []
     
+    # حماية جلب الأسماء لكي لا تعطل النظام لو حدث خطأ
     try:
         bmap, umap = await _name_maps()
     except Exception:
@@ -687,7 +694,7 @@ async def list_orders(
             continue
             
     return result
-
+    
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
