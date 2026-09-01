@@ -17,6 +17,10 @@ from storage import put_object, get_object, APP_NAME
 from notify import push_notification
 import messaging
 
+class OrderNoteCreate(BaseModel):
+    content: str
+    is_internal: bool = True  # افتراضياً ملاحظة داخلية للموظفين
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
@@ -596,6 +600,43 @@ async def _order_query_for_user(user: dict) -> dict:
         return {"assigned_techniker_id": str(user["_id"])}
     return {"branch_id": user.get("branch_id")}
 
+@router.post("/orders/{order_id}/notes")
+async def add_order_note(
+    order_id: str,
+    note_in: OrderNoteCreate,
+    current: dict = Depends(get_current_user)
+):
+    # منع التقني من إضافة ملاحظات داخلية حساسة
+    if current.get("role") == "techniker" and note_in.is_internal:
+        raise HTTPException(
+            status_code=403,
+            detail="Technicians cannot add internal staff notes."
+        )
+
+    try:
+        obj_id = ObjectId(order_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid order ID format")
+
+    order = await db.orders.find_one({"_id": obj_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    new_note = {
+        "id": str(ObjectId()),
+        "content": note_in.content,
+        "author_name": current.get("name", "Unknown"),
+        "is_internal": note_in.is_internal,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    # حفظ الملاحظة داخل مصفوفة notes في المستند
+    await db.orders.update_one(
+        {"_id": obj_id},
+        {"$push": {"notes": new_note}}
+    )
+
+    return {"message": "Note added successfully", "note": new_note}
 
 @router.get("/orders")
 async def list_orders(status: Optional[str] = None, sla: Optional[bool] = None,

@@ -54,6 +54,9 @@ function Field({ label, value }) {
 export default function OrderDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const isTech = user?.role === "techniker"; 
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [loadingNote, setLoadingNote] = useState(false);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
@@ -89,6 +92,7 @@ export default function OrderDetail() {
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
+  
 
   const deleteOrder = async () => {
     setDeleting(true);
@@ -121,6 +125,35 @@ export default function OrderDetail() {
       parts_cost: data.cost?.parts_cost ?? 0,
     });
   }, [id]);
+
+
+
+  const handleAddNote = async (e) => {
+  e.preventDefault();
+  if (!newNoteContent.trim()) return;
+
+  try {
+    setLoadingNote(true);
+    // استخدام كائن api الخاص بمشروعك مباشرة
+    const response = await api.post(`/orders/${id}/notes`, {
+      content: newNoteContent,
+      is_internal: true
+    });
+
+    // تحديث حالة الطلب محلياً لكي تظهر الملاحظة فوراً
+    setOrder(prevOrder => ({
+      ...prevOrder,
+      notes: [...(prevOrder.notes || []), response.data.note]
+    }));
+    
+    setNewNoteContent('');
+  } catch (error) {
+    console.error('Error adding note:', error);
+    alert('Fehler beim Speichern der Notiz');
+  } finally {
+    setLoadingNote(false);
+  }
+};
 
   useEffect(() => {
     load();
@@ -238,9 +271,8 @@ const deleteMedia = async (m, index) => {
 
   const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
   const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
-
-  const isTech = user.role === "techniker";
   const canManage = user.role === "admin" || user.role === "mitarbeiter";
+  
 
   // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
   // from the local costForm state so the totals update in real-time as they type.
@@ -411,6 +443,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         )}
       </div>
 
+
       {/* نظام التبويبات (Tabs Navigation) الاحترافي */}
       <div className="flex items-center gap-2 px-6 md:px-8 border-b border-border bg-card/40">
         <button
@@ -439,6 +472,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         </button>
       </div>
 
+      
+
       {order.status === "ABGELEHNT" && order.reject_reason && (
         <div className="mx-6 md:mx-8 my-4 border border-red-900 bg-red-950/30 px-4 py-3">
           <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.rejectReason")}</div>
@@ -462,6 +497,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 md:p-8">
+
+          
           {/* LEFT column */}
           <div className="lg:col-span-2 space-y-4">
             <Section title={t("detail.deviceError")} icon={DeviceMobile}>
@@ -588,6 +625,54 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                 )}
               </div>
             </div>
+            )}
+
+            {/* قسم الملاحظات الداخلية للموظفين في العمود الأيمن */}
+            {!isTech && (
+              <div className="border border-border mt-4">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
+                  <div className="flex items-center gap-2">
+                    <ChatCircleDots size={16} className="text-accent" />
+                    <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4">
+                  {/* قائمة الملاحظات السابقة */}
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {order?.notes && order.notes.length > 0 ? (
+                      order.notes.map((note) => (
+                        <div key={note.id} className="bg-background border border-border p-3 rounded-lg text-sm">
+                          <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
+                          <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
+                            <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
+                            <span>{new Date(note.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
+                    )}
+                  </div>
+
+                  {/* نموذج إضافة ملاحظة جديدة */}
+                  <form onSubmit={handleAddNote} className="flex gap-2 pt-2 border-t border-border">
+                    <input
+                      type="text"
+                      value={newNoteContent}
+                      onChange={(e) => setNewNoteContent(e.target.value)}
+                      placeholder="Interne Notiz hinzufügen..."
+                      className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loadingNote}
+                      className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
+                    >
+                      {loadingNote ? '...' : 'Hinzufügen'}
+                    </button>
+                  </form>
+                </div>
+              </div>
             )}
 
             {/* Verbaute Ersatzteile */}
@@ -852,6 +937,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               </Section>
             )}
           </div>
+
 
           {/* RIGHT column */}
           <div className="space-y-4">
