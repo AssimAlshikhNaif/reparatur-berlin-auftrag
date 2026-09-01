@@ -647,13 +647,15 @@ async def list_orders(
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
+    print(">>> ENTERED /orders ENDPOINT <<<")
     query = await _order_query_for_user(current)
+
     
     if status:
         query["status"] = status
         
     if branch_id:
-        # دعم البحث بالـ String أو الـ ObjectId لتجنب فشل المطابقة
+
         try:
             query["$or"] = [
                 {"branch_id": branch_id},
