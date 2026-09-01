@@ -237,7 +237,7 @@ class OrderCreate(BaseModel):
     device_lock_type: Optional[str] = "none"  # none | pattern | pin | password
     issue_description: str
     customer_name: str
-    customer_phone: str
+    customer_phone: Optional[str] = ""
     customer_email: Optional[str] = ""
     customer_address: Optional[str] = ""
     estimated_price: Optional[float] = None
@@ -698,11 +698,18 @@ async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
 
 @router.post("/orders")
 async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
-    # 1. التحقق من تفاصيل العميل الأساسية
+    # 1. التحقق من اسم العميل
     if not (input.customer_name or "").strip():
         raise HTTPException(status_code=400, detail="Kundenname ist erforderlich.")
-    if not (input.customer_phone or "").strip():
-        raise HTTPException(status_code=400, detail="Telefonnummer ist erforderlich.")
+    
+    # 2. التحقق من توفر وسيلة تواصل واحدة على الأقل (هاتف أو إيميل)
+    phone = (input.customer_phone or "").strip()
+    email = (input.customer_email or "").strip()
+    if not phone and not email:
+        raise HTTPException(
+            status_code=400, 
+            detail="Mindestens eine Kontaktmöglichkeit (Telefonnummer oder E-Mail) ist erforderlich."
+        )
 
     # 2. التحقق من تفاصيل الجهاز والمشكلة
     if not (input.device_brand or "").strip() or not (input.device_model or "").strip():

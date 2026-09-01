@@ -84,7 +84,13 @@ const validate = () => {
     
     if ((!form.imei || !form.imei.trim()) && !form.imei_unreadable) e.imei = t("oc.errImei");
     if (!form.customer_name || !form.customer_name.trim()) e.customer_name = t("oc.errName");
-    if (!form.customer_phone || !form.customer_phone.trim()) e.customer_phone = t("oc.errPhone");
+    
+    // التعديل هنا: استبدال فحص الهاتف الإجباري بفحص (الهاتف أو الإيميل معاً)
+    const phone = (form.customer_phone || "").trim();
+    const email = (form.customer_email || "").trim();
+    if (!phone && !email) {
+      e.customer_phone = t("oc.errPhone") || "Telefon oder E-Mail erforderlich";
+    }
     
     if (form.device_lock_type !== "none" && (!form.device_passcode || !form.device_passcode.trim())) {
       e.device_passcode = t("oc.errPasscode");
