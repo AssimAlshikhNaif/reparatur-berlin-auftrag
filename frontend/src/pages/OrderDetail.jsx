@@ -804,6 +804,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
             </p>
           )}
           <InspectionForm 
+            key={`intake-${order._id || order.id}`} 
             order={order} 
             inspectionType="intake" 
             inspectionData={order.intake_inspection} 
@@ -833,6 +834,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               </p>
             )}
             <InspectionForm 
+              key={`end-${order._id || order.id}`} 
               order={order} 
               inspectionType="end" 
               inspectionData={order.inspection} 

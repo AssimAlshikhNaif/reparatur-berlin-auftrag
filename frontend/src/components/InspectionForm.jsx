@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -21,15 +21,22 @@ const STATUSES = [
 export default function InspectionForm({ order, readOnly: externalReadOnly = false, onSaved, inspectionType = "end" }) {
   const { t } = useTranslation();
   
-  const existing = inspectionType === "intake" ? (order.intake_inspection || {}) : (order.inspection || {});
-  const hasSavedData = Boolean(existing.checklist && Object.keys(existing.checklist).length > 0);
-  const isReadOnly = externalReadOnly || hasSavedData;
+  const getExisting = () => inspectionType === "intake" ? (order.intake_inspection || {}) : (order.inspection || {});
   
-  const [checklist, setChecklist] = useState(existing.checklist || {});
-  const [displayType, setDisplayType] = useState(existing.display_type || "");
-  const [batteryHealth, setBatteryHealth] = useState(existing.battery_health || "");
-  const [notes, setNotes] = useState(existing.notes || "");
+  const [checklist, setChecklist] = useState(() => getExisting().checklist || {});
+  const [displayType, setDisplayType] = useState(() => getExisting().display_type || "");
+  const [batteryHealth, setBatteryHealth] = useState(() => getExisting().battery_health || "");
+  const [notes, setNotes] = useState(() => getExisting().notes || "");
   const [busy, setBusy] = useState(false);
+
+  // تحديث الحقول والـ state فوراً عند تغير الطلب لمنع تداخل الملاحظات
+  useEffect(() => {
+    const existing = getExisting();
+    setChecklist(existing.checklist || {});
+    setDisplayType(existing.display_type || "");
+    setBatteryHealth(existing.battery_health || "");
+    setNotes(existing.notes || "");
+  }, [order?._id, order?.id, inspectionType]);
 
   // حالة فتح وإغلاق الأقسام (افتراضياً القسم الأول مفتوح وباقي الأقسام مغلقة لتوفير مساحة على الهاتف)
   const [openSections, setOpenSections] = useState({
@@ -56,6 +63,10 @@ export default function InspectionForm({ order, readOnly: externalReadOnly = fal
   });
   const allItems = CATEGORIES.flatMap((cat) => cat.items);
   const allAreOk = allItems.every((item) => checklist[item]?.status === "OK");
+
+  const existing = getExisting();
+  const hasSavedData = Boolean(existing.checklist && Object.keys(existing.checklist).length > 0);
+  const isReadOnly = externalReadOnly || hasSavedData;
 
   const save = async () => {
     setBusy(true);
