@@ -648,12 +648,21 @@ async def list_orders(
     current=Depends(get_current_user)
 ):
     query = await _order_query_for_user(current)
+    
     if status:
         query["status"] = status
+        
     if branch_id:
-        query["branch_id"] = branch_id
+        # دعم البحث بالـ String أو الـ ObjectId لتجنب فشل المطابقة
+        try:
+            query["$or"] = [
+                {"branch_id": branch_id},
+                {"branch_id": ObjectId(branch_id)}
+            ]
+        except Exception:
+            query["branch_id"] = branch_id
     
-    # جلب الحقول الأساسية فقط مع الفرز السريع لتخفيف الحمل على الذاكرة
+    # استخدام index صريح للفرز السريع
     orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
     
     try:
@@ -664,7 +673,6 @@ async def list_orders(
     result = []
     for o in orders:
         try:
-            # استخدام light=True لتسريع عملية السيريالايزيشن وعدم إهدار الوقت في تفاصيل ثقيلة
             serialized = serialize_order(o, current, light=True)
             res_item = attach_names(serialized, bmap, umap)
             
@@ -677,7 +685,7 @@ async def list_orders(
             continue
             
     return result
-    
+
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
