@@ -1407,7 +1407,9 @@ async def analytics(
             query,
             {
                 "created_by": 1, "assigned_techniker_id": 1, "status": 1,
-                "total_price": 1, "status_history": 1, "branch_id": 1, "created_at": 1
+                "total_price": 1, "estimated_price": 1, "labor_cost": 1, 
+                "parts_cost": 1, "diagnosis_fee": 1, "cost_status": 1,
+                "status_history": 1, "branch_id": 1, "created_at": 1
             }
         ).sort("created_at", -1).limit(2000).to_list(length=2000)
 
