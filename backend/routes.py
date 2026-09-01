@@ -640,13 +640,15 @@ async def add_order_note(
 
 @router.get("/orders")
 async def list_orders(status: Optional[str] = None, sla: Optional[bool] = None,
-                     branch_id: Optional[str] = None, current=Depends(get_current_user)):
+                     branch_id: Optional[str] = None, limit: int = 100, skip: int = 0, current=Depends(get_current_user)):
     query = await _order_query_for_user(current)
     if status:
         query["status"] = status
     if branch_id:
         query["branch_id"] = branch_id
-    orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
+    
+    # جلب العدد المحدد فقط لتخفيف الحمل الفوري على السيرفر
+    orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
     bmap, umap = await _name_maps()
     result = [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
     if sla:
