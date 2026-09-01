@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Bell, Check, Trash, X } from "@phosphor-icons/react";
 import { berlinDateTime } from "@/lib/datetime";
 
-const POLL_MS = 5000;
+// زيادة فترة التحديث قليلاً (15 ثانية) لمنع تكدس الطلبات واستهلاك اتصالات المتصفح
+const POLL_MS = 15000;
 
 function playBeep() {
   try {
@@ -44,16 +45,26 @@ export default function NotificationBell() {
   const seenIds = useRef(new Set());
   const initialised = useRef(false);
   const soundOn = useRef(true);
+  
+  // مرجع لإلغاء الطلبات المتداخلة لمنع حدوث Stalled أو تداخل في الشبكة
+  const abortControllerRef = useRef(null);
 
   const poll = useCallback(async () => {
     try {
-      // إرسال branch_id الحالي مباشرة مع طلب الـ API للباك إند ليقوم بالفلترة بشكل صحيح وسريع
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
       const params = { limit: 50 };
       if (branchId) {
         params.branch_id = branchId;
       }
 
-      const { data } = await api.get("/notifications", { params });
+      const { data } = await api.get("/notifications", { 
+        params,
+        signal: abortControllerRef.current.signal 
+      });
       const fetchedItems = data.items || [];
 
       setItems(fetchedItems);
@@ -78,7 +89,9 @@ export default function NotificationBell() {
         });
       }
     } catch (e) {
-      /* ignore */
+      if (e.name !== "CanceledError" && e.name !== "AbortError") {
+        /* ignore network cancellation */
+      }
     }
   }, [branchId, navigate, t]);
 
@@ -87,7 +100,12 @@ export default function NotificationBell() {
     seenIds.current.clear();
     poll();
     const iv = setInterval(poll, POLL_MS);
-    return () => clearInterval(iv);
+    return () => {
+      clearInterval(iv);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [poll, branchId]);
 
   const markAllRead = async () => {
@@ -108,19 +126,16 @@ export default function NotificationBell() {
     } catch (e) {}
   };
 
-  // فتح وإغلاق القائمة دون التأثير على حالة القراءة تلقائياً
   const toggleOpen = () => {
     setOpen((o) => !o);
   };
 
-  // تحديث حالة الإشعار المحدد فقط عند النقر عليه لفتحه
   const openItem = async (n) => {
     setOpen(false);
 
     if (!n.read) {
       try {
         const params = branchId ? { branch_id: branchId } : {};
-        // محاولة تحديث الإشعار الفردي كمقروء في الباك إند
         await api.post(`/notifications/${n.id}/read`, null, { params });
         setItems((prev) => prev.map((item) => item.id === n.id ? { ...item, read: true } : item));
         setUnread((prev) => Math.max(0, prev - 1));
