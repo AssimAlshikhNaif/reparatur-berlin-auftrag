@@ -179,50 +179,44 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
   const [loading, setLoading] = useState(true);
 
 useEffect(() => {
-    let isMounted = true;
+  let isMounted = true;
 
-    async function loadDashboardData() {
-      try {
-        setLoading(true);
-        
-        // استخدام allSettled لضمان أن فشل أو تأخر أحد الطلبات لا يجمد الصفحة بالكامل
-        const results = await Promise.allSettled([
-          api.get("/stats"),
-          api.get("/orders", { params: { sla: true } }),
-        ]);
+  async function loadDashboardData() {
+    try {
+      setLoading(true);
+      
+      // 1. جلب الإحصائيات الأساسية أولاً لتفتح الصفحة فوراً
+      const statsRes = await api.get("/stats");
+      if (isMounted) {
+        setStats(statsRes.data || {});
+        setLoading(false); // إيقاف شاشة التحميل فوراً لتفتح الداشبورد كالصاروخ!
+      }
 
-        if (isMounted) {
-          const statsResult = results[0];
-          const ordersResult = results[1];
+      // 2. جلب طلبات الـ SLA في الخلفية بشكل مستقل تماماً
+      api.get("/orders", { params: { sla: true } })
+        .then((res) => {
+          if (isMounted) setSlaOrders(Array.isArray(res.data) ? res.data : []);
+        })
+        .catch((err) => {
+          console.warn("SLA orders load failed:", err);
+          if (isMounted) setSlaOrders([]);
+        });
 
-          if (statsResult.status === "fulfilled") {
-            setStats(statsResult.value.data || {});
-          } else {
-            console.warn("Stats load failed:", statsResult.reason);
-          }
-
-          if (ordersResult.status === "fulfilled") {
-            setSlaOrders(ordersResult.value.data || []);
-          } else {
-            console.warn("SLA orders load failed:", ordersResult.reason);
-            setSlaOrders([]); // تعيين مصفوفة فارغة لتجنب الانهيار
-          }
-        }
-      } catch (err) {
-        console.error("Dashboard-Ladefehler:", err);
+    } catch (err) {
+      console.error("Dashboard-Ladefehler:", err);
+      if (isMounted) {
         toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("dashboard.loadError"));
-      } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
+  }
 
-    loadDashboardData();
+  loadDashboardData();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [setStats, setSlaOrders, t]);
-
+  return () => {
+    isMounted = false;
+  };
+}, [setStats, setSlaOrders, t]);
   if (loading) {
     return (
       <div className="p-8 font-mono text-muted-foreground animate-pulse text-sm">

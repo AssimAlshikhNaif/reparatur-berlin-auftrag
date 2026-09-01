@@ -643,39 +643,39 @@ async def list_orders(
     status: Optional[str] = None, 
     sla: Optional[bool] = None,
     branch_id: Optional[str] = None, 
-    limit: int = 50,  # تقليل اليميت قليلاً لسرعة صاروخية
+    limit: int, 
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
     query = await _order_query_for_user(current)
     if status:
-        query["status"] = status
+        query["status"]  = status
     if branch_id:
         query["branch_id"] = branch_id
     
-    # استخدام .lean() أو جلب المستندات مباشرة بسرعة فائقة من MongoDB
+    # جلب الطلبات بسرعة
     orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(limit)
     
-    # جلب الخرائط لمرة واحدة فقط وبأمان
     try:
         bmap, umap = await _name_maps()
     except Exception:
         bmap, umap = {}, {}
 
-    # تبسيط عملية الربط لتكون سريعة جداً ولا تضغط على السيرفر
     result = []
     for o in orders:
         try:
             serialized = serialize_order(o, current, light=True)
-            result.append(attach_names(serialized, bmap, umap))
-        except Exception as e:
-            # في حال حدث خطأ في عنصر واحد، لا توقف القائمة كلها
-            print(f"Error serializing order: {e}")
-            result.append(o)
-
-    if sla:
-        result = [o for o in result if o.get("sla_breached")]
-        
+            res_item = attach_names(serialized, bmap, umap)
+            
+            # إذا طلب المستخدم الـ SLA فقط، نقوم بتصفيتها بحذر
+            if sla:
+                if res_item.get("sla_breached"):
+                    result.append(res_item)
+            else:
+                result.append(res_item)
+        except Exception:
+            continue
+            
     return result
 
 @router.get("/orders/lookup/{auftragsnummer}")
