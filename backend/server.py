@@ -55,7 +55,11 @@ async def startup():
     try:
         await ensure_indexes()
         await seed_all()
-        logger.info("Database initialized and seeded successfully.")
+        
+        # إضافة الفهرس الخاص بالـ branch_id والـ created_at هنا لضمان السرعة الخارقة
+        await db.orders.create_index([("branch_id", 1), ("created_at", -1)])
+        logger.info("Database indexes and seeding initialized successfully.")
+        
     except Exception as e:
         logger.error(f"Seeding failed: {e}")
         logger.error("Please check if MongoDB is running and MONGO_DETAILS in .env is correct.")
