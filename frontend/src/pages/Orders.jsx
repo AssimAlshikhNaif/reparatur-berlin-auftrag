@@ -46,7 +46,6 @@ const load = async () => {
       setOrders(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Orders load error:", err);
-      toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("orders.loadError"));
       setOrders([]);
     } finally {
       setLoading(false);
