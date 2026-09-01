@@ -666,14 +666,20 @@ async def list_orders(
         except Exception:
             query["branch_id"] = branch_id
     
-    # حماية استعلام قاعدة البيانات لضمان عدم التعليق
+    # استخدام projection للاستفادة الكاملة من الـ Indexes وجلب البيانات في أجزاء من الميلي ثانية
     try:
-        orders = await db.orders.find(query).sort("created_at", -1).skip(skip).to_list(length=limit)
+        orders = await db.orders.find(
+            query,
+            {
+                "customer_name": 1, "device_model": 1, "status": 1, 
+                "created_at": 1, "branch_id": 1, "order_number": 1, 
+                "is_reclamation": 1, "warranty_until": 1, "technician_id": 1
+            }
+        ).sort("created_at", -1).skip(skip).to_list(length=limit)
     except Exception as e:
         print(f"DB Error in /orders: {e}")
         orders = []
     
-    # حماية جلب الأسماء لكي لا تعطل النظام لو حدث خطأ
     try:
         bmap, umap = await _name_maps()
     except Exception:
@@ -694,7 +700,7 @@ async def list_orders(
             continue
             
     return result
-    
+
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
