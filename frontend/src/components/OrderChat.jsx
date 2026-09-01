@@ -12,26 +12,40 @@ export default function OrderChat({ orderId }) {
   const listRef = useRef(null);
 
   // جلب الرسائل عند تحميل المكون أو تغيير رقم العقد، مع تحديث تلقائي كل 3 ثوانٍ (Polling)
+// جلب الرسائل مع تحديث آمن كل 15 ثانية وتجنب تداخل الطلبات
   useEffect(() => {
     let isMounted = true;
+    let abortController = null;
 
     const fetchMessages = async () => {
+      if (abortController) {
+        abortController.abort(); // إلغاء الطلب السابق إذا لم ينتهِ بعد
+      }
+      abortController = new AbortController();
+
       try {
-        const { data } = await api.get(`/orders/${orderId}/messages`);
+        const { data } = await api.get(`/orders/${orderId}/messages`, {
+          signal: abortController.signal,
+        });
         if (isMounted) {
           setMessages(data);
         }
       } catch (err) {
-        console.error("Fehler beim Laden der Nachrichten:", err);
+        if (err.name !== "CanceledError" && err.name !== "AbortError") {
+          console.error("Fehler beim Laden der Nachrichten:", err);
+        }
       }
     };
 
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000); // تحديث كل 3 ثوانٍ لضمان ظهور الرسائل فوراً
+    const interval = setInterval(fetchMessages, 15000); // رفع المدة إلى 15 ثانية لتخفيف الضغط تماماً
 
     return () => {
       isMounted = false;
       clearInterval(interval);
+      if (abortController) {
+        abortController.abort();
+      }
     };
   }, [orderId]);
 
