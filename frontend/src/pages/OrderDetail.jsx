@@ -596,17 +596,18 @@ export default function OrderDetail() {
                   <div className="border-t border-border mt-3 pt-3 font-mono text-sm space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs uppercase text-muted-foreground">Bezahlt :</span>
-                      {canManage ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={costForm.paid_amount ?? order.cost?.paid_amount ?? 0}
-                          onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
-                          className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono"
-                        />
-                      ) : (
-                        <span className="text-foreground">{Number(order.cost?.paid_amount || 0).toFixed(2)} €</span>
-                      )}
+                    {canManage ? (
+    <input 
+        type="number" 
+        step="0.01" 
+        value={costForm.paid_amount !== undefined ? costForm.paid_amount : (order.cost?.paid_amount || 0)}
+        onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+        placeholder="0.00"
+        className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+    />
+) : (
+    <span className="text-foreground">{Number(order.cost?.paid_amount || 0).toFixed(2)} €</span>
+)}
                     </div>
                     <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
                       <span>Restbetrag :</span>
