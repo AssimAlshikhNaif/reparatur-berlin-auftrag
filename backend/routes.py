@@ -1930,43 +1930,33 @@ async def global_activity(limit: int = 200, current=Depends(require_roles("admin
 @router.get("/reklamationen")
 async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter"))):
     base = await _order_query_for_user(current)
-    cond = {"$or": [{"is_reclamation": True}, {"warranty_until": {"$ne": None}}]}
+    # اجعل البحث يقتصر على طلبات الركلاماسيون الحقيقية فقط لكي لا تتداخل مع Abgeholt
+    cond = {"is_reclamation": True}
     query = {"$and": [base, cond]} if base else cond
     orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
     bmap, umap = await _name_maps()
     out = []
     for o in orders:
         s = attach_names(serialize_order(o, current, light=True), bmap, umap)
-        # keep reclamation cases and currently-active warranties
-        if s.get("is_reclamation") or s.get("under_warranty"):
-            out.append(s)
+        out.append(s)
     return out
 
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str):
-    """
-    استرجاع الصور والملفات من المجلد الخارجي الحقيقي /var/www/repair-berlin-uploads
-    """
     safe_path = file_path.lstrip("/\\")
-    
-    # إزالة تكرار مسار repair-berlin إذا وجد
     if safe_path.startswith("repair-berlin/"):
         safe_path = safe_path[len("repair-berlin/"):]
     if safe_path.startswith("uploads/"):
         safe_path = safe_path[len("uploads/"):]
 
-    # المجلد الخارجي الأساسي المعتمد في storage.py
     UPLOAD_DIR = "/var/www/repair-berlin-uploads"
+    target_file = os.path.join(UPLOAD_DIR, safe_path)
     
-    target_file = None
-    
-    # 1. التجربة الأولى: البحث المباشر في المجلد الرئيسي
-    primary_path = os.path.join(UPLOAD_DIR, safe_path)
-    if os.path.exists(primary_path) and os.path.isfile(primary_path):
-        target_file = primary_path
-    else:
-        # 2. التجربة الثانية: البحث بالاسم الأخير فقط داخل كل المجلدات الفرعية لضمان إيجاد الصورة 100%
+    # البحث المباشر السريع أولاً
+    if not os.path.exists(target_file) or not os.path.isfile(target_file):
+        # إن لم يوجد، ابحث بالاسم الأخير (يمكنك الاحتفاظ بـ os.walk بحذر ولكن يفضل ضبط مسارات الرفع لتكون مباشرة)
         filename = os.path.basename(safe_path)
+        target_file = None
         if os.path.exists(UPLOAD_DIR):
             for root, dirs, files in os.walk(UPLOAD_DIR):
                 if filename in files:
@@ -1976,7 +1966,6 @@ async def serve_file(file_path: str):
     if not target_file or not os.path.exists(target_file):
         raise HTTPException(status_code=404, detail=f"File not found in storage: {safe_path}")
         
-    # تحديد نوع الملف (ContentType) بدقة
     content_type = "application/octet-stream"
     lower_path = target_file.lower()
     if lower_path.endswith((".jpg", ".jpeg")):
