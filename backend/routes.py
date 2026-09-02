@@ -255,6 +255,7 @@ class OrderCreate(BaseModel):
     diagnosis_fee: Optional[float] = 0
     labor_cost: Optional[float] = 0
     parts_cost: Optional[float] = 0
+    paid_amount: Optional[float] = 0.0
     diagnosis_payment_status: Optional[str] = "OPEN"  # PAID | OPEN | NA
     warranty_months: Optional[int] = WARRANTY_DEFAULT_MONTHS
     assigned_techniker_id: Optional[str] = None

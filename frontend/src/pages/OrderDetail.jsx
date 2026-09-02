@@ -206,7 +206,8 @@ export default function OrderDetail() {
     diagnosis_fee: parseFloat(costForm.diagnosis_fee) || 0,
     labor_cost: parseFloat(costForm.labor_cost) || 0,
     parts_cost: parseFloat(costForm.parts_cost) || 0,
-  }), t("toast.costsSaved"));
+    paid_amount: parseFloat(costForm.paid_amount) || 0, // ◄ أضف هذا السطر هنا
+}), t("toast.costsSaved"));
 
   const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
   const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), t("toast.paymentStatusUpdated"));

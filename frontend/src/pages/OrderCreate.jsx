@@ -184,6 +184,7 @@ const submit = async (e) => {
         diagnosis_fee: parseFloat(form.diagnosis_fee) || 0,
         labor_cost: parseFloat(form.labor_cost) || 0,
         parts_cost: parseFloat(form.parts_cost) || 0,
+        paid_amount: parseFloat(form.paid_amount) || 0,
         warranty_months: parseInt(form.warranty_months) || 0,
         assigned_techniker_id: form.assigned_techniker_id || null,
         intake_signature: intakeSignature || null,
