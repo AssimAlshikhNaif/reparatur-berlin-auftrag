@@ -25,7 +25,7 @@ import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
   Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
-  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap,PencilSimple,
+  Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap, PencilSimple,
 } from "@phosphor-icons/react";
 
 const LOCK_LABELS = { none: "Keine Sperre", pattern: "Muster", pin: "PIN", password: "Passwort" }; // eslint-disable-line no-unused-vars
@@ -54,7 +54,7 @@ function Field({ label, value }) {
 export default function OrderDetail() {
   const { id } = useParams();
   const { user } = useAuth();
-  const isTech = user?.role === "techniker"; 
+  const isTech = user?.role === "techniker";
   const [newNoteContent, setNewNoteContent] = useState('');
   const [loadingNote, setLoadingNote] = useState(false);
   const { t } = useTranslation();
@@ -80,7 +80,7 @@ export default function OrderDetail() {
   const [costForm, setCostForm] = useState({ diagnosis_fee: "", labor_cost: "", parts_cost: "" });
   const [comms, setComms] = useState([]);
   const [audit, setAudit] = useState([]);
-  
+
   // حالة التبويب النشط ونظام المشتريات
   const [activeTab, setActiveTab] = useState("details"); // "details" | "purchases"
   const [purchasesCount, setPurchasesCount] = useState(0);
@@ -92,7 +92,7 @@ export default function OrderDetail() {
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
-  
+
 
   const deleteOrder = async () => {
     setDeleting(true);
@@ -108,12 +108,12 @@ export default function OrderDetail() {
 
   const loadComms = useCallback(() => {
     if (!canManageRef) return;
-    api.get(`/orders/${id}/communications`).then((r) => setComms(r.data)).catch(() => {});
-    api.get(`/orders/${id}/audit`).then((r) => setAudit(r.data)).catch(() => {});
+    api.get(`/orders/${id}/communications`).then((r) => setComms(r.data)).catch(() => { });
+    api.get(`/orders/${id}/audit`).then((r) => setAudit(r.data)).catch(() => { });
   }, [id, canManageRef]);
 
   const loadPurchasesCount = useCallback(() => {
-    api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => {});
+    api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => { });
   }, [id]);
 
   const load = useCallback(async () => {
@@ -129,31 +129,31 @@ export default function OrderDetail() {
 
 
   const handleAddNote = async (e) => {
-  e.preventDefault();
-  if (!newNoteContent.trim()) return;
+    e.preventDefault();
+    if (!newNoteContent.trim()) return;
 
-  try {
-    setLoadingNote(true);
-    // استخدام كائن api الخاص بمشروعك مباشرة
-    const response = await api.post(`/orders/${id}/notes`, {
-      content: newNoteContent,
-      is_internal: true
-    });
+    try {
+      setLoadingNote(true);
+      // استخدام كائن api الخاص بمشروعك مباشرة
+      const response = await api.post(`/orders/${id}/notes`, {
+        content: newNoteContent,
+        is_internal: true
+      });
 
-    // تحديث حالة الطلب محلياً لكي تظهر الملاحظة فوراً
-    setOrder(prevOrder => ({
-      ...prevOrder,
-      notes: [...(prevOrder.notes || []), response.data.note]
-    }));
-    
-    setNewNoteContent('');
-  } catch (error) {
-    console.error('Error adding note:', error);
-    alert('Fehler beim Speichern der Notiz');
-  } finally {
-    setLoadingNote(false);
-  }
-};
+      // تحديث حالة الطلب محلياً لكي تظهر الملاحظة فوراً
+      setOrder(prevOrder => ({
+        ...prevOrder,
+        notes: [...(prevOrder.notes || []), response.data.note]
+      }));
+
+      setNewNoteContent('');
+    } catch (error) {
+      console.error('Error adding note:', error);
+      alert('Fehler beim Speichern der Notiz');
+    } finally {
+      setLoadingNote(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -199,7 +199,7 @@ export default function OrderDetail() {
   const saveEdit = () => {
     act(() => api.patch(`/orders/${id}`, editForm), t("detail.orderUpdated")).then(() => setShowEdit(false));
   };
-  
+
   const setStatus = (status) => act(() => api.patch(`/orders/${id}/status`, { status }), t("toast.statusChanged", { s: t(`status.${status}`, STATUS_LABELS[status]) }));
 
   const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
@@ -237,7 +237,7 @@ export default function OrderDetail() {
     } finally { setSavingSig(false); }
   };
 
-const deleteMedia = async (m, index) => {
+  const deleteMedia = async (m, index) => {
     const mediaId = m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || String(index);
     try {
       await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
@@ -272,15 +272,15 @@ const deleteMedia = async (m, index) => {
   const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
   const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
   const canManage = user.role === "admin" || user.role === "mitarbeiter";
-  
+
 
   // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
   // from the local costForm state so the totals update in real-time as they type.
   const liveGross = canManage
-  ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
-  : Number(order.cost?.gross || 0);
-const liveNet = canManage ? liveGross / 1.19 : Number(order.cost?.net || 0);
-const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
+    ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
+    : Number(order.cost?.gross || 0);
+  const liveNet = canManage ? liveGross / 1.19 : Number(order.cost?.net || 0);
+  const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
 
   return (
     <div>
@@ -379,8 +379,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
             <ClipboardText size={14} /> {t("actions.fullPrint")}
           </button>
         )}
-        
-        
+
+
         {canManage && order.status === "ABGEHOLT" && (
           <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
@@ -388,12 +388,16 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
           </button>
         )}
         {canManage && order.status === "ABGEHOLT" && (
-          <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", { state: { reclamationOf: {
-              id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
-              device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
-              customer_name: order.customer_name, customer_phone: order.customer_phone,
-              customer_email: order.customer_email, customer_address: order.customer_address,
-            } } })}
+          <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
+            state: {
+              reclamationOf: {
+                id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
+                device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
+                customer_name: order.customer_name, customer_phone: order.customer_phone,
+                customer_email: order.customer_email, customer_address: order.customer_address,
+              }
+            }
+          })}
             className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-950 transition-colors">
             <ArrowsClockwise size={14} /> {t("actions.reklamation")}
           </button>
@@ -448,9 +452,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
       <div className="flex items-center gap-2 px-6 md:px-8 border-b border-border bg-card/40">
         <button
           onClick={() => setActiveTab("details")}
-          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors ${
-            activeTab === "details" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeTab === "details" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
         >
           {t("detail.tabDetails")}
         </button>
@@ -459,9 +462,8 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
             setActiveTab("purchases");
             loadPurchasesCount();
           }}
-          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === "purchases" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 ${activeTab === "purchases" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
         >
           <ShoppingCart size={14} /> {t("detail.tabPurchases")}
           {purchasesCount > 0 && (
@@ -472,7 +474,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
         </button>
       </div>
 
-      
+
 
       {order.status === "ABGELEHNT" && order.reject_reason && (
         <div className="mx-6 md:mx-8 my-4 border border-red-900 bg-red-950/30 px-4 py-3">
@@ -498,7 +500,7 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-6 md:p-8">
 
-          
+
           {/* LEFT column */}
           <div className="lg:col-span-2 space-y-4">
             <Section title={t("detail.deviceError")} icon={DeviceMobile}>
@@ -535,96 +537,120 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
               <Field label={t("detail.warranty")} value={
                 order.warranty_months
                   ? (order.warranty_until
-                      ? `${order.warranty_months} · ${berlinDateTime(order.warranty_until)}${order.under_warranty ? ` (${t("reklamation.badgeWarranty")})` : ""}`
-                      : t("detail.warrantyMonthsFrom", { m: order.warranty_months }))
+                    ? `${order.warranty_months} · ${berlinDateTime(order.warranty_until)}${order.under_warranty ? ` (${t("reklamation.badgeWarranty")})` : ""}`
+                    : t("detail.warrantyMonthsFrom", { m: order.warranty_months }))
                   : t("detail.noWarranty")
               } />
             </Section>
 
             {/* Kostenaufschlüsselung */}
             {!isTech && (
-            <div className="border border-border">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
-                <div className="flex items-center gap-2">
-                  <Receipt size={16} className="text-accent" />
-                  <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
-                </div>
-                <span data-testid="cost-status-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${COST_STATUS_STYLES[order.cost?.status] || "bg-muted text-foreground/80 border-border"}`}>
-                  {order.cost?.status ? t("costs." + ({WARTET:"waiting",BESTAETIGT:"confirmed",ABGELEHNT:"rejected"}[order.cost.status] || "waiting")) : "—"}
-                </span>
-              </div>
-              <div className="p-4">
-                {canManage ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
-                      <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
-                        onChange={(e) => setCostForm({ ...costForm, diagnosis_fee: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.labor")}</label>
-                      <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
-                        onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.attempt")}</label>
-                      <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
-                        onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
-                        className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                    </div>
+              <div className="border border-border">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
+                  <div className="flex items-center gap-2">
+                    <Receipt size={16} className="text-accent" />
+                    <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
                   </div>
-                ) : (
-                  <div className="font-mono text-sm space-y-1 mb-3">
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
-                  </div>
-                )}
-
-                <div className="border-t border-border pt-3 font-mono text-sm space-y-1">
-                  <div className="flex justify-between text-muted-foreground"><span>{t("costs.net")}</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
-                  <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
+                  <span data-testid="cost-status-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${COST_STATUS_STYLES[order.cost?.status] || "bg-muted text-foreground/80 border-border"}`}>
+                    {order.cost?.status ? t("costs." + ({ WARTET: "waiting", BESTAETIGT: "confirmed", ABGELEHNT: "rejected" }[order.cost.status] || "waiting")) : "—"}
+                  </span>
                 </div>
-
-                {/* Diagnosegebühr Zahlungsstatus */}
-                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
+                <div className="p-4">
                   {canManage ? (
-                    <select data-testid="diagnosis-payment-select" value={order.diagnosis_payment_status || "OPEN"}
-                      onChange={(e) => setDiagnosisPayment(e.target.value)}
-                      className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-                      <option value="OPEN">{t("costs.open")}</option>
-                      <option value="PAID">{t("costs.paid")}</option>
-                      <option value="NA">{t("costs.na")}</option>
-                    </select>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
+                        <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
+                          onChange={(e) => setCostForm({ ...costForm, diagnosis_fee: e.target.value })}
+                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.labor")}</label>
+                        <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
+                          onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
+                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.attempt")}</label>
+                        <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
+                          onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
+                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+                      </div>
+                    </div>
                   ) : (
-                    <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
-                      {t("costs." + ({PAID:"paid",OPEN:"open",NA:"na"}[order.diagnosis_payment_status] || "open"))}
-                    </span>
+                    <div className="font-mono text-sm space-y-1 mb-3">
+                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
+                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
+                    </div>
+                  )}
+
+                  <div className="border-t border-border pt-3 font-mono text-sm space-y-1">
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.net")}</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
+                  </div>
+
+                  {/* الحاسبة الذكية للمدفوع والمتبقي */}
+                  <div className="border-t border-border mt-3 pt-3 font-mono text-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase text-muted-foreground">Bezahlt :</span>
+                      {canManage ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={costForm.paid_amount ?? order.cost?.paid_amount ?? 0}
+                          onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+                          className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono"
+                        />
+                      ) : (
+                        <span className="text-foreground">{Number(order.cost?.paid_amount || 0).toFixed(2)} €</span>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+                      <span>Restbetrag :</span>
+                      <span className={((liveGross - Number(costForm.paid_amount ?? order.cost?.paid_amount ?? 0)) > 0) ? "text-amber-500" : "text-emerald-500"}>
+                        {Math.max(0, liveGross - Number(costForm.paid_amount ?? order.cost?.paid_amount ?? 0)).toFixed(2)} €
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Diagnosegebühr Zahlungsstatus */}
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
+                    {canManage ? (
+                      <select data-testid="diagnosis-payment-select" value={order.diagnosis_payment_status || "OPEN"}
+                        onChange={(e) => setDiagnosisPayment(e.target.value)}
+                        className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
+                        <option value="OPEN">{t("costs.open")}</option>
+                        <option value="PAID">{t("costs.paid")}</option>
+                        <option value="NA">{t("costs.na")}</option>
+                      </select>
+                    ) : (
+                      <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
+                        {t("costs." + ({ PAID: "paid", OPEN: "open", NA: "na" }[order.diagnosis_payment_status] || "open"))}
+                      </span>
+                    )}
+                  </div>
+
+                  {canManage && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <button data-testid="save-costs" onClick={saveCosts}
+                        className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
+                        {t("costs.save")}
+                      </button>
+                      <div className="flex-1" />
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.release")}</span>
+                      <button data-testid="cost-approve" onClick={() => setCostStatus("BESTAETIGT")}
+                        className="text-xs font-mono uppercase tracking-wider border border-emerald-700 text-emerald-300 px-3 py-2 hover:bg-emerald-950 transition-colors">{t("costs.confirmed")}</button>
+                      <button data-testid="cost-wait" onClick={() => setCostStatus("WARTET")}
+                        className="text-xs font-mono uppercase tracking-wider border border-amber-700 text-amber-300 px-3 py-2 hover:bg-amber-950 transition-colors">{t("costs.waiting")}</button>
+                      <button data-testid="cost-reject" onClick={() => setCostStatus("ABGELEHNT")}
+                        className="text-xs font-mono uppercase tracking-wider border border-red-700 text-red-300 px-3 py-2 hover:bg-red-950 transition-colors">{t("costs.rejected")}</button>
+                    </div>
                   )}
                 </div>
-
-                {canManage && (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button data-testid="save-costs" onClick={saveCosts}
-                      className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                      {t("costs.save")}
-                    </button>
-                    <div className="flex-1" />
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.release")}</span>
-                    <button data-testid="cost-approve" onClick={() => setCostStatus("BESTAETIGT")}
-                      className="text-xs font-mono uppercase tracking-wider border border-emerald-700 text-emerald-300 px-3 py-2 hover:bg-emerald-950 transition-colors">{t("costs.confirmed")}</button>
-                    <button data-testid="cost-wait" onClick={() => setCostStatus("WARTET")}
-                      className="text-xs font-mono uppercase tracking-wider border border-amber-700 text-amber-300 px-3 py-2 hover:bg-amber-950 transition-colors">{t("costs.waiting")}</button>
-                    <button data-testid="cost-reject" onClick={() => setCostStatus("ABGELEHNT")}
-                      className="text-xs font-mono uppercase tracking-wider border border-red-700 text-red-300 px-3 py-2 hover:bg-red-950 transition-colors">{t("costs.rejected")}</button>
-                  </div>
-                )}
               </div>
-            </div>
             )}
 
             {/* قسم الملاحظات الداخلية للموظفين في العمود الأيمن */}
@@ -747,9 +773,9 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-               {intakeMedia.map((m, index) => (
-               <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
-            ))}
+                  {intakeMedia.map((m, index) => (
+                    <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+                  ))}
                 </div>
               )}
             </Section>
@@ -764,9 +790,9 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                 <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
               ) : (
                 <div className=" sm:grid-cols-4 gap-2 mb-3">
-                 {repairMedia.map((m, index) => (
-  <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
-))}
+                  {repairMedia.map((m, index) => (
+                    <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+                  ))}
                 </div>
               )}
               {(isTech || canManage) && order.status !== "ABGEHOLT" && (
@@ -781,74 +807,74 @@ const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
                   </button>
                 </div>
               )}
-              
+
             </Section>
 
-           
-{/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
-<div className="space-y-6">
-  
-  {/* 1. فحص الاستلام (Eingangsprüfung - يجريه الموظف ويراه التقني والآدمن) */}
-  <Section title="Eingangsprüfung (Mitarbeiter)" icon={ClipboardText}>
-    {(() => {
-      const hasIntake = Boolean(order.intake_inspection?.checklist && Object.keys(order.intake_inspection.checklist).length > 0);
-      
-      // الصلاحية: الموظف أو الآدمن يستطيعان التعديل، بينما التقني يراه (قراءة فقط)
-      const isReadOnly = !canManage && !isMitarbeiter; 
-      
-      return (
-        <div className="space-y-3">
-          {hasIntake && (
-            <p className="text-[11px] font-mono text-emerald-400">
-              ✓ Eingangsprüfung durchgeführt von {order.intake_inspection.by || "Mitarbeiter"}
-            </p>
-          )}
-          <InspectionForm 
-            key={`intake-${order._id || order.id}`} 
-            order={order} 
-            inspectionType="intake" 
-            inspectionData={order.intake_inspection} 
-            readOnly={isReadOnly} 
-            onSaved={load} 
-          />
-        </div>
-      );
-    })()}
-  </Section>
 
-  {/* 2. فحص النهاية (Endkontrolle - يجريه التقني ويراه الموظف والآدمن) */}
-  {(isTech || canManage || isMitarbeiter) && (
-    <Section title={t("inspection.title")} icon={ClipboardText}>
-      {(() => {
-        const hasEnd = Boolean(order.inspection?.checklist && Object.keys(order.inspection.checklist).length > 0);
-        
-        // الصلاحية: التقني أو الآدمن يستطيعان التعديل. الموظف يراه (قراءة فقط) ولا يمكنه تعديله.
-        const isReadOnly = (hasEnd && order.status === "ABGEHOLT") || (!isTech && !canManage);
+            {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
+            <div className="space-y-6">
 
-        return (
-          <div className="space-y-3">
-            <p className="text-[11px] font-mono text-amber-300">{t("inspection.subtitle")}</p>
-            {hasEnd && (
-              <p className="text-[11px] font-mono text-emerald-400">
-                ✓ Endkontrolle durchgeführt von {order.inspection.by || "Techniker"}
-              </p>
-            )}
-            <InspectionForm 
-              key={`end-${order._id || order.id}`} 
-              order={order} 
-              inspectionType="end" 
-              inspectionData={order.inspection} 
-              readOnly={isReadOnly} 
-              onSaved={load} 
-            />
-          </div>
-        );
-      })()}
-    </Section>
-  )}
-</div>
+              {/* 1. فحص الاستلام (Eingangsprüfung - يجريه الموظف ويراه التقني والآدمن) */}
+              <Section title="Eingangsprüfung (Mitarbeiter)" icon={ClipboardText}>
+                {(() => {
+                  const hasIntake = Boolean(order.intake_inspection?.checklist && Object.keys(order.intake_inspection.checklist).length > 0);
+
+                  // الصلاحية: الموظف أو الآدمن يستطيعان التعديل، بينما التقني يراه (قراءة فقط)
+                  const isReadOnly = !canManage && !isMitarbeiter;
+
+                  return (
+                    <div className="space-y-3">
+                      {hasIntake && (
+                        <p className="text-[11px] font-mono text-emerald-400">
+                          ✓ Eingangsprüfung durchgeführt von {order.intake_inspection.by || "Mitarbeiter"}
+                        </p>
+                      )}
+                      <InspectionForm
+                        key={`intake-${order._id || order.id}`}
+                        order={order}
+                        inspectionType="intake"
+                        inspectionData={order.intake_inspection}
+                        readOnly={isReadOnly}
+                        onSaved={load}
+                      />
+                    </div>
+                  );
+                })()}
+              </Section>
+
+              {/* 2. فحص النهاية (Endkontrolle - يجريه التقني ويراه الموظف والآدمن) */}
+              {(isTech || canManage || isMitarbeiter) && (
+                <Section title={t("inspection.title")} icon={ClipboardText}>
+                  {(() => {
+                    const hasEnd = Boolean(order.inspection?.checklist && Object.keys(order.inspection.checklist).length > 0);
+
+                    // الصلاحية: التقني أو الآدمن يستطيعان التعديل. الموظف يراه (قراءة فقط) ولا يمكنه تعديله.
+                    const isReadOnly = (hasEnd && order.status === "ABGEHOLT") || (!isTech && !canManage);
+
+                    return (
+                      <div className="space-y-3">
+                        <p className="text-[11px] font-mono text-amber-300">{t("inspection.subtitle")}</p>
+                        {hasEnd && (
+                          <p className="text-[11px] font-mono text-emerald-400">
+                            ✓ Endkontrolle durchgeführt von {order.inspection.by || "Techniker"}
+                          </p>
+                        )}
+                        <InspectionForm
+                          key={`end-${order._id || order.id}`}
+                          order={order}
+                          inspectionType="end"
+                          inspectionData={order.inspection}
+                          readOnly={isReadOnly}
+                          onSaved={load}
+                        />
+                      </div>
+                    );
+                  })()}
+                </Section>
+              )}
+            </div>
             {/* Digitale Unterschriften */}
-            {canManage && ( 
+            {canManage && (
               <Section title={t("detail.signatures")} icon={Signature}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Intake / Abholschein */}

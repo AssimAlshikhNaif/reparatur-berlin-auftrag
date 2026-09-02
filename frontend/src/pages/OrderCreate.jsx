@@ -322,8 +322,10 @@ const submit = async (e) => {
               {errors.customer_name && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.customer_name}</p>}
             </div>
             <div>
-              <label className={labelCls}>{t("oc.phone")}</label>
-              <input data-testid="order-customer-phone" required value={form.customer_phone} onChange={set("customer_phone")} className={`${inputCls} font-mono`} />
+              <label className={labelCls}>
+                {t("oc.phone")} <span className="text-muted-foreground/60">({t("oc.optional")})</span>
+              </label>
+              <input data-testid="order-customer-phone" value={form.customer_phone} onChange={set("customer_phone")} placeholder={t("oc.optional")} className={`${inputCls} font-mono`} />
               {errors.customer_phone && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.customer_phone}</p>}
             </div>
             <div>
@@ -351,7 +353,7 @@ const submit = async (e) => {
           </div>
         </section>
 
-        {/* Kostenaufschlüsselung */}
+{/* Kostenaufschlüsselung */}
         <section>
           <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2 flex items-center gap-2">
             <Receipt size={18} className="text-accent" /> {t("oc.secCosts")}
@@ -380,10 +382,32 @@ const submit = async (e) => {
               </select>
             </div>
           </div>
+
           <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">
             <div className="flex justify-between text-muted-foreground"><span>{t("oc.net")}</span><span data-testid="cost-net">{netTotal.toFixed(2)} €</span></div>
             <div className="flex justify-between text-muted-foreground"><span>{t("oc.tax")}</span><span data-testid="cost-tax">{taxTotal.toFixed(2)} €</span></div>
             <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("oc.gross")}</span><span data-testid="cost-gross">{grossTotal.toFixed(2)} €</span></div>
+            
+            {/* الحاسبة الذكية للمدفوع والمتبقي عند الإنشاء */}
+            <div className="border-t border-dashed border-border pt-3 mt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  value={form.paid_amount ?? 0}
+                  onChange={set("paid_amount")}
+                  placeholder="0.00"
+                  className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+                />
+              </div>
+              <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+                <span>Restbetrag:</span>
+                <span className={(grossTotal - Number(form.paid_amount || 0)) > 0 ? "text-amber-500" : "text-emerald-500"}>
+                  {Math.max(0, grossTotal - Number(form.paid_amount || 0)).toFixed(2)} €
+                </span>
+              </div>
+            </div>
           </div>
         </section>
 

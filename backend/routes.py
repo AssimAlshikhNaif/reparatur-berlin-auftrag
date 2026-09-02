@@ -281,6 +281,7 @@ class CostUpdate(BaseModel):
     diagnosis_fee: Optional[float] = None
     labor_cost: Optional[float] = None
     parts_cost: Optional[float] = None
+    paid_amount: Optional[float] = None
     cost_status: Optional[str] = None
     diagnosis_payment_status: Optional[str] = None  # PAID | OPEN | NA
 
@@ -1123,32 +1124,66 @@ async def update_costs(order_id: str, input: CostUpdate,
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
     updates = {}
+    
+    # 1. تحديث حقول التكاليف الأساسية
+    existing_cost = order.get("cost", {})
+    diagnosis_fee = float(getattr(input, "diagnosis_fee", None) if getattr(input, "diagnosis_fee", None) is not None else existing_cost.get("diagnosis_fee", 0))
+    labor_cost = float(getattr(input, "labor_cost", None) if getattr(input, "labor_cost", None) is not None else existing_cost.get("labor_cost", 0))
+    parts_cost = float(getattr(input, "parts_cost", None) if getattr(input, "parts_cost", None) is not None else existing_cost.get("parts_cost", 0))
+    
     for k in ("diagnosis_fee", "labor_cost", "parts_cost"):
         v = getattr(input, k)
         if v is not None:
-            updates[k] = float(v)
+            updates[f"cost.{k}"] = float(v)
+
+    # 2. معالجة وتخزين المبلغ المدفوع والمتبقي
+    paid_input = getattr(input, "paid_amount", None)
+    if paid_input is not None:
+        paid_amount = float(paid_input)
+        updates["cost.paid_amount"] = paid_amount
+    else:
+        paid_amount = float(existing_cost.get("paid_amount", 0))
+
+    # 3. حسابات المالية التلقائية (Netto, MwSt, Brutto, Restbetrag)
+    net = diagnosis_fee + labor_cost + parts_cost
+    tax = net * 0.19
+    gross = net + tax
+    remaining_amount = max(0.0, gross - paid_amount)
+
+    updates["cost.net"] = round(net, 2)
+    updates["cost.tax"] = round(tax, 2)
+    updates["cost.gross"] = round(gross, 2)
+    updates["cost.remaining_amount"] = round(remaining_amount, 2)
+
+    # 4. التحقق من الحالات الأخرى (Status)
     if input.cost_status is not None:
         if input.cost_status not in COST_STATES:
             raise HTTPException(status_code=400, detail="Ungültiger Kostenstatus")
-        updates["cost_status"] = input.cost_status
+        updates["cost.cost_status"] = input.cost_status
+        
     if input.diagnosis_payment_status is not None:
         if input.diagnosis_payment_status not in ("PAID", "OPEN", "NA"):
             raise HTTPException(status_code=400, detail="Ungültiger Zahlungsstatus")
-        updates["diagnosis_payment_status"] = input.diagnosis_payment_status
+        updates["cost.diagnosis_payment_status"] = input.diagnosis_payment_status
+
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})
-        if "cost_status" in updates:
-            await log_audit(order_id, "KOSTEN", f"Kostenstatus → {updates['cost_status']}", current["name"])
+        
+        if "cost.cost_status" in updates:
+            await log_audit(order_id, "KOSTEN", f"Kostenstatus → {updates['cost.cost_status']}", current["name"])
         else:
             await log_audit(order_id, "KOSTEN", "Kosten aktualisiert", current["name"])
+            
         await push_notification(
             kind="KOSTEN", title="Kosten aktualisiert",
             message=f"{current['name']} hat Kosten für {order.get('auftragsnummer','')} aktualisiert.",
             by=current["name"], by_role=current["role"],
             order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
         )
+        
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
