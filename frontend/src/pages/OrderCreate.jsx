@@ -394,12 +394,12 @@ const submit = async (e) => {
               <div className="flex items-center justify-between">
                 <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
                 <input 
-                  type="number" 
-                  step="0.01" 
-                  value={form.paid_amount ?? 0}
-                  onChange={set("paid_amount")}
-                  placeholder="0.00"
-                  className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+                 type="number" 
+                 step="0.01" 
+                 value={costForm.paid_amount ?? 0}
+                 onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+                 placeholder="0.00"
+                 className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
                 />
               </div>
               <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
