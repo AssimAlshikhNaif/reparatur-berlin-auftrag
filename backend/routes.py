@@ -155,17 +155,20 @@ async def _name_maps():
 
 
 def attach_names(o: dict, bmap: dict, umap: dict) -> dict:
-    # ربط اسم الفرع
-    o["branch_name"] = bmap.get(o.get("branch_id"), "—")
+    # 1. ربط اسم الفرع
+    o["branch_name"] = bmap.get(str(o.get("branch_id")), "—")
     
-    # ربط اسم التقني
+    # 2. ربط اسم التقني
     tid = o.get("assigned_techniker_id") or o.get("technician_id")
-    o["assigned_techniker_name"] = umap.get(tid) if tid else "—"
+    o["assigned_techniker_name"] = umap.get(str(tid)) if tid else "—"
     
-    # ربط اسم الموظف (الذي أنشأ الطلب)
-    uid = o.get("user_id") or o.get("created_by") or o.get("mitarbeiter_id")
-    o["mitarbeiter_name"] = umap.get(uid) if uid else "—"
-    
+    # 3. ربط اسم الموظف (الاعتماد على created_by أو created_by_name المخزن مسبقاً)
+    if o.get("created_by_name"):
+        o["mitarbeiter_name"] = o.get("created_by_name")
+    else:
+        uid = o.get("created_by") or o.get("user_id") or o.get("mitarbeiter_id")
+        o["mitarbeiter_name"] = umap.get(str(uid)) if uid else "—"
+        
     return o
 
 
