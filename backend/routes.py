@@ -155,9 +155,17 @@ async def _name_maps():
 
 
 def attach_names(o: dict, bmap: dict, umap: dict) -> dict:
+    # ربط اسم الفرع
     o["branch_name"] = bmap.get(o.get("branch_id"), "—")
-    tid = o.get("assigned_techniker_id")
-    o["assigned_techniker_name"] = umap.get(tid) if tid else None
+    
+    # ربط اسم التقني
+    tid = o.get("assigned_techniker_id") or o.get("technician_id")
+    o["assigned_techniker_name"] = umap.get(tid) if tid else "—"
+    
+    # ربط اسم الموظف (الذي أنشأ الطلب)
+    uid = o.get("user_id") or o.get("created_by") or o.get("mitarbeiter_id")
+    o["mitarbeiter_name"] = umap.get(uid) if uid else "—"
+    
     return o
 
 
@@ -675,7 +683,7 @@ async def list_orders(
                 "auftragsnummer": 1, "customer_name": 1, "device_model": 1, 
                 "status": 1, "created_at": 1, "branch_id": 1, 
                 "is_reclamation": 1, "warranty_until": 1, 
-                "user_id": 1, "created_by": 1, "assigned_techniker_id": 1
+                "user_id": 1, "created_by": 1, "mitarbeiter_id": 1, "assigned_techniker_id": 1
             }
         ).sort("created_at", -1).skip(skip).to_list(length=limit)
     except Exception as e:
