@@ -916,9 +916,11 @@ async def edit_order(order_id: str, input: OrderEditInput,
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     if order.get("status") in FINAL_STATES:
         raise HTTPException(status_code=400, detail="Abgeschlossene/stornierte Aufträge können nicht mehr bearbeitet werden")
-    if current["role"] == "mitarbeiter" and order.get("created_by") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Sie können nur selbst angelegte Aufträge bearbeiten")
-
+if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+    raise HTTPException(
+        status_code=403, 
+        detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten" # أو رسالة مناسبة
+    )
     updates = {}
     changes_desc = []
     for field in EDITABLE_ORDER_FIELDS:
