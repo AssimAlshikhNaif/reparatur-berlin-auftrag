@@ -69,13 +69,20 @@ class TestCosts:
     def test_update_costs_and_status_bestaetigt(self, mit_token, order_ctx):
         oid = order_ctx["order"]["id"]
         r = requests.patch(f"{API}/orders/{oid}/costs", headers=_h(mit_token),
-                           json={"diagnosis_fee": 30, "labor_cost": 100, "parts_cost": 20,
-                                 "cost_status": "BESTAETIGT"})
+                           json={
+                               "diagnosis_fee": 30, 
+                               "labor_cost": 100, 
+                               "parts_cost": 20,
+                               "cost_status": "BESTAETIGT",
+                               "paid_amount": 50.0  # <--- أضفنا اختبار المبلغ المدفوع هنا للاطمئنان التام
+                           })
         assert r.status_code == 200, r.text
         c = r.json()["cost"]
         assert c["net"] == 150.0
         assert c["gross"] == round(150.0 * 1.19, 2)
         assert c["status"] == "BESTAETIGT"
+        assert c["paid_amount"] == 50.0  # <--- التحقق من أن السيرفر حفظ المبلغ المدفوع
+        assert c["remaining_amount"] == round(c["gross"] - 50.0, 2)  # <--- التحقق من صحة حساب المتبقي
 
     def test_reject_cost_status(self, mit_token, order_ctx):
         oid = order_ctx["order"]["id"]

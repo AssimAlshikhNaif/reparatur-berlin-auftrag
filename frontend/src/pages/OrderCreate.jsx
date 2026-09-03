@@ -487,11 +487,12 @@ const submit = async (e) => {
           </div>
         </section>
 
-        <div className="flex gap-3 pt-2">
-          <button data-testid="order-submit" type="submit" disabled={busy}
-            className="flex items-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider px-6 py-3 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors disabled:opacity-50">
+     <div className="flex gap-3 pt-2">
+          <button data-testid="order-submit" type="submit" disabled={busy || !intakeSignature}
+            className="flex items-center gap-2 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider px-6 py-3 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {busy ? <><SpinnerGap size={16} className="animate-spin" /> {t("oc.submitting")}</> : <><FloppyDisk size={16} /> {t("oc.submit")}</>}
           </button>
+          
           <button type="button" onClick={() => navigate("/auftraege")}
             className="px-6 py-3 text-sm font-head uppercase tracking-wider border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors rounded-lg">
             {t("common.cancel")}

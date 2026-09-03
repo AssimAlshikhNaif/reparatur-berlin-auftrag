@@ -77,7 +77,7 @@ export default function OrderDetail() {
   const [inventory, setInventory] = useState([]);
   const [partId, setPartId] = useState("");
   const [partQty, setPartQty] = useState(1);
-  const [costForm, setCostForm] = useState({ diagnosis_fee: "", labor_cost: "", parts_cost: "" });
+  const [costForm, setCostForm] = useState({ diagnosis_fee: "", labor_cost: "", parts_cost: "", paid_amount: "",diagnosis_payment_status: "OPEN" });
   const [comms, setComms] = useState([]);
   const [audit, setAudit] = useState([]);
 
@@ -93,18 +93,9 @@ export default function OrderDetail() {
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
 
-
-  const deleteOrder = async () => {
-    setDeleting(true);
-    try {
-      await api.delete(`/orders/${id}`);
-      toast.success(t("detail.deleteSuccess"));
-      navigate("/auftraege");
-    } catch (e) {
-      toast.error(e.response?.data?.detail || t("detail.deleteError"));
-      setDeleting(false);
-    }
-  };
+const loadPurchasesCount = useCallback(() => {
+    api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => { });
+  }, [id]);
 
   const loadComms = useCallback(() => {
     if (!canManageRef) return;
@@ -112,21 +103,27 @@ export default function OrderDetail() {
     api.get(`/orders/${id}/audit`).then((r) => setAudit(r.data)).catch(() => { });
   }, [id, canManageRef]);
 
-  const loadPurchasesCount = useCallback(() => {
-    api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => { });
-  }, [id]);
+  const setStatus = async (status) => {
+    try {
+      await api.patch(`/orders/${id}`, { status });
+      toast.success(t("toast.statusUpdated"));
+      load();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || t("toast.updateError"));
+    }
+  };
 
   const load = useCallback(async () => {
     const { data } = await api.get(`/orders/${id}`);
     setOrder(data);
     setCostForm({
-      diagnosis_fee: data.cost?.diagnosis_fee ?? 0,
-      labor_cost: data.cost?.labor_cost ?? 0,
-      parts_cost: data.cost?.parts_cost ?? 0,
+      diagnosis_fee: data.diagnosis_fee ?? 0,
+      labor_cost: data.labor_cost ?? 0,
+      parts_cost: data.parts_cost ?? 0,
+      paid_amount: data.paid_amount ?? 0, // <--- قراءة مباشرة من البيانات
+      diagnosis_payment_status: data.diagnosis_payment_status ?? "OPEN"
     });
   }, [id]);
-
-
 
   const handleAddNote = async (e) => {
     e.preventDefault();
@@ -134,13 +131,11 @@ export default function OrderDetail() {
 
     try {
       setLoadingNote(true);
-      // استخدام كائن api الخاص بمشروعك مباشرة
       const response = await api.post(`/orders/${id}/notes`, {
         content: newNoteContent,
         is_internal: true
       });
 
-      // تحديث حالة الطلب محلياً لكي تظهر الملاحظة فوراً
       setOrder(prevOrder => ({
         ...prevOrder,
         notes: [...(prevOrder.notes || []), response.data.note]
@@ -186,6 +181,7 @@ export default function OrderDetail() {
     act(() => api.post(`/orders/${id}/cancel`, { reason: cancelReason }), t("detail.orderCanceled"))
       .then(() => { setShowCancel(false); setCancelReason(""); });
   };
+
   const openEdit = () => {
     setEditForm({
       customer_name: order.customer_name || "", customer_phone: order.customer_phone || "",
@@ -193,21 +189,36 @@ export default function OrderDetail() {
       device_brand: order.device_brand || "", device_model: order.device_model || "",
       imei: order.imei || "", device_passcode: order.device_passcode || "",
       issue_description: order.issue_description || "",
+      assigned_techniker_id: order.assigned_techniker_id || "",
     });
     setShowEdit(true);
   };
+
   const saveEdit = () => {
-    act(() => api.patch(`/orders/${id}`, editForm), t("detail.orderUpdated")).then(() => setShowEdit(false));
+    const cleanedPayload = {};
+    Object.keys(editForm).forEach((key) => {
+      const val = editForm[key];
+      cleanedPayload[key] = val === "" ? null : val;
+    });
+
+    act(() => api.patch(`/orders/${id}`, cleanedPayload), t("detail.orderUpdated"))
+      .then(() => {
+        setShowEdit(false);
+        load();
+      });
   };
 
-  const setStatus = (status) => act(() => api.patch(`/orders/${id}/status`, { status }), t("toast.statusChanged", { s: t(`status.${status}`, STATUS_LABELS[status]) }));
-
-  const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
-    diagnosis_fee: parseFloat(costForm.diagnosis_fee) || 0,
-    labor_cost: parseFloat(costForm.labor_cost) || 0,
-    parts_cost: parseFloat(costForm.parts_cost) || 0,
-    paid_amount: parseFloat(costForm.paid_amount) || 0, // ◄ أضف هذا السطر هنا
-}), t("toast.costsSaved"));
+  const saveCosts = () => act(async () => {
+    await api.patch(`/orders/${id}/costs`, {
+        diagnosis_fee: costForm.diagnosis_fee !== "" ? parseFloat(costForm.diagnosis_fee) : Number(order.diagnosis_fee || 0),
+        labor_cost: costForm.labor_cost !== "" ? parseFloat(costForm.labor_cost) : Number(order.labor_cost || 0),
+        parts_cost: costForm.parts_cost !== "" ? parseFloat(costForm.parts_cost) : Number(order.parts_cost || 0),
+        paid_amount: costForm.paid_amount !== "" ? parseFloat(costForm.paid_amount) : Number(order.paid_amount || 0),
+        diagnosis_payment_status: costForm.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN"
+    });
+    
+    if (typeof load === "function") await load();
+}, t("toast.costsSaved"));
 
   const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
   const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), t("toast.paymentStatusUpdated"));
@@ -282,7 +293,12 @@ export default function OrderDetail() {
     : Number(order.cost?.gross || 0);
   const liveNet = canManage ? liveGross / 1.19 : Number(order.cost?.net || 0);
   const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
+  // Live paid and remaining calculations
+  const livePaid = canManage
+    ? (parseFloat(costForm.paid_amount) || 0)
+    : Number(order.cost?.paid_amount || 0);
 
+  const liveRemaining = Math.max(0, liveGross - livePaid);
   return (
     <div>
       <PageHeader label={branchName} title={order.auftragsnummer}>
@@ -319,28 +335,49 @@ export default function OrderDetail() {
         )}
         <div className="flex-1" />
 
-        {canManage && (
-          <select data-testid="manual-status-select" value={order.status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-            {["ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].map((s) => (
-              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
-            ))}
-            {!["ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"].includes(order.status) && (
-              <option value={order.status} disabled>{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
-            )}
-          </select>
-        )}
+{canManage && (
+  <div className="flex items-center gap-2">
+    {/* البادج الديناميكي الجديد في أقصى اليسار ليتطابق مع السيرفر الحي */}
+    <span className="px-2.5 py-1 text-xs font-mono uppercase tracking-wider bg-accent/10 text-accent border border-accent/20 rounded-lg">
+      {status || order?.status || "DIAGNOSE"}
+    </span>
+
+    {/* القائمة المنسدلة المحدثة */}
+    <select 
+      key={order?.status || "default"}
+      data-testid="manual-status-select" 
+      valudefaultValue={status || order?.status || "DIAGNOSE"}
+      onChange={(e) => {
+        const newStatus = e.target.value;
+        if (newStatus === "ABGEHOLT" && !order.pickup_signature) {
+          toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+          return;
+        }
+        setStatus(newStatus);
+      }}
+      className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
+    >
+      <option value="DIAGNOSE">Diagnose</option>
+      <option value="ANGENOMMEN">Angenommen</option>
+      <option value="WARTEN_FREIGABE">Warten Freigabe</option>
+      <option value="IN_BEARBEITUNG">In Bearbeitung</option>
+      <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
+      <option value="FERTIG">Fertig</option>
+      <option value="ABGEHOLT">Abgeholt</option>
+    </select>
+  </div>
+)}
+
 
         {/* Technician technical-phase status control (exact 4-step flow) */}
         {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order.status) && (
           <select data-testid="tech-status-select"
-            value={TECH_STATUS_FLOW.includes(order.status) ? order.status : ""}
+           value={order?.status || ""}
             onChange={(e) => e.target.value && setStatus(e.target.value)}
             className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
             {!TECH_STATUS_FLOW.includes(order.status) && (
-              <option value="">{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
-            )}
+             <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
+              )}
             {TECH_STATUS_FLOW.map((s) => (
               <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
             ))}
@@ -552,9 +589,14 @@ export default function OrderDetail() {
                     <Receipt size={16} className="text-accent" />
                     <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
                   </div>
-                  <span data-testid="cost-status-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${COST_STATUS_STYLES[order.cost?.status] || "bg-muted text-foreground/80 border-border"}`}>
-                    {order.cost?.status ? t("costs." + ({ WARTET: "waiting", BESTAETIGT: "confirmed", ABGELEHNT: "rejected" }[order.cost.status] || "waiting")) : "—"}
-                  </span>
+                  <span 
+                    data-testid="cost-status-badge" 
+                    className={`inline-flex items-center px-2.5 py-1 text-xs font-mono uppercase tracking-wider border rounded-lg ${
+                     COST_STATUS_STYLES[status || order.status] || "bg-muted text-foreground/80 border-border"
+                  }`}
+               >
+                 {status || order.status || "DIAGNOSE"}
+                 </span>
                 </div>
                 <div className="p-4">
                   {canManage ? (
@@ -593,41 +635,44 @@ export default function OrderDetail() {
                   </div>
 
                   {/* الحاسبة الذكية للمدفوع والمتبقي */}
-                  <div className="border-t border-border mt-3 pt-3 font-mono text-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs uppercase text-muted-foreground">Bezahlt :</span>
-                    {canManage ? (
-    <input 
-        type="number" 
-        step="0.01" 
-        value={costForm.paid_amount !== undefined ? costForm.paid_amount : (order.cost?.paid_amount || 0)}
-        onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
-        placeholder="0.00"
-        className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
-    />
-) : (
-    <span className="text-foreground">{Number(order.cost?.paid_amount || 0).toFixed(2)} €</span>
-)}
-                    </div>
-                    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
-                      <span>Restbetrag :</span>
-                      <span className={((liveGross - Number(costForm.paid_amount ?? order.cost?.paid_amount ?? 0)) > 0) ? "text-amber-500" : "text-emerald-500"}>
-                        {Math.max(0, liveGross - Number(costForm.paid_amount ?? order.cost?.paid_amount ?? 0)).toFixed(2)} €
-                      </span>
-                    </div>
-                  </div>
+<div className="border-t border-border mt-3 pt-3 font-mono text-sm space-y-2">
+    <div className="flex items-center justify-between">
+        <span className="text-xs uppercase text-muted-foreground">Bezahlt :</span>
+        {canManage ? (
+           <input 
+    type="number" 
+    step="0.01" 
+    value={costForm.paid_amount}
+    onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+    placeholder="0.00"
+    className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+/>
+        ) : (
+            <span className="text-foreground">{livePaid.toFixed(2)} €</span>
+        )}
+    </div>
+    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+        <span>Restbetrag :</span>
+        <span className={liveRemaining > 0 ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
+            {liveRemaining.toFixed(2)} €
+        </span>
+    </div>
+</div>
 
                   {/* Diagnosegebühr Zahlungsstatus */}
                   <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
                     <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
                     {canManage ? (
-                      <select data-testid="diagnosis-payment-select" value={order.diagnosis_payment_status || "OPEN"}
-                        onChange={(e) => setDiagnosisPayment(e.target.value)}
-                        className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-                        <option value="OPEN">{t("costs.open")}</option>
-                        <option value="PAID">{t("costs.paid")}</option>
-                        <option value="NA">{t("costs.na")}</option>
-                      </select>
+                      <select 
+  data-testid="diagnosis-payment-select" 
+  value={costForm.diagnosis_payment_status !== undefined ? costForm.diagnosis_payment_status : (order.cost?.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN")}
+  onChange={(e) => setCostForm({ ...costForm, diagnosis_payment_status: e.target.value })}
+  className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-widest rounded-lg outline-none focus:border-accent"
+>
+    <option value="OPEN">{t("costs.open")}</option>
+    <option value="PAID">{t("costs.paid")}</option>
+    <option value="NA">{t("costs.na")}</option>
+</select>
                     ) : (
                       <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
                         {t("costs." + ({ PAID: "paid", OPEN: "open", NA: "na" }[order.diagnosis_payment_status] || "open"))}
@@ -656,52 +701,72 @@ export default function OrderDetail() {
             )}
 
             {/* قسم الملاحظات الداخلية للموظفين في العمود الأيمن */}
-            {!isTech && (
-              <div className="border border-border mt-4">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
-                  <div className="flex items-center gap-2">
-                    <ChatCircleDots size={16} className="text-accent" />
-                    <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
-                  </div>
-                </div>
-                <div className="p-4 space-y-4">
-                  {/* قائمة الملاحظات السابقة */}
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {order?.notes && order.notes.length > 0 ? (
-                      order.notes.map((note) => (
-                        <div key={note.id} className="bg-background border border-border p-3 rounded-lg text-sm">
-                          <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
-                          <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
-                            <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
-                            <span>{new Date(note.created_at).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
-                    )}
-                  </div>
-
-                  {/* نموذج إضافة ملاحظة جديدة */}
-                  <form onSubmit={handleAddNote} className="flex gap-2 pt-2 border-t border-border">
-                    <input
-                      type="text"
-                      value={newNoteContent}
-                      onChange={(e) => setNewNoteContent(e.target.value)}
-                      placeholder="Interne Notiz hinzufügen..."
-                      className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent"
-                    />
-                    <button
-                      type="submit"
-                      disabled={loadingNote}
-                      className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
-                    >
-                      {loadingNote ? '...' : 'Hinzufügen'}
-                    </button>
-                  </form>
-                </div>
+{!isTech && (
+  <div className="border border-border mt-4">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
+      <div className="flex items-center gap-2">
+        <ChatCircleDots size={16} className="text-accent" />
+        <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
+      </div>
+    </div>
+    <div className="p-4 space-y-4">
+      {/* قائمة الملاحظات السابقة */}
+      <div className="space-y-2 max-h-60 overflow-y-auto">
+        {order?.notes && order.notes.length > 0 ? (
+          order.notes.map((note) => (
+            <div key={note.id} className="relative bg-background border border-border p-3 rounded-lg text-sm group pr-8">
+              <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
+              <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
+                <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
+                <span>{new Date(note.created_at).toLocaleString()}</span>
               </div>
-            )}
+
+              {/* زر حذف الملاحظة (يظهر للأدمن أو لصاحب الملاحظة عند المرور عليها) */}
+              {(isAdmin || note.author_id === currentUser?.id || note.user_id === currentUser?.id) && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                   try {
+                      await api.delete(`/orders/${order.id}/notes/${note.id}`);
+                      toast.success("Notiz gelöscht");
+                      load();
+                      } catch (err) {
+                     toast.error("Fehler beim Löschen");
+                  }
+                  }}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 opacity-60 hover:opacity-100 transition-opacity p-1 text-xs"
+                  title="Notiz löschen"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
+        )}
+      </div>
+
+      {/* نموذج إضافة ملاحظة جديدة */}
+      <form onSubmit={handleAddNote} className="flex gap-2 pt-2 border-t border-border">
+        <input
+          type="text"
+          value={newNoteContent}
+          onChange={(e) => setNewNoteContent(e.target.value)}
+          placeholder="Interne Notiz hinzufügen..."
+          className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent"
+        />
+        <button
+          type="submit"
+          disabled={loadingNote}
+          className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
+        >
+          {loadingNote ? '...' : 'Hinzufügen'}
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
             {/* Verbaute Ersatzteile */}
             <div className="border border-border">
@@ -1093,7 +1158,7 @@ export default function OrderDetail() {
         </div>
       )}
 
-      {showEdit && editForm && (
+{showEdit && editForm && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-background border border-border max-w-lg w-full p-6 rounded-xl my-8">
             <h3 className="font-head font-semibold text-lg mb-4">{t("detail.editOrder")}</h3>
@@ -1106,14 +1171,34 @@ export default function OrderDetail() {
               ].map(([key, label]) => (
                 <div key={key}>
                   <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
-                  <input data-testid={`edit-${key}`} value={editForm[key]}
+                  <input data-testid={`edit-${key}`} value={editForm[key] || ""}
                     onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
                     className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
                 </div>
               ))}
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
+                  {t("oc.technician") || "Techniker zuweisen"}
+                </label>
+                <select 
+                  data-testid="edit-assigned_techniker_id" 
+                  value={editForm.assigned_techniker_id || ""}
+                  onChange={(e) => setEditForm({ ...editForm, assigned_techniker_id: e.target.value })}
+                  className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent"
+                >
+                  <option value="">{t("Kein Techniker") || "— Kein Techniker —"}</option>
+                  {technicians && technicians.map((tech) => (
+                    <option key={tech._id || tech.id} value={tech._id || tech.id}>
+                      {tech.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="sm:col-span-2">
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("oc.issue")}</label>
-                <textarea data-testid="edit-issue_description" value={editForm.issue_description} rows={3}
+                <textarea data-testid="edit-issue_description" value={editForm.issue_description || ""} rows={3}
                   onChange={(e) => setEditForm({ ...editForm, issue_description: e.target.value })}
                   className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
               </div>
@@ -1131,12 +1216,12 @@ export default function OrderDetail() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
 
 function MediaThumb({ m, onDelete }) {
-  // جلب التوكن وإضافته للرابط لكي يسمح السيرفر بعرض الصورة
   const token = localStorage.getItem("token") || "";
   const rawUrl = fileUrl(m.storage_path);
   const url = rawUrl.includes("?") ? `${rawUrl}&auth=${token}` : `${rawUrl}?auth=${token}`;
@@ -1150,7 +1235,6 @@ function MediaThumb({ m, onDelete }) {
           <img src={url} alt={m.original_filename} className="w-full h-full object-cover" />
         )}
       </a>
-      {/* زر الحذف يظهر في الزاوية */}
       {onDelete && (
         <button
           onClick={(e) => {

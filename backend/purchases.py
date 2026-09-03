@@ -252,9 +252,10 @@ async def update_purchase(purchase_id: str, data: PurchaseUpdate, current_user=D
 
     updates = {}
     for field in ("part_name", "supplier_url", "notes", "expected_arrival", "actual_arrival"):
-        val = getattr(data, field)
-        if val is not None:
-            updates[field] = val
+        if hasattr(data, field):  # ◄ حماية ضد أي AttributeError
+            val = getattr(data, field, None)
+            if val is not None:
+                updates[field] = val
     # Technicians are not allowed to set/see prices
     if data.price is not None and current_user["role"] != "techniker":
         updates["price"] = float(data.price)

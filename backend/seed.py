@@ -14,8 +14,6 @@ BRANCHES = [
         "address": " Boxhagener str.123 , 10245 Berlin",
         "phone": " 030 81302550 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": "/logos/phone store.png"
     },
     {
@@ -23,17 +21,12 @@ BRANCHES = [
         "address": " Schönhauser Allee 89-90, 10439 Berlin",
         "phone": " 030 23299000 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": "/logos/handy_laptop_praxi-removebg-preview.png"
     },
     {
         "name": " Smartphone Tegel",
         "address": " Gorkistr.17 , 13507 Berlin",
         "phone": " 015733555555 ",
-        "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
     {
@@ -41,8 +34,6 @@ BRANCHES = [
         "address": " Pablo-Neruda-Str.2-4, 12559 Berlin ",
         "phone": " +49 1792087786 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
     {
@@ -50,8 +41,6 @@ BRANCHES = [
         "address": " Bülowstraße 11, 10783 Berlin ",
         "phone": " +49 1779766660 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
     {
@@ -59,8 +48,6 @@ BRANCHES = [
         "address": "Frankfurter Alle 53 , 10247 Berlin",
         "phone": " 030 89650662 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": "/logos/basic-file.png"
     },
      {
@@ -68,8 +55,6 @@ BRANCHES = [
         "address": "Frankfurter Alle 41, 10247 Berlin",
         "phone": "+49 177 9777771",
         "email": "info@smartphone-apotheke.de",
-        "steuernummer": "30/123/45678",
-        "tax_number": "DE355296654",
         "logo_url": "/logos/logo-icon.png"
     },
      {
@@ -77,8 +62,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
      {
@@ -86,8 +69,6 @@ BRANCHES = [
        "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
      {
@@ -95,8 +76,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
      },
      {
@@ -104,8 +83,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
 
@@ -113,9 +90,7 @@ BRANCHES = [
         "name": "Kauf park Laden",
        "address": "Landsberger Ch 17, 16356 Ahrensfelde",
         "phone": "01631222240 ",
-        "email": "",
-        "steuernummer": "",
-        "tax_number": "",
+        "email": "info@handy-und-laptop-krankenhaus.de",
         "logo_url": "\logos\kauf park laden.png"
     },
          {
@@ -123,8 +98,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
             {
@@ -132,8 +105,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
             {
@@ -141,8 +112,6 @@ BRANCHES = [
         "address": " im Victoria-Center (Kaufland, Marktstraße 6, 10317 Berlin",
         "phone": "+49 1639489567 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
             {
@@ -150,8 +119,6 @@ BRANCHES = [
         "address": " Neuendorfer Str. 90, 13585 Bezirk Spandau ",
         "phone": "+49 15788833883 ",
         "email": "",
-        "steuernummer": " 19/204/01447 ",
-        "tax_number": " DE453817232 ",
         "logo_url": "/logos/PoneFix.png"
     },
             {
@@ -159,8 +126,6 @@ BRANCHES = [
         "address": " Dörpfeldstraße 21, 12489 Berlin",
         "phone": "+49 15218432160 ",
         "email": " mediatechnik235@gmail.com",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": "/logos/mediatecnikberlin.png"
     },
             {
@@ -168,8 +133,6 @@ BRANCHES = [
         "address": "",
         "phone": "+49 ",
         "email": "",
-        "steuernummer": "",
-        "tax_number": "",
         "logo_url": ""
     },
             {
@@ -177,8 +140,6 @@ BRANCHES = [
         "address": " Greifswalder Str. 157, 10409 Berlin ",
         "phone": "+49 1787477747 ",
         "email": " Info@mediaphone24.de ",
-        "steuernummer": "31/204/00736",
-        "tax_number": " DE453817232 ",
         "logo_url": "/logos/Mediaphone24.png"
     }
 

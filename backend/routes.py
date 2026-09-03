@@ -39,8 +39,9 @@ FINAL_STATES = {"ABGEHOLT", "ABGELEHNT" , "STORNIERT"}
 PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_address"]
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 EDITABLE_ORDER_FIELDS = [
+    "device_brand", "device_model", "imei", "issue_description",
     "customer_name", "customer_phone", "customer_email", "customer_address",
-    "device_brand", "device_model", "imei", "device_passcode", "issue_description",
+    "assigned_techniker_id", "device_passcode", "device_lock_type"
 ]
 
 
@@ -328,7 +329,9 @@ class OrderEditInput(BaseModel):
     device_model: Optional[str] = None
     imei: Optional[str] = None
     device_passcode: Optional[str] = None
+    device_lock_type: Optional[str] = None
     issue_description: Optional[str] = None
+    assigned_techniker_id: Optional[str] = None
 
 class UserCreate(BaseModel):
     name: str
@@ -793,6 +796,31 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         branch_id = current.get("branch_id") or input.branch_id
     warranty_months = input.warranty_months if input.warranty_months is not None else WARRANTY_DEFAULT_MONTHS
     
+    # ==================== حسابات التكاليف والمالية المتكاملة ====================
+    diagnosis_fee = float(input.diagnosis_fee or 0)
+    labor_cost = float(input.labor_cost or 0)
+    parts_cost = float(input.parts_cost or 0)
+    paid_amount = float(getattr(input, "paid_amount", 0) or 0)
+
+    net = diagnosis_fee + labor_cost + parts_cost
+    tax = net * 0.19
+    gross = net + tax
+    remaining_amount = max(0.0, gross - paid_amount)
+
+    cost_data = {
+        "diagnosis_fee": diagnosis_fee,
+        "labor_cost": labor_cost,
+        "parts_cost": parts_cost,
+        "paid_amount": paid_amount,
+        "net": round(net, 2),
+        "tax": round(tax, 2),
+        "gross": round(gross, 2),
+        "remaining_amount": round(remaining_amount, 2),
+        "cost_status": "WARTET",
+        "diagnosis_payment_status": input.diagnosis_payment_status or "OPEN"
+    }
+    # =========================================================================
+
     doc = {
         "auftragsnummer": auftragsnummer,
         "branch_id": branch_id,
@@ -808,11 +836,19 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "customer_email": input.customer_email or "",
         "customer_address": input.customer_address or "",
         "estimated_price": input.estimated_price,
-        "diagnosis_fee": input.diagnosis_fee or 0,
-        "labor_cost": input.labor_cost or 0,
-        "parts_cost": input.parts_cost or 0,
-        "diagnosis_payment_status": input.diagnosis_payment_status or "OPEN",
-        "cost_status": "WARTET",
+        # أضف هذه السطور مباشرة داخل الـ doc لتتوافق مع الواجهة الأمامية:
+        "diagnosis_fee": diagnosis_fee,
+        "labor_cost": labor_cost,
+        "parts_cost": parts_cost,
+        "paid_amount": paid_amount,
+        "net": round(net, 2),
+        "tax": round(tax, 2),
+        "gross": round(gross, 2),
+        "remaining_amount": round(remaining_amount, 2),
+        
+        # تخزين كائن التكاليف المنظم بدلاً من الحقول المفردة لتفعيل الحاسبة بالكامل
+        "cost": cost_data,
+
         "used_parts": [],
         "warranty_months": warranty_months,
         "warranty_start": None,
@@ -888,13 +924,14 @@ async def edit_order(order_id: str, input: OrderEditInput,
     updates = {}
     changes_desc = []
     for field in EDITABLE_ORDER_FIELDS:
-        v = getattr(input, field)
-        if v is not None:
-            v = v.strip() if isinstance(v, str) else v
-            old_val = order.get(field, "")
-            if v != old_val:
-                updates[field] = v
-                changes_desc.append(field)
+        if hasattr(input, field):
+            v = getattr(input, field, None) # ◄ إضافة None كقيمة افتراضية تحميك تماماً
+            if v is not None:
+                v = v.strip() if isinstance(v, str) else v
+                old_val = order.get(field, "")
+                if v != old_val:
+                    updates[field] = v
+                    changes_desc.append(field)
     if not updates:
         return serialize_order(order, current)
 
@@ -1054,6 +1091,22 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
+@router.delete("/orders/{order_id}/notes/{note_id}")
+async def delete_order_note(order_id: str, note_id: str, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    result = await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$pull": {"notes": {"id": note_id}}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+        
+    return {"message": "Notiz erfolgreich gelöscht"}
+
 @router.delete("/orders/{order_id}/media/{media_id}")
 async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
@@ -1138,25 +1191,29 @@ async def update_costs(order_id: str, input: CostUpdate,
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     
     updates = {}
-    
-    # 1. تحديث حقول التكاليف الأساسية
+   # 1. تحديث حقول التكاليف الأساسية
     existing_cost = order.get("cost", {})
-    diagnosis_fee = float(getattr(input, "diagnosis_fee", None) if getattr(input, "diagnosis_fee", None) is not None else existing_cost.get("diagnosis_fee", 0))
-    labor_cost = float(getattr(input, "labor_cost", None) if getattr(input, "labor_cost", None) is not None else existing_cost.get("labor_cost", 0))
-    parts_cost = float(getattr(input, "parts_cost", None) if getattr(input, "parts_cost", None) is not None else existing_cost.get("parts_cost", 0))
+    
+    diagnosis_fee = float(input.diagnosis_fee if input.diagnosis_fee is not None else existing_cost.get("diagnosis_fee", 0))
+    labor_cost = float(input.labor_cost if input.labor_cost is not None else existing_cost.get("labor_cost", 0))
+    parts_cost = float(input.parts_cost if input.parts_cost is not None else existing_cost.get("parts_cost", 0))
     
     for k in ("diagnosis_fee", "labor_cost", "parts_cost"):
         v = getattr(input, k)
         if v is not None:
             updates[f"cost.{k}"] = float(v)
+            updates[k] = float(v)  # <--- أضف هذا السطر لتحديث الحقل المفرد أيضاً
 
-    # 2. معالجة وتخزين المبلغ المدفوع والمتبقي
-    paid_input = getattr(input, "paid_amount", None)
-    if paid_input is not None:
-        paid_amount = float(paid_input)
-        updates["cost.paid_amount"] = paid_amount
+  # 2. معالجة وتخزين المبلغ المدفوع والمتبقي (استبدل هذا القسم بالكامل)
+    existing_cost = order.get("cost", {})
+
+    if input.paid_amount is not None:
+        paid_amount = float(input.paid_amount)
     else:
-        paid_amount = float(existing_cost.get("paid_amount", 0))
+        paid_amount = float(existing_cost.get("paid_amount", order.get("paid_amount", 0)))
+
+    updates["cost.paid_amount"] = paid_amount
+    updates["paid_amount"] = paid_amount
 
     # 3. حسابات المالية التلقائية (Netto, MwSt, Brutto, Restbetrag)
     net = diagnosis_fee + labor_cost + parts_cost
@@ -1168,17 +1225,22 @@ async def update_costs(order_id: str, input: CostUpdate,
     updates["cost.tax"] = round(tax, 2)
     updates["cost.gross"] = round(gross, 2)
     updates["cost.remaining_amount"] = round(remaining_amount, 2)
+    updates["gross"] = round(gross, 2)
+    updates["remaining_amount"] = round(remaining_amount, 2)
 
     # 4. التحقق من الحالات الأخرى (Status)
+    # 4. التحقق من الحالات وتحديثها في الطرفين (الجذر وداخل cost)
     if input.cost_status is not None:
         if input.cost_status not in COST_STATES:
             raise HTTPException(status_code=400, detail="Ungültiger Kostenstatus")
         updates["cost.cost_status"] = input.cost_status
+        updates["cost_status"] = input.cost_status # لتحديث الجذر أيضاً أماناً
         
     if input.diagnosis_payment_status is not None:
         if input.diagnosis_payment_status not in ("PAID", "OPEN", "NA"):
             raise HTTPException(status_code=400, detail="Ungültiger Zahlungsstatus")
         updates["cost.diagnosis_payment_status"] = input.diagnosis_payment_status
+        updates["diagnosis_payment_status"] = input.diagnosis_payment_status
 
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
