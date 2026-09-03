@@ -357,23 +357,34 @@ const loadPurchasesCount = useCallback(() => {
 
 {canManage && (
   <div className="flex items-center gap-2">
-    {/* البادج الديناميكي الجديد في أقصى اليسار ليتطابق مع السيرفر الحي */}
     <span className="px-2.5 py-1 text-xs font-mono uppercase tracking-wider bg-accent/10 text-accent border border-accent/20 rounded-lg">
-      {status || order?.status || "DIAGNOSE"}
+      {order?.status || "DIAGNOSE"}
     </span>
 
-    {/* القائمة المنسدلة المحدثة */}
     <select 
-      key={order?.status || "default"}
+      key={order?.status || "default"} 
       data-testid="manual-status-select" 
-      valudefaultValue={status || order?.status || "DIAGNOSE"}
-      onChange={(e) => {
+      defaultValue={order?.status || "DIAGNOSE"}
+      onChange={async (e) => {
         const newStatus = e.target.value;
-        if (newStatus === "ABGEHOLT" && !order.pickup_signature) {
+        if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
           toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
           return;
         }
-        setStatus(newStatus);
+        
+        // استخدام الـ id المستخرج من الـ URL مباشرة (متوفر وجاهز دائماً)
+        if (!id) {
+          toast.error("Auftrags-ID nicht gefunden!");
+          return;
+        }
+
+        try {
+          await api.patch(`/orders/${id}/status`, { status: newStatus });
+          toast.success("Status aktualisiert");
+          if (typeof fetchOrder === "function") fetchOrder();
+        } catch (err) {
+          toast.error("Fehler beim Aktualisieren des Status");
+        }
       }}
       className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
     >

@@ -1047,9 +1047,18 @@ async def reject_order(order_id: str, input: RejectInput,
 async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_current_user)):
     if input.status not in STATUS_FLOW:
         raise HTTPException(status_code=400, detail="Ungültiger Status")
+    
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+        
+    # --- إضافة التحقق من الفرع للموظف هنا لضمان مطابقة الفرع ---
+    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
+        raise HTTPException(
+            status_code=403, 
+            detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
+        )
+        
     role = current["role"]
     if role == "techniker":
         if order.get("assigned_techniker_id") != str(current["_id"]):
@@ -1059,6 +1068,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     elif role == "mitarbeiter":
         if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
+            
     if input.status == "FERTIG":
         has_repair_media = any(isinstance(m, dict) and m.get("media_type") == "repair" for m in order.get("media", []))
         if not has_repair_media:
@@ -1067,7 +1077,9 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         if not order.get("inspection"):
             raise HTTPException(status_code=400,
                                 detail="Bitte zuerst das Abschluss-Prüfprotokoll (Endkontrolle) ausfüllen, bevor der Auftrag als 'Fertig' markiert wird.")
+                                
     extra = {"reject_reason": input.reason} if input.reason else None
+    
     # Start warranty period when the device is handed back (delivered)
     if input.status == "ABGEHOLT":
         months = int(order.get("warranty_months") or WARRANTY_DEFAULT_MONTHS)
@@ -1076,9 +1088,12 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         extra = {**(extra or {}),
                  "warranty_start": start.isoformat(),
                  "warranty_until": until.isoformat()}
+                 
     await _touch_order(order_id, input.status, current["name"], extra)
+    
     # Automated customer status notification (WhatsApp-style log)
     await auto_status_communication(order, input.status, current["name"])
+    
     fertig = input.status == "FERTIG"
     await push_notification(
         kind=("FERTIG" if fertig else "STATUS"),
@@ -1088,9 +1103,10 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )
+    
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
-
+    
 @router.delete("/orders/{order_id}/notes/{note_id}")
 async def delete_order_note(order_id: str, note_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
