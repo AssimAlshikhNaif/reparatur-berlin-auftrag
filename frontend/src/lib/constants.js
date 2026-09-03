@@ -115,8 +115,6 @@ export const SHOP_INFO = {
   addressLine2: "10247 Berlin",
   phone: "+49 177 9777771",
   email: "info@smartphone-apotheke.de",
-  taxNumber: "USt-IdNr.: DE355296654",
-  steuernummer: "Steuernr.: 30/123/45678",
   website: "www.smartphone-apotheke.de",
 };
 

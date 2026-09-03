@@ -394,8 +394,6 @@ async def list_branches(current=Depends(get_current_user)):
             "phone": b.get("phone") or defaults["phone"],
             "email": b.get("email") or defaults["email"],
             "logo_url": b.get("logo_url") or "",
-            "tax_number": b.get("tax_number") or "USt-IdNr.: DE123456789",
-            "steuernummer": b.get("steuernummer") or "Steuernr.: 30/123/45678",
         })
     return out
 
