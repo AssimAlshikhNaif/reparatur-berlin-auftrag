@@ -92,6 +92,26 @@ export default function OrderDetail() {
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
+  
+const deleteOrder = async () => {
+  try {
+    setDeleting(true);
+    const response = await api.delete(`/orders/${id}`);
+    if (response.status === 200 || response.status === 204) {
+      toast.success("Auftrag erfolgreich gelöscht");
+      navigate("/orders");
+    } else {
+      toast.error("Fehler beim Löschen des Auftrags");
+      setDeleting(false);
+      setShowDelete(false);
+    }
+  } catch (error) {
+    console.error("Error deleting order:", error);
+    toast.error("Ein Fehler ist aufgetreten");
+    setDeleting(false);
+    setShowDelete(false);
+  }
+};
 
 const loadPurchasesCount = useCallback(() => {
     api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => { });
