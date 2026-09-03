@@ -1435,10 +1435,9 @@ async def notify_customer(order_id: str, input: NotifyInput,
         html = f"<div style='font-family:Arial,sans-serif;font-size:14px;color:#111'>" \
                f"<p>Sehr geehrte/r Kunde/in,</p><p>{text}</p>" \
                f"<p style='color:#666;font-size:12px'>Auftrag: {auftrag}</p></div>"
-        identity = messaging.resolve_send_identity(branch_email)
-        result = await messaging.send_email(email, subject, html,
-                                            from_email=identity["from_email"],
-                                            reply_to=identity["reply_to"])
+        
+        # التعديل هنا: تمرير branch_id مباشرة لتقوم دالة messaging باللازم
+        result = await messaging.send_email(email, subject, html, branch_id=branch_id)
         to_val = email
     else:
         if not phone:

@@ -92,7 +92,7 @@ export default function OrderDetail() {
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
-  
+
 const deleteOrder = async () => {
   try {
     setDeleting(true);
@@ -742,7 +742,7 @@ const loadPurchasesCount = useCallback(() => {
               </div>
 
               {/* زر حذف الملاحظة (يظهر للأدمن أو لصاحب الملاحظة عند المرور عليها) */}
-              {(isAdmin || note.author_id === currentUser?.id || note.user_id === currentUser?.id) && (
+             {(isAdmin || note.author_id === user?.id || note.user_id === user?.id) && (
                 <button
                   type="button"
                   onClick={async () => {
