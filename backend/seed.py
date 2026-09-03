@@ -87,11 +87,11 @@ BRANCHES = [
     },
 
     {
-        "name": "Kauf park Laden",
+        "name": "Kauf park Eiche",
        "address": "Landsberger Ch 17, 16356 Ahrensfelde",
         "phone": "01631222240 ",
         "email": "info@handy-und-laptop-krankenhaus.de",
-        "logo_url": "\logos\kauf park laden.png"
+        "logo_url": "\logos\kauf park eiche.jpeg"
     },
          {
         "name": "A 10 center",
