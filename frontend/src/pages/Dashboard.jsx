@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from "react-i18next";
 import api, { formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -177,53 +177,57 @@ export default function Dashboard() {
 function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSlaOrders }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
+  const location = useLocation(); // لمعرفة متى تتغير الصفحة أو يتم العودة إليها
 
-useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  async function loadDashboardData() {
-    try {
-      setLoading(true);
-      
-      // 1. جلب الإحصائيات الأساسية أولاً لتفتح الصفحة فوراً
-      const statsRes = await api.get("/stats");
-      if (isMounted) {
-        setStats(statsRes.data || {});
-        setLoading(false); // إيقاف شاشة التحميل فوراً لتفتح الداشبورد كالصاروخ!
-      }
+    async function loadDashboardData() {
+      try {
+        // لا تظهر شاشة التحميل الكبيرة إذا كانت البيانات موجودة مسبقاً لتصبح التجربة سلسة
+        if (!stats) {
+          setLoading(true);
+        }
+        
+        // 1. جلب الإحصائيات الأساسية
+        const statsRes = await api.get("/stats");
+        if (isMounted) {
+          setStats(statsRes.data || {});
+          setLoading(false);
+        }
 
-      // 2. جلب طلبات الـ SLA في الخلفية بشكل مستقل تماماً
-      api.get("/orders", { params: { sla: true } })
-        .then((res) => {
-          if (isMounted) setSlaOrders(Array.isArray(res.data) ? res.data : []);
-        })
-        .catch((err) => {
-          console.warn("SLA orders load failed:", err);
-          if (isMounted) setSlaOrders([]);
-        });
+        // 2. جلب طلبات الـ SLA في الخلفية
+        api.get("/orders", { params: { sla: true } })
+          .then((res) => {
+            if (isMounted) setSlaOrders(Array.isArray(res.data) ? res.data : []);
+          })
+          .catch((err) => {
+            console.warn("SLA orders load failed:", err);
+            if (isMounted) setSlaOrders([]);
+          });
 
-    } catch (err) {
-      console.error("Dashboard-Ladefehler:", err);
-      if (isMounted) {
-        toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("dashboard.loadError"));
-        setLoading(false);
+      } catch (err) {
+        console.error("Dashboard-Ladefehler:", err);
+        if (isMounted) {
+          toast.error(formatApiErrorDetail(err.response?.data?.detail) || t("dashboard.loadError"));
+          setLoading(false);
+        }
       }
     }
-  }
 
-  loadDashboardData();
+    loadDashboardData();
 
-  return () => {
-    isMounted = false;
-  };
-}, [setStats, setSlaOrders, t]);
+    return () => {
+      isMounted = false;
+    };
+  }, [location, setStats, setSlaOrders, t]);
   if (loading) {
     return (
       <div className="p-8 font-mono text-muted-foreground animate-pulse text-sm">
         {t("dashboard.loading")}
       </div>
     );
-  }
+  } 
 
   return (
     <div className="space-y-8 pb-12">
