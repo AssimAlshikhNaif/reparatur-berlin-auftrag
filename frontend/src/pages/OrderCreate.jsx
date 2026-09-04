@@ -49,10 +49,39 @@ export default function OrderCreate() {
     assigned_techniker_id: "",
   });
 
-  // Eingaben sind Bruttopreise (inkl. MwSt.) — Endbetrag = Summe der Eingaben.
-  const grossTotal = (parseFloat(form.diagnosis_fee) || 0) + (parseFloat(form.labor_cost) || 0) + (parseFloat(form.parts_cost) || 0);
-  const netTotal = grossTotal / 1.19;
-  const taxTotal = grossTotal - netTotal;
+// اجعل الـ mode يقرأ من costForm والحالات تتطابق تماماً
+const mode = costForm.diagnosis_payment_status || "OPEN";
+
+let diagFee = 0;
+let laborCost = 0;
+let partsCost = 0;
+
+if (mode === "OPEN" || mode === "diag_and_repair") {
+  // الحالة الأولى: فحص + إصلاح (يجمع الكل)
+  diagFee = parseFloat(costForm.diagnosis_fee) || 0;
+  laborCost = parseFloat(costForm.labor_cost) || 0;
+  partsCost = parseFloat(costForm.parts_cost) || 0;
+} else if (mode === "PAID" || mode === "repair_only") {
+  // الحالة الثانية: إصلاح فقط (يلغي رسوم الفحص)
+  diagFee = 0;
+  laborCost = parseFloat(costForm.labor_cost) || 0;
+  partsCost = parseFloat(costForm.parts_cost) || 0;
+} else if (mode === "NA" || mode === "diag_only") {
+  // الحالة الثالثة: فحص فقط (يلغي تكلفة الإصلاح والقطع)
+  diagFee = parseFloat(costForm.diagnosis_fee) || 0;
+  laborCost = 0;
+  partsCost = 0;
+}
+
+const liveNet = diagFee + laborCost + partsCost;
+const liveTax = liveNet * 0.19;
+const liveGross = liveNet + liveTax;
+const paidAmount = parseFloat(costForm.paid_amount) || 0;
+const liveRemaining = liveGross - paidAmount;
+
+const grossTotal = diagFee + laborCost + partsCost;
+const netTotal = grossTotal / 1.19;
+const taxTotal = grossTotal - netTotal;
 
   useEffect(() => {
     let isMounted = true;
@@ -355,62 +384,91 @@ const submit = async (e) => {
         </section>
 
 {/* Kostenaufschlüsselung */}
-        <section>
-          <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2 flex items-center gap-2">
-            <Receipt size={18} className="text-accent" /> {t("oc.secCosts")}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div>
-              <label className={labelCls}>{t("oc.diagnosisCost")} <span className="text-muted-foreground/60">{t("oc.optionalTag")}</span></label>
-              <input data-testid="order-diagnosis-fee" type="number" step="0.01" value={form.diagnosis_fee} onChange={set("diagnosis_fee")} placeholder="0.00" className={`${inputCls} font-mono`} />
-            </div>
-            <div>
-              <label className={labelCls}>{t("oc.laborCost")}</label>
-              <input data-testid="order-labor-cost" type="number" step="0.01" value={form.labor_cost} onChange={set("labor_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
-            </div>
-            <div>
-              <label className={labelCls}>{t("oc.attemptCost")} <span className="text-muted-foreground/60">{t("oc.optionalTag")}</span></label>
-              <input data-testid="order-parts-cost" type="number" step="0.01" value={form.parts_cost} onChange={set("parts_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
-            <div>
-              <label className={labelCls}>{t("oc.paymentStatusDiagnosis")}</label>
-              <select data-testid="order-diagnosis-payment" value={form.diagnosis_payment_status} onChange={set("diagnosis_payment_status")} className={inputCls}>
-                <option value="OPEN">{t("costs.open")}</option>
-                <option value="PAID">{t("costs.paid")}</option>
-                <option value="NA">{t("costs.na")}</option>
-              </select>
-            </div>
-          </div>
+<section>
+  <h2 className="font-head font-semibold text-lg tracking-tight mb-4 border-b border-border pb-2 flex items-center gap-2">
+    <Receipt size={18} className="text-accent" /> {t("oc.secCosts")}
+  </h2>
+  
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+    <div>
+      <label className={labelCls}>{t("oc.diagnosisCost")} <span className="text-muted-foreground/60">{t("oc.optionalTag")}</span></label>
+      <input data-testid="order-diagnosis-fee" type="number" step="0.01" value={form.diagnosis_fee} onChange={set("diagnosis_fee")} placeholder="0.00" className={`${inputCls} font-mono`} />
+    </div>
+    <div>
+      <label className={labelCls}>{t("oc.laborCost")}</label>
+      <input data-testid="order-labor-cost" type="number" step="0.01" value={form.labor_cost} onChange={set("labor_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+    </div>
+    <div>
+      <label className={labelCls}>{t("oc.attemptCost")} <span className="text-muted-foreground/60">{t("oc.optionalTag")}</span></label>
+      <input data-testid="order-parts-cost" type="number" step="0.01" value={form.parts_cost} onChange={set("parts_cost")} placeholder="0.00" className={`${inputCls} font-mono`} />
+    </div>
+  </div>
 
-          <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">
-            <div className="flex justify-between text-muted-foreground"><span>{t("oc.net")}</span><span data-testid="cost-net">{netTotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-muted-foreground"><span>{t("oc.tax")}</span><span data-testid="cost-tax">{taxTotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("oc.gross")}</span><span data-testid="cost-gross">{grossTotal.toFixed(2)} €</span></div>
-            
-            {/* الحاسبة الذكية للمدفوع والمتبقي عند الإنشاء */}
-            <div className="border-t border-dashed border-border pt-3 mt-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
-                <input 
-  type="number" 
-  step="0.01" 
-  value={form.paid_amount ?? 0}
-  onChange={set("paid_amount")}
-  placeholder="0.00"
-  className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
-/>
-              </div>
-              <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
-                <span>Restbetrag:</span>
-                <span className={(grossTotal - Number(form.paid_amount || 0)) > 0 ? "text-amber-500" : "text-emerald-500"}>
-                  {Math.max(0, grossTotal - Number(form.paid_amount || 0)).toFixed(2)} €
-                </span>
-              </div>
-            </div>
-          </div>
-        </section>
+  {/* القائمة المنسدلة المحدثة بالخيارات الواضحة */}
+  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-4">
+    <div>
+      <label className={labelCls}>{t("oc.paymentStatusDiagnosis")}</label>
+      <select 
+        data-testid="order-diagnosis-payment" 
+        value={form.diagnosis_payment_status || "diag_and_repair"} 
+        onChange={set("diagnosis_payment_status")} 
+        className={inputCls}
+      >
+        <option value="diag_and_repair">Diagnose + Reparatur (Beides)</option>
+        <option value="repair_only">Nur Reparatur (Diagnose erlassen)</option>
+        <option value="diag_only">Nur Diagnose (Keine Reparatur)</option>
+      </select>
+    </div>
+  </div>
+
+  <div className="mt-5 border border-border bg-background p-4 max-w-sm ml-auto font-mono text-sm space-y-1.5">
+    <div className="flex justify-between text-muted-foreground"><span>{t("oc.net")}</span><span data-testid="cost-net">{netTotal.toFixed(2)} €</span></div>
+    <div className="flex justify-between text-muted-foreground"><span>{t("oc.tax")}</span><span data-testid="cost-tax">{taxTotal.toFixed(2)} €</span></div>
+    <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("oc.gross")}</span><span data-testid="cost-gross">{grossTotal.toFixed(2)} €</span></div>
+    
+    {/* الحاسبة الذكية للمدفوع والمتبقي عند الإنشاء */}
+    <div className="border-t border-dashed border-border pt-3 mt-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
+        <input 
+          type="number" 
+          step="0.01" 
+          value={form.paid_amount ?? 0}
+          onChange={set("paid_amount")}
+          placeholder="0.00"
+          className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+        />
+      </div>
+      <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+        <span>Restbetrag:</span>
+        <span className={(grossTotal - Number(form.paid_amount || 0)) > 0 ? "text-amber-500" : "text-emerald-500"}>
+          {Math.max(0, grossTotal - Number(form.paid_amount || 0)).toFixed(2)} €
+        </span>
+      </div>
+      {/* ششارة الحالة للموظف الثاني */}
+{/* مؤشر حالة الدفع الاحترافي */}
+<div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between">
+  <span className="text-xs text-muted-foreground uppercase tracking-wider">Zahlungsstatus:</span>
+  {Number(form.paid_amount || 0) <= 0 ? (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-red-500/10 text-red-400 rounded-md border border-red-500/20">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+      Offen (Nicht bezahlt)
+    </div>
+  ) : Number(form.paid_amount || 0) < grossTotal ? (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-amber-500/10 text-amber-400 rounded-md border border-amber-500/20">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+      Teilweise bezahlt
+    </div>
+  ) : (
+    <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-emerald-500/10 text-emerald-400 rounded-md border border-emerald-500/20">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+      Vollständig bezahlt
+    </div>
+  )}
+</div>
+    </div>
+  </div>
+</section>
 
         {/* Zustandsprotokoll Media */}
         <section>

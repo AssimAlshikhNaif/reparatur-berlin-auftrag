@@ -77,7 +77,27 @@ export default function OrderDetail() {
   const [inventory, setInventory] = useState([]);
   const [partId, setPartId] = useState("");
   const [partQty, setPartQty] = useState(1);
-  const [costForm, setCostForm] = useState({ diagnosis_fee: "", labor_cost: "", parts_cost: "", paid_amount: "",diagnosis_payment_status: "OPEN" });
+  const [costForm, setCostForm] = useState({
+  diagnosis_fee: "",
+  labor_cost: "",
+  parts_cost: "",
+  paid_amount: "",
+  diagnosis_payment_status: "OPEN"
+});
+
+// 2. أضف هذا الـ useEffect ليقوم بتعبئة البيانات فور توفرها
+useEffect(() => {
+  if (order) {
+    setCostForm({
+      diagnosis_fee: order.cost?.diagnosis_fee ?? order.diagnosis_fee ?? "",
+      labor_cost: order.cost?.labor_cost ?? order.labor_cost ?? "",
+      parts_cost: order.cost?.parts_cost ?? order.parts_cost ?? "",
+      paid_amount: order.paid_amount ?? order.cost?.paid_amount ?? "",
+      diagnosis_payment_status: order.diagnosis_payment_status ?? order.cost?.diagnosis_payment_status ?? "OPEN"
+    });
+  }
+}, [order]);
+
   const [comms, setComms] = useState([]);
   const [audit, setAudit] = useState([]);
 
@@ -89,8 +109,7 @@ export default function OrderDetail() {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const canManageRef = user.role === "admin" || user.role === "mitarbeiter";
-  const isAdmin = user.role === "admin";
+  const canManageRef = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker";  const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
 
 const deleteOrder = async () => {
@@ -230,11 +249,11 @@ const loadPurchasesCount = useCallback(() => {
 
   const saveCosts = () => act(async () => {
     await api.patch(`/orders/${id}/costs`, {
-        diagnosis_fee: costForm.diagnosis_fee !== "" ? parseFloat(costForm.diagnosis_fee) : Number(order.diagnosis_fee || 0),
-        labor_cost: costForm.labor_cost !== "" ? parseFloat(costForm.labor_cost) : Number(order.labor_cost || 0),
-        parts_cost: costForm.parts_cost !== "" ? parseFloat(costForm.parts_cost) : Number(order.parts_cost || 0),
-        paid_amount: costForm.paid_amount !== "" ? parseFloat(costForm.paid_amount) : Number(order.paid_amount || 0),
-        diagnosis_payment_status: costForm.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN"
+        diagnosis_fee: costForm.diagnosis_fee !== "" ? parseFloat(costForm.diagnosis_fee) : Number(order.cost?.diagnosis_fee ?? order.diagnosis_fee ?? 0),
+        labor_cost: costForm.labor_cost !== "" ? parseFloat(costForm.labor_cost) : Number(order.cost?.labor_cost ?? order.labor_cost ?? 0),
+        parts_cost: costForm.parts_cost !== "" ? parseFloat(costForm.parts_cost) : Number(order.cost?.parts_cost ?? order.parts_cost ?? 0),
+        paid_amount: costForm.paid_amount !== "" ? parseFloat(costForm.paid_amount) : Number(order.paid_amount ?? order.cost?.paid_amount ?? 0),
+        diagnosis_payment_status: costForm.diagnosis_payment_status || order.diagnosis_payment_status || order.cost?.diagnosis_payment_status || "OPEN"
     });
     
     if (typeof load === "function") await load();
@@ -303,7 +322,7 @@ const loadPurchasesCount = useCallback(() => {
 
   const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
   const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
-  const canManage = user.role === "admin" || user.role === "mitarbeiter";
+  const canManage = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker" || user.role === "TECHNIKER";
 
 
   // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
@@ -389,7 +408,6 @@ const loadPurchasesCount = useCallback(() => {
       className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
     >
       <option value="DIAGNOSE">Diagnose</option>
-      <option value="ANGENOMMEN">Angenommen</option>
       <option value="WARTEN_FREIGABE">Warten Freigabe</option>
       <option value="IN_BEARBEITUNG">In Bearbeitung</option>
       <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
@@ -612,125 +630,138 @@ const loadPurchasesCount = useCallback(() => {
               } />
             </Section>
 
-            {/* Kostenaufschlüsselung */}
-            {!isTech && (
-              <div className="border border-border">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
-                  <div className="flex items-center gap-2">
-                    <Receipt size={16} className="text-accent" />
-                    <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
-                  </div>
-                  <span 
-                    data-testid="cost-status-badge" 
-                    className={`inline-flex items-center px-2.5 py-1 text-xs font-mono uppercase tracking-wider border rounded-lg ${
-                     COST_STATUS_STYLES[status || order.status] || "bg-muted text-foreground/80 border-border"
-                  }`}
-               >
-                 {status || order.status || "DIAGNOSE"}
-                 </span>
-                </div>
-                <div className="p-4">
-                  {canManage ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                      <div>
-                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
-                        <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
-                          onChange={(e) => setCostForm({ ...costForm, diagnosis_fee: e.target.value })}
-                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.labor")}</label>
-                        <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
-                          onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
-                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.attempt")}</label>
-                        <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
-                          onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
-                          className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="font-mono text-sm space-y-1 mb-3">
-                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
-                    </div>
-                  )}
+{/* Kostenaufschlüsselung */}
+{!isTech && (
+  <div className="border border-border">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
+      <div className="flex items-center gap-2">
+        <Receipt className="text-accent" size={16} />
+        <h2 className="font-head font-semibold text-sm tracking-tight">{t("costs.title")}</h2>
+      </div>
+      <span 
+        data-testid="cost-status-badge" 
+        className={`inline-flex items-center px-2.5 py-1 text-xs font-mono uppercase tracking-wider border rounded-lg ${
+          COST_STATUS_STYLES[status || order.status] || "bg-muted text-foreground/80 border-border"
+        }`}
+      >
+        {status || order.status || "DIAGNOSE"}
+      </span>
+    </div>
+    
+    <div className="p-4 space-y-4">
+      {/* حقول المدخلات الثلاثة */}
+      {canManage ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.diagnosis")}</label>
+            <input data-testid="cost-diagnosis-input" type="number" step="0.01" value={costForm.diagnosis_fee}
+              onChange={(e) => setCostForm({ ...costForm, diagnosis_fee: e.target.value })}
+              className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.labor")}</label>
+            <input data-testid="cost-labor-input" type="number" step="0.01" value={costForm.labor_cost}
+              onChange={(e) => setCostForm({ ...costForm, labor_cost: e.target.value })}
+              className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("costs.attempt")}</label>
+            <input data-testid="cost-parts-input" type="number" step="0.01" value={costForm.parts_cost}
+              onChange={(e) => setCostForm({ ...costForm, parts_cost: e.target.value })}
+              className="w-full bg-background border border-border px-2 py-1.5 text-sm rounded-lg outline-none focus:border-accent font-mono" />
+          </div>
+        </div>
+      ) : (
+        <div className="font-mono text-sm space-y-1">
+          <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
+          <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
+        </div>
+      )}
 
-                  <div className="border-t border-border pt-3 font-mono text-sm space-y-1">
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.net")}</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
-                    <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
-                  </div>
-
-                  {/* الحاسبة الذكية للمدفوع والمتبقي */}
-<div className="border-t border-border mt-3 pt-3 font-mono text-sm space-y-2">
-    <div className="flex items-center justify-between">
-        <span className="text-xs uppercase text-muted-foreground">Bezahlt :</span>
+      {/* قائمة خيارات الدفع المنسدلة */}
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
+        <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
         {canManage ? (
-           <input 
-    type="number" 
-    step="0.01" 
-    value={costForm.paid_amount}
-    onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
-    placeholder="0.00"
-    className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
-/>
-        ) : (
-            <span className="text-foreground">{livePaid.toFixed(2)} €</span>
-        )}
-    </div>
-    <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
-        <span>Restbetrag :</span>
-        <span className={liveRemaining > 0 ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
-            {liveRemaining.toFixed(2)} €
-        </span>
-    </div>
-</div>
-
-                  {/* Diagnosegebühr Zahlungsstatus */}
-                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
-                    {canManage ? (
-                      <select 
+          <select 
   data-testid="diagnosis-payment-select" 
-  value={costForm.diagnosis_payment_status !== undefined ? costForm.diagnosis_payment_status : (order.cost?.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN")}
+  value={costForm.diagnosis_payment_status}
   onChange={(e) => setCostForm({ ...costForm, diagnosis_payment_status: e.target.value })}
-  className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-widest rounded-lg outline-none focus:border-accent"
+  className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-widest rounded-lg outline-none focus:border-accent cursor-pointer"
 >
-    <option value="OPEN">{t("costs.open")}</option>
-    <option value="PAID">{t("costs.paid")}</option>
-    <option value="NA">{t("costs.na")}</option>
+  <option value="OPEN">DIAGNOSE + REPARATUR (BEIDES)</option>
+  <option value="PAID">NUR REPARATUR (DIAGNOSE ERLASSEN)</option>
+  <option value="NA">NUR DIAGNOSE (KEINE REPARATUR)</option>
 </select>
-                    ) : (
-                      <span data-testid="diagnosis-payment-badge" className={`inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg ${PAYMENT_STATUS_STYLES[order.diagnosis_payment_status] || "bg-muted border-border"}`}>
-                        {t("costs." + ({ PAID: "paid", OPEN: "open", NA: "na" }[order.diagnosis_payment_status] || "open"))}
-                      </span>
-                    )}
-                  </div>
+        ) : (
+          <span data-testid="diagnosis-payment-badge" className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg bg-muted border-border">
+            {order.diagnosis_payment_status || "OPEN"}
+          </span>
+        )}
+      </div>
 
-                  {canManage && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <button data-testid="save-costs" onClick={saveCosts}
-                        className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                        {t("costs.save")}
-                      </button>
-                      <div className="flex-1" />
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.release")}</span>
-                      <button data-testid="cost-approve" onClick={() => setCostStatus("BESTAETIGT")}
-                        className="text-xs font-mono uppercase tracking-wider border border-emerald-700 text-emerald-300 px-3 py-2 hover:bg-emerald-950 transition-colors">{t("costs.confirmed")}</button>
-                      <button data-testid="cost-wait" onClick={() => setCostStatus("WARTET")}
-                        className="text-xs font-mono uppercase tracking-wider border border-amber-700 text-amber-300 px-3 py-2 hover:bg-amber-950 transition-colors">{t("costs.waiting")}</button>
-                      <button data-testid="cost-reject" onClick={() => setCostStatus("ABGELEHNT")}
-                        className="text-xs font-mono uppercase tracking-wider border border-red-700 text-red-300 px-3 py-2 hover:bg-red-950 transition-colors">{t("costs.rejected")}</button>
-                    </div>
-                  )}
-                </div>
-              </div>
+      {/* صندوق الحسابات والمدفوعات المتناسق */}
+      <div className="border border-border bg-card/40 rounded-lg p-4 font-mono text-sm space-y-2">
+        <div className="flex justify-between text-muted-foreground"><span>{t("costs.net")}</span><span data-testid="detail-cost-net">{liveNet.toFixed(2)} €</span></div>
+        <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
+        <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-2 mt-2"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
+        
+        <div className="border-t border-border pt-2 flex items-center justify-between">
+            <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
+            {canManage ? (
+               <input 
+                  type="number" 
+                  step="0.01" 
+                  value={costForm.paid_amount}
+                  onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+                  placeholder="0.00"
+                  className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+              />
+            ) : (
+                <span className="text-foreground">{livePaid.toFixed(2)} €</span>
             )}
+        </div>
+        
+        <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+            <span>Restbetrag:</span>
+            <span className={liveRemaining > 0 ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
+                {liveRemaining.toFixed(2)} €
+            </span>
+        </div>
+        
+        <div className="pt-2 flex items-center justify-between border-t border-border">
+          <span className="text-[10px] uppercase text-muted-foreground">Zahlungsstatus:</span>
+          {Number(costForm.paid_amount || order.paid_amount || 0) <= 0 ? (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-red-500/10 text-red-400 rounded border border-red-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+              Offen (Nicht bezahlt)
+            </div>
+          ) : Number(costForm.paid_amount || order.paid_amount || 0) < liveGross ? (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              Teilweise
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Bezahlt
+            </div>
+          )}
+        </div>
+      </div>
 
+      {/* زر الحفظ بمفرده وبشكل أنيق */}
+      {canManage && (
+        <div className="pt-2 border-t border-border flex justify-end">
+          <button data-testid="save-costs" onClick={saveCosts}
+            className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-5 py-2.5 hover:bg-blue-600 transition-colors rounded-lg shadow-sm">
+            {t("costs.save")}
+          </button>
+        </div>
+      )}
+    </div>
+  </div>
+)}
             {/* قسم الملاحظات الداخلية للموظفين في العمود الأيمن */}
 {!isTech && (
   <div className="border border-border mt-4">
