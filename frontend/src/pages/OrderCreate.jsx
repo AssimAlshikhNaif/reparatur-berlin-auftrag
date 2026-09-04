@@ -50,7 +50,8 @@ export default function OrderCreate() {
   });
 
 // اجعل الـ mode يقرأ من costForm والحالات تتطابق تماماً
-const mode = costForm.diagnosis_payment_status || "OPEN";
+// اجعل الـ mode يقرأ من form والحالات تتطابق تماماً
+const mode = form.diagnosis_payment_status || "OPEN";
 
 let diagFee = 0;
 let laborCost = 0;
@@ -58,17 +59,17 @@ let partsCost = 0;
 
 if (mode === "OPEN" || mode === "diag_and_repair") {
   // الحالة الأولى: فحص + إصلاح (يجمع الكل)
-  diagFee = parseFloat(costForm.diagnosis_fee) || 0;
-  laborCost = parseFloat(costForm.labor_cost) || 0;
-  partsCost = parseFloat(costForm.parts_cost) || 0;
+  diagFee = parseFloat(form.diagnosis_fee) || 0;
+  laborCost = parseFloat(form.labor_cost) || 0;
+  partsCost = parseFloat(form.parts_cost) || 0;
 } else if (mode === "PAID" || mode === "repair_only") {
   // الحالة الثانية: إصلاح فقط (يلغي رسوم الفحص)
   diagFee = 0;
-  laborCost = parseFloat(costForm.labor_cost) || 0;
-  partsCost = parseFloat(costForm.parts_cost) || 0;
+  laborCost = parseFloat(form.labor_cost) || 0;
+  partsCost = parseFloat(form.parts_cost) || 0;
 } else if (mode === "NA" || mode === "diag_only") {
   // الحالة الثالثة: فحص فقط (يلغي تكلفة الإصلاح والقطع)
-  diagFee = parseFloat(costForm.diagnosis_fee) || 0;
+  diagFee = parseFloat(form.diagnosis_fee) || 0;
   laborCost = 0;
   partsCost = 0;
 }
@@ -76,7 +77,7 @@ if (mode === "OPEN" || mode === "diag_and_repair") {
 const liveNet = diagFee + laborCost + partsCost;
 const liveTax = liveNet * 0.19;
 const liveGross = liveNet + liveTax;
-const paidAmount = parseFloat(costForm.paid_amount) || 0;
+const paidAmount = parseFloat(form.paid_amount) || 0;
 const liveRemaining = liveGross - paidAmount;
 
 const grossTotal = diagFee + laborCost + partsCost;
