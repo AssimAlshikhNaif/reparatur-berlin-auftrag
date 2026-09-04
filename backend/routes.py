@@ -759,7 +759,7 @@ async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
 
 
 @router.post("/orders")
-async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter"))):
+async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter" , "techniker" ))):
     # 1. التحقق من اسم العميل
     if not (input.customer_name or "").strip():
         raise HTTPException(status_code=400, detail="Kundenname ist erforderlich.")
@@ -1052,19 +1052,19 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
         
-    # --- إضافة التحقق من الفرع للموظف هنا لضمان مطابقة الفرع ---
-    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
+    role = current["role"]
+    
+    # التحقق من الفرع للموظف والتقني لضمان أنهم يعملون ضمن نفس الفرع (باستثناء الـ admin)
+    if role in ("mitarbeiter", "techniker") and str(order.get("branch_id")) != str(current.get("branch_id")):
         raise HTTPException(
             status_code=403, 
             detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
         )
         
-    role = current["role"]
+    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة أو الحالات المقيّدة
     if role == "techniker":
-        if order.get("assigned_techniker_id") != str(current["_id"]):
-            raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-        if input.status not in TECH_ALLOWED_STATUS:
-            raise HTTPException(status_code=403, detail="Techniker dürfen diesen Status nicht setzen")
+        # السماح للتقني بتغيير الحالة لأي حالة مسموحة في النظام
+        pass
     elif role == "mitarbeiter":
         if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
@@ -1106,7 +1106,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
-    
+        
 @router.delete("/orders/{order_id}/notes/{note_id}")
 async def delete_order_note(order_id: str, note_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
