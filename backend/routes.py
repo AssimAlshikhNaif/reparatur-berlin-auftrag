@@ -2032,6 +2032,7 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
 
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str):
+    print(f"--- REQUESTED FILE PATH: {file_path} ---")
     UPLOAD_DIR = "/var/www/repair-berlin-uploads"
     clean_path = file_path.lstrip("/\\")
     
