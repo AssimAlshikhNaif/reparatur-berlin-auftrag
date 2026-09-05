@@ -1074,22 +1074,16 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
             detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
         )
         
-    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة
+   # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة
     if role == "techniker":
         pass
     elif role == "mitarbeiter":
-        if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
+        if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEاربيتيغ", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
             
-    if input.status == "FERTIG":
-        if role != "techniker":
-            has_repair_media = any(isinstance(m, dict) and m.get("media_type") == "repair" for m in order.get("media", []))
-            if not has_repair_media:
-                raise HTTPException(status_code=400,
-                                    detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
-            if not order.get("inspection"):
-                raise HTTPException(status_code=400,
-                                    detail="Bitte zuerst das Abschluss-Prüfprotokoll (Endkontrolle) ausfüllen, bevor der Auftrag als 'Fertig' markiert wird.")
+    # تم إلغاء قيود الصور وفحص النهاية عند التحويل إلى FERTIG بناءً على طلبك
+    # if input.status == "FERTIG":
+    #     ... (تم التعطيل بالكامل)
                                 
     extra = {"reject_reason": input.reason} if input.reason else None
     
@@ -1102,7 +1096,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
                  "warranty_start": start.isoformat(),
                  "warranty_until": until.isoformat()}
                  
-    await _touch_order(order_id, input.status, current["name"], extra)
+    await _touch_order(order_id, input.status, current["name"], extra))
     
     # Automated customer status notification
     await auto_status_communication(order, input.status, current["name"])
