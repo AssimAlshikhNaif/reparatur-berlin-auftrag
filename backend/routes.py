@@ -1096,7 +1096,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
                  "warranty_start": start.isoformat(),
                  "warranty_until": until.isoformat()}
                  
-    await _touch_order(order_id, input.status, current["name"], extra))
+    await _touch_order(order_id, input.status, current["name"], extra)
     
     # Automated customer status notification
     await auto_status_communication(order, input.status, current["name"])
