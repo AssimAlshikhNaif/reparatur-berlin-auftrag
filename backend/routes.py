@@ -2033,24 +2033,28 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str):
     safe_path = file_path.lstrip("/\\")
-    if safe_path.startswith("repair-berlin/"):
-        safe_path = safe_path[len("repair-berlin/"):]
-    if safe_path.startswith("uploads/"):
-        safe_path = safe_path[len("uploads/"):]
-
+    
+    # لا تقم بحذف repair-berlin إذا كان المجلد الرئيسي يحتوي عليها فعلياً
     UPLOAD_DIR = "/var/www/repair-berlin-uploads"
     target_file = os.path.join(UPLOAD_DIR, safe_path)
     
     # البحث المباشر السريع أولاً
     if not os.path.exists(target_file) or not os.path.isfile(target_file):
-        # إن لم يوجد، ابحث بالاسم الأخير (يمكنك الاحتفاظ بـ os.walk بحذر ولكن يفضل ضبط مسارات الرفع لتكون مباشرة)
-        filename = os.path.basename(safe_path)
-        target_file = None
-        if os.path.exists(UPLOAD_DIR):
-            for root, dirs, files in os.walk(UPLOAD_DIR):
-                if filename in files:
-                    target_file = os.path.join(root, filename)
-                    break
+        # محاولة بديلة إذا كان المسار يبدأ بـ repair-berlin أو لا
+        if not safe_path.startswith("repair-berlin/"):
+            alt_path = os.path.join(UPLOAD_DIR, "repair-berlin", safe_path)
+            if os.path.exists(alt_path) and os.path.isfile(alt_path):
+                target_file = alt_path
+        
+        # إن لم يوجد، ابحث بالاسم الأخير كملجأ أخير
+        if not os.path.exists(target_file) or not os.path.isfile(target_file):
+            filename = os.path.basename(safe_path)
+            target_file = None
+            if os.path.exists(UPLOAD_DIR):
+                for root, dirs, files in os.walk(UPLOAD_DIR):
+                    if filename in files:
+                        target_file = os.path.join(root, filename)
+                        break
 
     if not target_file or not os.path.exists(target_file):
         raise HTTPException(status_code=404, detail=f"File not found in storage: {safe_path}")
@@ -2071,4 +2075,4 @@ async def serve_file(file_path: str):
     with open(target_file, "rb") as f:
         content = f.read()
         
-    return Response(content=content, media_type=content_type)
+    Response(content=content, media_type=content_type)
