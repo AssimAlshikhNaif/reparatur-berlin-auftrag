@@ -2032,32 +2032,42 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
 
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str):
-    safe_path = file_path.lstrip("/\\")
-    
-    # لا تقم بحذف repair-berlin إذا كان المجلد الرئيسي يحتوي عليها فعلياً
     UPLOAD_DIR = "/var/www/repair-berlin-uploads"
-    target_file = os.path.join(UPLOAD_DIR, safe_path)
     
-    # البحث المباشر السريع أولاً
+    # تنظيف المسار القادم من أي زوائد
+    clean_path = file_path.lstrip("/\\")
+    for prefix in ["repair-berlin/orders/", "repair-berlin/", "uploads/"]:
+        if clean_path.startswith(prefix):
+            clean_path = clean_path[len(prefix):]
+            
+    target_file = os.path.join(UPLOAD_DIR, clean_path)
+    
+    # 1. المحاولة المباشرة للمسار
     if not os.path.exists(target_file) or not os.path.isfile(target_file):
-        # محاولة بديلة إذا كان المسار يبدأ بـ repair-berlin أو لا
-        if not safe_path.startswith("repair-berlin/"):
-            alt_path = os.path.join(UPLOAD_DIR, "repair-berlin", safe_path)
-            if os.path.exists(alt_path) and os.path.isfile(alt_path):
-                target_file = alt_path
+        filename = os.path.basename(clean_path)
+        base_name, ext = os.path.splitext(filename)
+        target_file = None
         
-        # إن لم يوجد، ابحث بالاسم الأخير كملجأ أخير
-        if not os.path.exists(target_file) or not os.path.isfile(target_file):
-            filename = os.path.basename(safe_path)
-            target_file = None
-            if os.path.exists(UPLOAD_DIR):
-                for root, dirs, files in os.walk(UPLOAD_DIR):
-                    if filename in files:
-                        target_file = os.path.join(root, filename)
+        # 2. بحث ذكي شامل في المجلدات بغض النظر عن المسار الفرعي أو اختلاف الامتداد (.jpg / .jpeg / .png)
+        if os.path.exists(UPLOAD_DIR):
+            for root, dirs, files in os.walk(UPLOAD_DIR):
+                # مطابقة تامة بالاسم والامتداد
+                if filename in files:
+                    target_file = os.path.join(root, filename)
+                    break
+                # مطابقة مرنة في حال اختلاف الامتداد (مثل .jpg مقابل .jpeg)
+                match_found = False
+                for f in files:
+                    f_base, f_ext = os.path.splitext(f)
+                    if f_base.lower() == base_name.lower():
+                        target_file = os.path.join(root, f)
+                        match_found = True
                         break
+                if match_found:
+                    break
 
     if not target_file or not os.path.exists(target_file):
-        raise HTTPException(status_code=404, detail=f"File not found in storage: {safe_path}")
+        raise HTTPException(status_code=404, detail=f"File permanently not found: {file_path}")
         
     content_type = "application/octet-stream"
     lower_path = target_file.lower()
@@ -2075,4 +2085,4 @@ async def serve_file(file_path: str):
     with open(target_file, "rb") as f:
         content = f.read()
         
-    Response(content=content, media_type=content_type)
+    return Response(content=content, media_type=content_type)
