@@ -907,7 +907,7 @@ async def _touch_order(order_id, new_status, by_name, extra=None):
 
 @router.patch("/orders/{order_id}")
 async def edit_order(order_id: str, input: OrderEditInput,
-                     current=Depends(require_roles("admin", "mitarbeiter"))):
+                     current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
     """Korrigiert Stammdaten eines Auftrags (z. B. Tippfehler im Kundennamen).
     Zulässig nur, solange der Auftrag noch nicht final ist (kein ABGEHOLT/
     ABGELEHNT/STORNIERT), und für Mitarbeiter nur bei selbst angelegten Aufträgen."""
@@ -918,9 +918,15 @@ async def edit_order(order_id: str, input: OrderEditInput,
         raise HTTPException(status_code=400, detail="Abgeschlossene/stornierte Aufträge können nicht mehr bearbeitet werden")
     if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
         raise HTTPException(
-             status_code=403, 
-             detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten" # أو رسالة مناسبة
-    )
+            status_code=403, 
+            detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
+        )
+
+    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
+        raise HTTPException(
+            status_code=403, 
+            detail="Keine Berechtigung für diesen Auftrag"
+        )
     updates = {}
     changes_desc = []
     for field in EDITABLE_ORDER_FIELDS:
@@ -1006,38 +1012,45 @@ async def assign_order(order_id: str, input: AssignInput,
     return serialize_order(order, current)
 
 
-@router.post("/orders/{order_id}/accept")
-async def accept_order(order_id: str, current=Depends(require_roles("techniker"))):
+@router.post("/orders/{order_id}/assign")
+async def assign_order(order_id: str, input: AssignInput,
+                        current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    if not order or order.get("assigned_techniker_id") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-    await _touch_order(order_id, "AKZEPTIERT", current["name"])
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    # التحقق من الفرع: السماح للأدمن أو إذا كان التقني أو الموظف ضمن نفس الفرع، أو السماح للتقني بالعمل عبر الفروع بحرية
+    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
+        raise HTTPException(
+            status_code=403,
+            detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
+        )
+
+    tech = await db.users.find_one({"_id": ObjectId(input.techniker_id), "role": "techniker"})
+    if not tech:
+        raise HTTPException(status_code=404, detail="Techniker nicht gefunden")
+        
+    was_rejected = order.get("status") == "ABGELEHNT"
+    # Clear any previous rejection reason so a reassigned order starts clean.
+    await _touch_order(order_id, "ZUGEWIESEN", current["name"],
+                         {"assigned_techniker_id": input.techniker_id, "reject_reason": ""})
+    if was_rejected:
+        await log_audit(order_id, "ZUWEISUNG",
+                        f"Nach Ablehnung neu zugewiesen an {tech['name']}", current["name"])
+    action_word = "neu zugewiesen" if was_rejected else "zugewiesen"
     await push_notification(
-        kind="STATUS", title="Auftrag akzeptiert",
-        message=f"Techniker {current['name']} hat {order.get('auftragsnummer','')} akzeptiert.",
+        kind="STATUS", title=("Auftrag neu zugewiesen" if was_rejected else "Auftrag zugewiesen"),
+        message=f"{current['name']} hat {order.get('auftragsnummer','')} an {tech['name']} {action_word}.",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)
-
-
-@router.post("/orders/{order_id}/reject")
-async def reject_order(order_id: str, input: RejectInput,
-                       current=Depends(require_roles("techniker"))):
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    if not order or order.get("assigned_techniker_id") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-    if not input.reason.strip():
-        raise HTTPException(status_code=400, detail="Ablehnungsgrund erforderlich")
-    await _touch_order(order_id, "ABGELEHNT", current["name"],
-                       {"reject_reason": input.reason})
-    await auto_status_communication(order, "ABGELEHNT", current["name"])
+    # Targeted real-time alert to the assigned technician
     await push_notification(
-        kind="STATUS", title="Auftrag abgelehnt",
-        message=f"Techniker {current['name']} hat {order.get('auftragsnummer','')} abgelehnt: {input.reason}",
+        kind="ASSIGNED", title="🔧 Neuer Auftrag zugewiesen",
+        message=f"Ihnen wurde {order.get('auftragsnummer','')} zugewiesen: {order.get('device_brand','')} {order.get('device_model','')}",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+        target_user_id=input.techniker_id, target_role="techniker",
     )
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
@@ -1054,29 +1067,29 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         
     role = current["role"]
     
-    # التحقق من الفرع للموظف والتقني لضمان أنهم يعملون ضمن نفس الفرع (باستثناء الـ admin)
-    if role in ("mitarbeiter", "techniker") and str(order.get("branch_id")) != str(current.get("branch_id")):
+    # التحقق الخاص بالموظف فقط (مع مسافة بادئة صحيحة داخل الدالة)
+    if role == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
         )
         
-    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة أو الحالات المقيّدة
+    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة
     if role == "techniker":
-        # السماح للتقني بتغيير الحالة لأي حالة مسموحة في النظام
         pass
     elif role == "mitarbeiter":
         if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
             
     if input.status == "FERTIG":
-        has_repair_media = any(isinstance(m, dict) and m.get("media_type") == "repair" for m in order.get("media", []))
-        if not has_repair_media:
-            raise HTTPException(status_code=400,
-                                detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
-        if not order.get("inspection"):
-            raise HTTPException(status_code=400,
-                                detail="Bitte zuerst das Abschluss-Prüfprotokoll (Endkontrolle) ausfüllen, bevor der Auftrag als 'Fertig' markiert wird.")
+        if role != "techniker":
+            has_repair_media = any(isinstance(m, dict) and m.get("media_type") == "repair" for m in order.get("media", []))
+            if not has_repair_media:
+                raise HTTPException(status_code=400,
+                                    detail="Bitte zuerst Reparatur-Fotos/Videos aufnehmen, bevor der Auftrag als 'Fertig' markiert wird.")
+            if not order.get("inspection"):
+                raise HTTPException(status_code=400,
+                                    detail="Bitte zuerst das Abschluss-Prüfprotokoll (Endkontrolle) ausfüllen, bevor der Auftrag als 'Fertig' markiert wird.")
                                 
     extra = {"reject_reason": input.reason} if input.reason else None
     
@@ -1091,7 +1104,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
                  
     await _touch_order(order_id, input.status, current["name"], extra)
     
-    # Automated customer status notification (WhatsApp-style log)
+    # Automated customer status notification
     await auto_status_communication(order, input.status, current["name"])
     
     fertig = input.status == "FERTIG"
@@ -1105,8 +1118,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     )
     
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)
-        
+    return serialize_order(order, current)        
 @router.delete("/orders/{order_id}/notes/{note_id}")
 async def delete_order_note(order_id: str, note_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})

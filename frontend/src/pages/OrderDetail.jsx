@@ -34,7 +34,7 @@ function Section({ title, icon: Icon, children }) {
   return (
     <div className="border border-border">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
-        {Icon && <Icon size={16} className="text-accent" />}
+        { Icon && <Icon size={16} className="text-accent" />}
         <h2 className="font-head font-semibold text-sm tracking-tight">{title}</h2>
       </div>
       <div className="p-4">{children}</div>
@@ -132,7 +132,13 @@ const deleteOrder = async () => {
   }
 };
 
-const loadPurchasesCount = useCallback(() => {
+const load = useCallback(() => {
+    api.get(`/orders/${id}`)
+      .then((r) => setOrder(r.data))
+      .catch((e) => console.error("Error loading order:", e));
+  }, [id]);
+
+  const loadPurchasesCount = useCallback(() => {
     api.get(`/purchases/order/${id}`).then((r) => setPurchasesCount(r.data.length)).catch(() => { });
   }, [id]);
 
@@ -141,28 +147,15 @@ const loadPurchasesCount = useCallback(() => {
     api.get(`/orders/${id}/communications`).then((r) => setComms(r.data)).catch(() => { });
     api.get(`/orders/${id}/audit`).then((r) => setAudit(r.data)).catch(() => { });
   }, [id, canManageRef]);
-
-  const setStatus = async (status) => {
+const setStatus = async (status) => {
     try {
-      await api.patch(`/orders/${id}`, { status });
+      await api.patch(`/orders/${id}/status`, { status });
       toast.success(t("toast.statusUpdated"));
       load();
     } catch (e) {
       toast.error(e.response?.data?.detail || t("toast.updateError"));
     }
   };
-
-  const load = useCallback(async () => {
-    const { data } = await api.get(`/orders/${id}`);
-    setOrder(data);
-    setCostForm({
-      diagnosis_fee: data.diagnosis_fee ?? 0,
-      labor_cost: data.labor_cost ?? 0,
-      parts_cost: data.parts_cost ?? 0,
-      paid_amount: data.paid_amount ?? 0, // <--- قراءة مباشرة من البيانات
-      diagnosis_payment_status: data.diagnosis_payment_status ?? "OPEN"
-    });
-  }, [id]);
 
   const handleAddNote = async (e) => {
     e.preventDefault();
@@ -340,242 +333,233 @@ const loadPurchasesCount = useCallback(() => {
   const liveRemaining = Math.max(0, liveGross - livePaid);
   return (
     <div>
-      <PageHeader label={branchName} title={order.auftragsnummer}>
-        {isAdmin && (
-          <button data-testid="delete-order-button" onClick={() => setShowDelete(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-700 bg-red-950/40 text-red-300 px-3 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-colors">
-            <Trash size={15} weight="bold" /> {t("detail.deleteOrder")}
-          </button>
-        )}
-        <button data-testid="back-button" onClick={() => navigate("/auftraege")}
-          className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-primary-foreground transition-colors">
-          <ArrowLeft size={16} /> {t("common.back")}
-        </button>
-      </PageHeader>
 
-      {/* Status + Actions bar */}
-      <div className="flex flex-wrap items-center gap-3 px-6 md:px-8 py-4 border-b border-border/60">
-        <StatusBadge status={order.status} />
-        {order.sla_breached && <SlaBadge days={order.working_days_open} />}
-        {order.imei_reminder && (
-          <span data-testid="imei-reminder-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg animate-pulse">
-            <Warning size={13} weight="fill" /> {t("detail.imeiMissing")}
-          </span>
-        )}
-        {order.under_warranty && (
-          <span data-testid="warranty-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-emerald-600 bg-emerald-950 text-emerald-300 rounded-lg">
-            <ShieldCheck size={13} weight="fill" /> {t("detail.warrantyActive")}{typeof order.warranty_days_left === "number" ? ` · ${t("detail.days", { d: order.warranty_days_left })}` : ""}
-          </span>
-        )}
-        {order.is_reclamation && (
-          <span data-testid="reclamation-badge" className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-amber-600 bg-amber-950 text-amber-300 rounded-lg">
-            <ArrowsClockwise size={13} weight="fill" /> {t("actions.reklamation")}{order.reclamation_of_number ? ` · ${order.reclamation_of_number}` : ""}
-          </span>
-        )}
-        <div className="flex-1" />
-
-{canManage && (
-  <div className="flex items-center gap-2">
-    <span className="px-2.5 py-1 text-xs font-mono uppercase tracking-wider bg-accent/10 text-accent border border-accent/20 rounded-lg">
-      {order?.status || "DIAGNOSE"}
-    </span>
-
-    <select 
-      key={order?.status || "default"} 
-      data-testid="manual-status-select" 
-      defaultValue={order?.status || "DIAGNOSE"}
-      onChange={async (e) => {
-        const newStatus = e.target.value;
-        if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
-          toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
-          return;
-        }
-        
-        // استخدام الـ id المستخرج من الـ URL مباشرة (متوفر وجاهز دائماً)
-        if (!id) {
-          toast.error("Auftrags-ID nicht gefunden!");
-          return;
-        }
-
-        try {
-          await api.patch(`/orders/${id}/status`, { status: newStatus });
-          toast.success("Status aktualisiert");
-          if (typeof fetchOrder === "function") fetchOrder();
-        } catch (err) {
-          toast.error("Fehler beim Aktualisieren des Status");
-        }
-      }}
-      className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
-    >
-      <option value="DIAGNOSE">Diagnose</option>
-      <option value="WARTEN_FREIGABE">Warten Freigabe</option>
-      <option value="IN_BEARBEITUNG">In Bearbeitung</option>
-      <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
-      <option value="FERTIG">Fertig</option>
-      <option value="ABGEHOLT">Abgeholt</option>
-    </select>
-  </div>
-)}
-
-
-        {/* Technician technical-phase status control (exact 4-step flow) */}
-        {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order.status) && (
-          <select data-testid="tech-status-select"
-           value={order?.status || ""}
-            onChange={(e) => e.target.value && setStatus(e.target.value)}
-            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent">
-            {!TECH_STATUS_FLOW.includes(order.status) && (
-             <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS[order.status])}</option>
-              )}
-            {TECH_STATUS_FLOW.map((s) => (
-              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS[s])}</option>
-            ))}
+      {/* 1. قائمة الإدارة والموظفين للتحكم اليدوي بالحالة */}
+        {canManage && !isTech && (
+          <select 
+            key={order?.status || "default"} 
+            data-testid="manual-status-select" 
+            value={order?.status || "DIAGNOSE"}
+            onChange={(e) => {
+              const newStatus = e.target.value;
+              if (!newStatus) return;
+              if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
+                toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+                return;
+              }
+              setStatus(newStatus);
+            }}
+            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
+          >
+            <option value="DIAGNOSE">Diagnose</option>
+            <option value="WARTEN_FREIGABE">Warten Freigabe</option>
+            <option value="IN_BEARBEITUNG">In Bearbeitung</option>
+            <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
+            <option value="FERTIG">Fertig</option>
+            <option value="ABGEHOLT">Abgeholt</option>
           </select>
         )}
 
-        {canManage && order.status !== "STORNIERT" && (
-          <button data-testid="open-edit" onClick={openEdit}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <PencilSimple size={14} /> {t("detail.editOrder")}
-          </button>
+        {/* 2. قائمة التقني المخصصة للمرحلة الفنية */}
+        {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order?.status) && (
+          <select 
+            data-testid="tech-status-select"
+            value={order?.status || ""}
+            onChange={(e) => {
+              const newStatus = e.target.value;
+              if (newStatus) setStatus(newStatus);
+            }}
+            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
+          >
+            {!TECH_STATUS_FLOW?.includes(order?.status) && order?.status && (
+              <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS?.[order.status] || order.status)}</option>
+            )}
+            {TECH_STATUS_FLOW?.map((s) => (
+              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS?.[s] || s)}</option>
+            ))}
+          </select>
         )}
-        {canManage && order.status !== "STORNIERT" && (
-          <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-4 py-2 hover:bg-red-950 transition-colors">
-            <XCircle size={14} /> {t("detail.cancelOrder")}
-          </button>
-        )}
-
-        {/* Device QR/barcode sticker — restricted to Admin & Reception (DSGVO / role isolation) */}
-        {canManage && (
-          <button data-testid="open-label" onClick={() => setShowLabel(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <Barcode size={14} /> {t("label.button")}
-          </button>
-        )}
-
-        {canManage && (
-          <button data-testid="open-receipt" onClick={() => setShowReceipt(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <Printer size={14} /> {t("actions.receipt")}
-          </button>
-        )}
-        {canManage && (
-          <button data-testid="open-contract" onClick={() => setShowContract(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted hover:text-primary-foreground transition-colors">
-            <ClipboardText size={14} /> {t("actions.fullPrint")}
-          </button>
-        )}
-
-
-        {canManage && order.status === "ABGEHOLT" && (
-          <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-            <Printer size={14} /> {t("actions.printInvoice")}
-          </button>
-        )}
-        {canManage && order.status === "ABGEHOLT" && (
-          <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
-            state: {
-              reclamationOf: {
-                id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
-                device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
-                customer_name: order.customer_name, customer_phone: order.customer_phone,
-                customer_email: order.customer_email, customer_address: order.customer_address,
-              }
-            }
-          })}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-4 py-2 rounded-lg hover:bg-amber-950 transition-colors">
-            <ArrowsClockwise size={14} /> {t("actions.reklamation")}
-          </button>
-        )}
-        {canManage && order.status === "FERTIG" && (
-          <button data-testid="mark-delivered" onClick={() => setStatus("ABGEHOLT")}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-foreground px-4 py-2 hover:bg-emerald-500 transition-colors">
-            <CheckCircle size={14} /> {t("actions.collected")}
-          </button>
-        )}
-        {isTech && order.status === "ZUGEWIESEN" && (
-          <>
-            <button data-testid="accept-order" onClick={accept}
-              className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-4 py-2 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-              <CheckCircle size={14} /> {t("actions.accept")}
-            </button>
-            <button data-testid="reject-order" onClick={() => setShowReject(true)}
-              className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-red-600 text-foreground px-4 py-2 hover:bg-red-500 transition-colors">
-              <XCircle size={14} /> {t("actions.reject")}
-            </button>
-          </>
-        )}
-        {isTech && order.status === "AKZEPTIERT" && (
-          <button data-testid="start-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-foreground px-4 py-2 hover:bg-amber-500 transition-colors">
-            <Wrench size={14} /> {t("actions.startRepair")}
-          </button>
-        )}
-        {isTech && order.status === "IN_BEARBEITUNG" && (
-          <>
-            <button data-testid="wait-part" onClick={() => setStatus("WARTEN_ERSATZTEIL")}
-              className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-orange-600 text-foreground px-4 py-2 hover:bg-orange-500 transition-colors">
-              <Package size={14} /> {t("actions.waitPart")}
-            </button>
-            <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0 || !order.inspection}
-              title={repairMedia.length === 0 ? t("detail.markReadyMediaTitle") : (!order.inspection ? t("detail.markReadyInspectionTitle") : "")}
-              className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-foreground px-4 py-2 hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              <CheckCircle size={14} /> {t("actions.markReady")}
-            </button>
-          </>
-        )}
-        {isTech && order.status === "WARTEN_ERSATZTEIL" && (
-          <button data-testid="resume-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
-            className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-foreground px-4 py-2 hover:bg-amber-500 transition-colors">
-            <Wrench size={14} /> {t("actions.resumeRepair")}
-          </button>
-        )}
-      </div>
-
-
-      {/* نظام التبويبات (Tabs Navigation) الاحترافي */}
-      <div className="flex items-center gap-2 px-6 md:px-8 border-b border-border bg-card/40">
-        <button
-          onClick={() => setActiveTab("details")}
-          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors ${activeTab === "details" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-        >
-          {t("detail.tabDetails")}
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab("purchases");
-            loadPurchasesCount();
-          }}
-          className={`px-4 py-3 text-xs font-head font-semibold uppercase tracking-wider border-b-2 transition-colors flex items-center gap-2 ${activeTab === "purchases" ? "border-accent text-accent" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-        >
-          <ShoppingCart size={14} /> {t("detail.tabPurchases")}
-          {purchasesCount > 0 && (
-            <span className="bg-accent/20 text-accent px-1.5 py-0.5 rounded-full text-[10px] font-mono">
-              {purchasesCount}
-            </span>
+          {/* 3. أزرار الإدارة والموظفين فقط */}
+          {canManage && !isTech && (
+            <>
+              <button data-testid="open-edit" onClick={openEdit}
+                className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted transition-colors rounded-lg">
+                <PencilSimple size={14} /> {t("detail.editOrder")}
+              </button>
+              <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
+                className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-4 py-2 hover:bg-red-950 transition-colors rounded-lg">
+                <XCircle size={14} /> {t("detail.cancelOrder")}
+              </button>
+            </>
           )}
+      
+
+        <PageHeader label={branchName} title={order.auftragsnummer}>
+  <div className="flex flex-wrap items-center gap-2.5">
+    
+    {/* 1. قائمة التقني المخصصة للمرحلة الفنية */}
+    {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order?.status) && (
+      <select 
+        data-testid="tech-status-select"
+        value={order?.status || ""}
+        onChange={(e) => {
+          const newStatus = e.target.value;
+          if (newStatus) setStatus(newStatus);
+        }}
+        className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
+      >
+        {!TECH_STATUS_FLOW?.includes(order?.status) && order?.status && (
+          <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS?.[order.status] || order.status)}</option>
+        )}
+        {TECH_STATUS_FLOW?.map((s) => (
+          <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS?.[s] || s)}</option>
+        ))}
+      </select>
+    )}
+
+    {/* 2. قائمة الإدارة والموظفين للتحكم اليدوي بالحالة */}
+    {canManage && !isTech && (
+      <select 
+        key={order?.status || "default"} 
+        data-testid="manual-status-select" 
+        value={order?.status || "DIAGNOSE"}
+        onChange={(e) => {
+          const newStatus = e.target.value;
+          if (!newStatus) return;
+          if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
+            toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+            return;
+          }
+          setStatus(newStatus);
+        }}
+        className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
+      >
+        <option value="DIAGNOSE">Diagnose</option>
+        <option value="WARTEN_FREIGABE">Warten Freigabe</option>
+        <option value="IN_BEARBEITUNG">In Bearbeitung</option>
+        <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
+        <option value="FERTIG">Fertig</option>
+        <option value="ABGEHOLT">Abgeholt</option>
+      </select>
+    )}
+
+    {/* 3. أزرار الإدارة والموظفين */}
+    {canManage && !isTech && order.status !== "STORNIERT" && (
+      <>
+        <button data-testid="open-edit" onClick={openEdit}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
+          <PencilSimple size={14} /> {t("detail.editOrder")}
         </button>
-      </div>
+        <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-3.5 py-2 hover:bg-red-950 transition-colors rounded-lg">
+          <XCircle size={14} /> {t("detail.cancelOrder")}
+        </button>
+      </>
+    )}
 
+    {canManage && (
+      <>
+        <button data-testid="open-label" onClick={() => setShowLabel(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
+          <Barcode size={14} /> {t("label.button")}
+        </button>
+        <button data-testid="open-receipt" onClick={() => setShowReceipt(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
+          <Printer size={14} /> {t("actions.receipt")}
+        </button>
+        <button data-testid="open-contract" onClick={() => setShowContract(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
+          <ClipboardText size={14} /> {t("actions.fullPrint")}
+        </button>
+      </>
+    )}
 
+    {canManage && order.status === "ABGEHOLT" && (
+      <>
+        <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+          <Printer size={14} /> {t("actions.printInvoice")}
+        </button>
+        <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
+          state: {
+            reklamationOf: {
+              id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
+              device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
+              customer_name: order.customer_name, customer_phone: order.customer_phone,
+              customer_email: order.customer_email, customer_address: order.customer_address,
+            }
+          }
+        })}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-3.5 py-2 rounded-lg hover:bg-amber-950 transition-colors">
+          <ArrowsClockwise size={14} /> {t("actions.reklamation")}
+        </button>
+      </>
+    )}
 
-      {order.status === "ABGELEHNT" && order.reject_reason && (
-        <div className="mx-6 md:mx-8 my-4 border border-red-900 bg-red-950/30 px-4 py-3">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.rejectReason")}</div>
-          <div className="text-sm text-red-200">{order.reject_reason}</div>
-        </div>
-      )}
+    {canManage && order.status === "FERTIG" && (
+      <button data-testid="mark-delivered" onClick={() => setStatus("ABGEHOLT")}
+        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-white px-3.5 py-2 rounded-lg hover:bg-emerald-500 transition-colors">
+        <CheckCircle size={14} /> {t("actions.collected")}
+      </button>
+    )}
 
-      {order.status === "STORNIERT" && (
-        <div data-testid="cancel-reason-banner" className="mx-6 md:mx-8 my-4 border-2 border-red-700 bg-red-950/40 px-4 py-3">
-          <div className="font-mono text-[11px] uppercase tracking-wider text-red-400 mb-1">{t("detail.cancelReason")}</div>
-          <div className="text-sm text-red-200">{order.cancel_reason}</div>
-        </div>
-      )}
+    {/* 4. أزرار التقني الفنية */}
+    {isTech && order.status === "ZUGEWIESEN" && (
+      <>
+        <button data-testid="accept-order" onClick={accept}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+          <CheckCircle size={14} /> {t("actions.accept")}
+        </button>
+        <button data-testid="reject-order" onClick={() => setShowReject(true)}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-red-600 text-white px-3.5 py-2 rounded-lg hover:bg-red-500 transition-colors">
+          <XCircle size={14} /> {t("actions.reject")}
+        </button>
+      </>
+    )}
+
+    {isTech && order.status === "AKZEPTIERT" && (
+      <button data-testid="start-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
+        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-white px-3.5 py-2 rounded-lg hover:bg-amber-500 transition-colors">
+        <Wrench size={14} /> {t("actions.startRepair")}
+      </button>
+    )}
+
+    {isTech && order.status === "IN_BEARBEITUNG" && (
+      <>
+        <button data-testid="wait-part" onClick={() => setStatus("WARTEN_ERSATZTEIL")}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-orange-600 text-white px-3.5 py-2 rounded-lg hover:bg-orange-500 transition-colors">
+          <Package size={14} /> {t("actions.waitPart")}
+        </button>
+        <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0 || !order.inspection}
+          title={repairMedia.length === 0 ? t("detail.markReadyMediaTitle") : (!order.inspection ? t("detail.markReadyInspectionTitle") : "")}
+          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-white px-3.5 py-2 rounded-lg hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          <CheckCircle size={14} /> {t("actions.markReady")}
+        </button>
+      </>
+    )}
+
+    {isTech && order.status === "WARTEN_ERSATZTEIL" && (
+      <button data-testid="resume-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
+        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-white px-3.5 py-2 rounded-lg hover:bg-amber-500 transition-colors">
+        <Wrench size={14} /> {t("actions.resumeRepair")}
+      </button>
+    )}
+
+    {/* زر الحذف للأدمن */}
+    {isAdmin && (
+      <button data-testid="delete-order-button" onClick={() => setShowDelete(true)}
+        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-700 bg-red-950/40 text-red-300 px-3.5 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-colors">
+        <Trash size={14} weight="bold" /> {t("detail.deleteOrder")}
+      </button>
+    )}
+
+    {/* زر الرجوع */}
+    <button data-testid="back-button" onClick={() => navigate("/auftraege")}
+      className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground px-2 py-2 transition-colors">
+      <ArrowLeft size={16} /> {t("common.back")}
+    </button>
+  </div>
+</PageHeader>
 
       {/* محتوى التبويبات */}
       {activeTab === "purchases" ? (
@@ -1282,7 +1266,6 @@ const loadPurchasesCount = useCallback(() => {
     </div>
   );
 }
-
 function MediaThumb({ m, onDelete }) {
   const token = localStorage.getItem("token") || "";
   const rawUrl = fileUrl(m.storage_path);
