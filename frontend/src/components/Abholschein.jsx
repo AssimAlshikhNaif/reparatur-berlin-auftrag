@@ -12,13 +12,11 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
   // جلب شعار الفرع بدقة من بيانات الفرع الحقيقية أو الطلب أو الخريطة المباشرة
   const getBranchLogo = () => {
-    // المحاولة الأولى: من بيانات الفرع المباشرة أو الطلب
     const rawLogo = branchInfo?.logo_url || branchInfo?.logo || order?.branch?.logo_url || order?.branch?.logo;
     if (rawLogo) {
       return rawLogo.startsWith("http") || rawLogo.startsWith("/") || rawLogo.startsWith("blob:") || rawLogo.startsWith("data:image") ? rawLogo : fileUrl(rawLogo);
     }
 
-    // الخريطة المباشرة للفروع ومسارات اللوغو الخاصة بها
     const branchLogosMap = {
       "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
       "Phone Store Mobile": "/logos/phone-store-mobile.png",
@@ -30,7 +28,6 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
   const shopLogo = getBranchLogo();
 
-  // بيانات المتجر الحالي مستمدة بدقة من الفرع الحقيقي أو الطلب
   const currentShop = {
     name: resolvedBranchName,
     email: branchInfo?.email || order?.branch?.email || "",
@@ -94,7 +91,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     printWindow.document.close();
   };
 
-  // توليد وتحميل PDF بمعالجة ذكية لأبعاد اللوغو
+  // توليد وتحميل PDF بمعالجة ذكية للرسوم والمتبقي
   const downloadPdf = async () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrData = canvas ? canvas.toDataURL("image/png") : null;
@@ -177,31 +174,39 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
       line("GESAMT:", `${Number(order.cost.gross || order.gross || 0).toFixed(2)} EUR`);
       
       const anzahlugVal = Number(order.cost.anzahlung || order.anzahlung || 0);
-      const paidVal = Number(order.cost.paid_amount || order.paid_amount || 0);
-      const remainingVal = Number(order.cost.remaining_amount || order.remaining_amount || 0);
-      const payStatus = order.cost.payment_status || order.payment_status || "Offen";
+      const grossVal = Number(order.cost.gross || order.gross || 0);
+      
+      const isDiagPaidPDF = 
+        order?.is_diagnosis_paid_at_intake === true || 
+        order?.cost?.is_diagnosis_paid_at_intake === true ||
+        order?.diagnosis_payment_status === "PAID" ||
+        order?.cost?.diagnosis_payment_status === "PAID" ||
+        String(order?.diagnosis_payment_status).toLowerCase() === "repair_only";
 
-      if (anzahlugVal > 0) line("Anzahlung:", `${anzahlugVal.toFixed(2)} EUR`);
-      if (paidVal > 0) line("Bezahlt:", `${paidVal.toFixed(2)} EUR`);
+      const diagFeePDF = Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0);
+      const effectiveDiagPaidPDF = (isDiagPaidPDF && diagFeePDF > 0) ? diagFeePDF : 0;
+      
+      const totalPaidPre = anzahlugVal + effectiveDiagPaidPDF;
+      const remainingVal = Math.max(0, grossVal - totalPaidPre);
+      
+      let payStatus = "Offen";
+      if (totalPaidPre > 0 && totalPaidPre < grossVal) {
+        payStatus = "Teilweise";
+      } else if (totalPaidPre >= grossVal && grossVal > 0) {
+        payStatus = "Bezahlt";
+      }
+
+      if (anzahlugVal > 0) {
+        line("Anzahlung:", `${anzahlugVal.toFixed(2)} EUR`);
+      }
+      if (diagFeePDF > 0) {
+        line("Diagnose-Gebühr:", isDiagPaidPDF ? `BEZAHLT (${diagFeePDF.toFixed(2)} EUR)` : "NICHT BEZAHLT");
+      }
+
       doc.setFont("courier", "bold");
       line("Restbetrag:", `${remainingVal.toFixed(2)} EUR`);
       doc.setFont("courier", "normal");
       line("Status:", String(payStatus));
-    }
-
-    const isDiagPaidPDF = 
-      order?.is_diagnosis_paid_at_intake === true || 
-      order?.cost?.is_diagnosis_paid_at_intake === true ||
-      order?.diagnosis_payment_status === "PAID" ||
-      order?.cost?.diagnosis_payment_status === "PAID" ||
-      String(order?.diagnosis_payment_status).toLowerCase() === "repair_only";
-
-    const diagFeePDF = Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0);
-    if (diagFeePDF > 0) {
-      y += 2;
-      doc.setFont("courier", "bold");
-      line("Diagnose-Gebühr:", isDiagPaidPDF ? `BEZAHLT (${diagFeePDF.toFixed(2)} EUR)` : "NICHT BEZAHLT");
-      doc.setFont("courier", "normal");
     }
     
     y += 2; doc.setFont("courier", "bold"); doc.setFontSize(7);
@@ -304,28 +309,10 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
               <div>{order?.issue_description}</div>
             </div>
 
-            {order?.cost && (
-              <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Netto:</span><span>{Number(order.cost.net || order.net || 0).toFixed(2)} €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>MwSt. 19%:</span><span>{Number(order.cost.tax || order.tax || 0).toFixed(2)} €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px" }}><span>GESAMT:</span><span>{Number(order.cost.gross || order.gross || 0).toFixed(2)} €</span></div>
-                
-                {Number(order.cost.anzahlung || order.anzahlung || 0) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#0066cc" }}><span>Anzahlung:</span><span>-{Number(order.cost.anzahlung || order.anzahlung || 0).toFixed(2)} €</span></div>
-                )}
-                {Number(order.cost.paid_amount || order.paid_amount || 0) > 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "#008800" }}><span>Bereits bezahlt:</span><span>-{Number(order.cost.paid_amount || order.paid_amount || 0).toFixed(2)} €</span></div>
-                )}
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px", borderTop: "1px solid #000", marginTop: "1mm", paddingTop: "1mm" }}>
-                  <span>Restbetrag:</span><span>{Number(order.cost.remaining_amount || order.remaining_amount || 0).toFixed(2)} €</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", marginTop: "1mm" }}>
-                  <span>Zahlungsstatus:</span><span>{order.cost.payment_status || order.payment_status || "Offen"}</span>
-                </div>
-              </div>
-            )}
-
-            {Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0) > 0 && (() => {
+            {order?.cost && (() => {
+              const anzahlugVal = Number(order.cost.anzahlung || order.anzahlung || 0);
+              const grossVal = Number(order.cost.gross || order.gross || 0);
+              
               const isPaid = 
                 order?.is_diagnosis_paid_at_intake === true || 
                 order?.cost?.is_diagnosis_paid_at_intake === true ||
@@ -333,14 +320,44 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
                 order?.cost?.diagnosis_payment_status === "PAID";
 
               const diagFeeVal = Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0);
+              
+              // خصم رسوم الفحص من الإجمالي إذا كانت مدفوعة مسبقاً
+              const effectiveDiagPaid = (isPaid && diagFeeVal > 0) ? diagFeeVal : 0;
+              const totalPaidPre = anzahlugVal + effectiveDiagPaid;
+              
+              const remainingVal = Math.max(0, grossVal - totalPaidPre);
+              
+              let payStatus = "Offen";
+              if (totalPaidPre > 0 && totalPaidPre < grossVal) {
+                payStatus = "Teilweise";
+              } else if (totalPaidPre >= grossVal && grossVal > 0) {
+                payStatus = "Bezahlt";
+              }
 
               return (
                 <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>Diagnose-Gebühr:</span>
-                    <span style={{ fontWeight: 700, color: isPaid ? "#008800" : "#cc0000" }}>
-                      {isPaid ? `BEZAHLT (${diagFeeVal.toFixed(2)} €)` : "NICHT BEZAHLT"}
-                    </span>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span>Netto:</span><span>{Number(order.cost.net || order.net || 0).toFixed(2)} €</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}><span>MwSt. 19%:</span><span>{Number(order.cost.tax || order.tax || 0).toFixed(2)} €</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px" }}><span>GESAMT:</span><span>{grossVal.toFixed(2)} €</span></div>
+                  
+                  {anzahlugVal > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", color: "#0066cc" }}><span>Anzahlung:</span><span>-{anzahlugVal.toFixed(2)} €</span></div>
+                  )}
+
+                  {diagFeeVal > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "1mm" }}>
+                      <span>Diagnose-Gebühr:</span>
+                      <span style={{ fontWeight: 700, color: isPaid ? "#008800" : "#cc0000" }}>
+                        {isPaid ? `BEZAHLT (-${diagFeeVal.toFixed(2)} €)` : "NICHT BEZAHLT"}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px", borderTop: "1px solid #000", marginTop: "1mm", paddingTop: "1mm" }}>
+                    <span>Restbetrag:</span><span>{remainingVal.toFixed(2)} €</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", marginTop: "1mm" }}>
+                    <span>Zahlungsstatus:</span><span>{payStatus}</span>
                   </div>
                 </div>
               );
