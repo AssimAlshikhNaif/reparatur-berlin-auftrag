@@ -47,9 +47,9 @@ export default function OrderCreate() {
     diagnosis_payment_status: "OPEN",
     warranty_months: 6,
     assigned_techniker_id: "",
+    anzahlung: 0,
   });
 
-// اجعل الـ mode يقرأ من costForm والحالات تتطابق تماماً
 // اجعل الـ mode يقرأ من form والحالات تتطابق تماماً
 const mode = form.diagnosis_payment_status || "OPEN";
 
@@ -78,8 +78,8 @@ const liveNet = diagFee + laborCost + partsCost;
 const liveTax = liveNet * 0.19;
 const liveGross = liveNet + liveTax;
 const paidAmount = parseFloat(form.paid_amount) || 0;
-const liveRemaining = liveGross - paidAmount;
-
+const anzahlungAmount = parseFloat(form.anzahlung) || 0;
+const liveRemaining = Math.max(0, liveGross - paidAmount - anzahlungAmount);
 const grossTotal = diagFee + laborCost + partsCost;
 const netTotal = grossTotal / 1.19;
 const taxTotal = grossTotal - netTotal;
@@ -215,6 +215,7 @@ const submit = async (e) => {
         labor_cost: parseFloat(form.labor_cost) || 0,
         parts_cost: parseFloat(form.parts_cost) || 0,
         paid_amount: parseFloat(form.paid_amount) || 0,
+        anzahlung: parseFloat(form.anzahlung) || 0,
         warranty_months: parseInt(form.warranty_months) || 0,
         assigned_techniker_id: form.assigned_techniker_id || null,
         intake_signature: intakeSignature || null,
@@ -427,6 +428,17 @@ const submit = async (e) => {
     <div className="flex justify-between text-muted-foreground"><span>{t("oc.tax")}</span><span data-testid="cost-tax">{taxTotal.toFixed(2)} €</span></div>
     <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-1.5 mt-1.5"><span>{t("oc.gross")}</span><span data-testid="cost-gross">{grossTotal.toFixed(2)} €</span></div>
     
+    <div className="flex items-center justify-between mb-2">
+        <span className="text-xs uppercase text-muted-foreground">Anzahlung:</span>
+        <input 
+          type="number" 
+          step="0.01" 
+          value={form.anzahlung ?? 0}
+          onChange={set("anzahlung")}
+          placeholder="0.00"
+          className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+        />
+      </div>
     {/* الحاسبة الذكية للمدفوع والمتبقي عند الإنشاء */}
     <div className="border-t border-dashed border-border pt-3 mt-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -443,7 +455,7 @@ const submit = async (e) => {
       <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
         <span>Restbetrag:</span>
         <span className={(grossTotal - Number(form.paid_amount || 0)) > 0 ? "text-amber-500" : "text-emerald-500"}>
-          {Math.max(0, grossTotal - Number(form.paid_amount || 0)).toFixed(2)} €
+          {Math.max(0, grossTotal - Number(form.paid_amount || 0) - Number(form.anzahlung || 0)).toFixed(2)} €
         </span>
       </div>
       {/* ششارة الحالة للموظف الثاني */}

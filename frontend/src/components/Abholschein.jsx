@@ -10,22 +10,27 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
   const resolvedBranchName = branchInfo?.name || order?.branch_name || order?.branch?.name || branchName || "Reparatur Berlin";
 
-  // جلب شعار الفرع بدقة من بيانات الفرع الحقيقية أو الطلب وتجنب القيم الوهمية
+  // جلب شعار الفرع بدقة من بيانات الفرع الحقيقية أو الطلب أو الخريطة المباشرة
   const getBranchLogo = () => {
+    // المحاولة الأولى: من بيانات الفرع المباشرة أو الطلب
     const rawLogo = branchInfo?.logo_url || branchInfo?.logo || order?.branch?.logo_url || order?.branch?.logo;
     if (rawLogo) {
       return rawLogo.startsWith("http") || rawLogo.startsWith("/") || rawLogo.startsWith("blob:") || rawLogo.startsWith("data:image") ? rawLogo : fileUrl(rawLogo);
     }
+
+    // الخريطة المباشرة للفروع ومسارات اللوغو الخاصة بها
     const branchLogosMap = {
       "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
       "Phone Store Mobile": "/logos/phone-store-mobile.png",
+      "A 10 center": "/logos/linden A10.png",
     };
-    return branchLogosMap[resolvedBranchName] || "/logos/logo-icon.png";
+    
+    return branchLogosMap[resolvedBranchName] || ""; 
   };
 
   const shopLogo = getBranchLogo();
 
-  // بيانات المتجر الحالي مستمدة بدقة من الفرع الحقيقي المرتبط بالطلب
+  // بيانات المتجر الحالي مستمدة بدقة من الفرع الحقيقي أو الطلب
   const currentShop = {
     name: resolvedBranchName,
     email: branchInfo?.email || order?.branch?.email || "",
@@ -43,7 +48,6 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
       alert("Bitte erlauben Sie Pop-ups für den Druck.");
       return;
     }
-
     const tempContainer = document.createElement("div");
     tempContainer.innerHTML = document.getElementById("abholschein").innerHTML;
     
@@ -87,8 +91,8 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
       </script>
     </html>
   `);
-  printWindow.document.close();
-};
+    printWindow.document.close();
+  };
 
   // توليد وتحميل PDF بمعالجة ذكية لأبعاد اللوغو
   const downloadPdf = async () => {
@@ -167,10 +171,37 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     
     if (order?.cost) {
       doc.setFont("courier", "normal");
-      line("Netto:", `${Number(order.cost.net || 0).toFixed(2)} EUR`);
-      line("MwSt 19%:", `${Number(order.cost.tax || 0).toFixed(2)} EUR`);
+      line("Netto:", `${Number(order.cost.net || order.net || 0).toFixed(2)} EUR`);
+      line("MwSt 19%:", `${Number(order.cost.tax || order.tax || 0).toFixed(2)} EUR`);
       doc.setFont("courier", "bold");
-      line("GESAMT:", `${Number(order.cost.gross || 0).toFixed(2)} EUR`);
+      line("GESAMT:", `${Number(order.cost.gross || order.gross || 0).toFixed(2)} EUR`);
+      
+      const anzahlugVal = Number(order.cost.anzahlung || order.anzahlung || 0);
+      const paidVal = Number(order.cost.paid_amount || order.paid_amount || 0);
+      const remainingVal = Number(order.cost.remaining_amount || order.remaining_amount || 0);
+      const payStatus = order.cost.payment_status || order.payment_status || "Offen";
+
+      if (anzahlugVal > 0) line("Anzahlung:", `${anzahlugVal.toFixed(2)} EUR`);
+      if (paidVal > 0) line("Bezahlt:", `${paidVal.toFixed(2)} EUR`);
+      doc.setFont("courier", "bold");
+      line("Restbetrag:", `${remainingVal.toFixed(2)} EUR`);
+      doc.setFont("courier", "normal");
+      line("Status:", String(payStatus));
+    }
+
+    const isDiagPaidPDF = 
+      order?.is_diagnosis_paid_at_intake === true || 
+      order?.cost?.is_diagnosis_paid_at_intake === true ||
+      order?.diagnosis_payment_status === "PAID" ||
+      order?.cost?.diagnosis_payment_status === "PAID" ||
+      String(order?.diagnosis_payment_status).toLowerCase() === "repair_only";
+
+    const diagFeePDF = Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0);
+    if (diagFeePDF > 0) {
+      y += 2;
+      doc.setFont("courier", "bold");
+      line("Diagnose-Gebühr:", isDiagPaidPDF ? `BEZAHLT (${diagFeePDF.toFixed(2)} EUR)` : "NICHT BEZAHLT");
+      doc.setFont("courier", "normal");
     }
     
     y += 2; doc.setFont("courier", "bold"); doc.setFontSize(7);
@@ -180,6 +211,13 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
       const wb = doc.splitTextToSize("- " + b, 72);
       doc.text(wb, 4, y); y += wb.length * 2.6 + 0.6;
     });
+
+    y += 2;
+    const noticeText = order?.status === "ANGENOMMEN" 
+      ? "* Hinweis: Der genannte Betrag ist ein unverbindlicher Kostenvoranschlag. Zusätzliche Reparaturkosten werden erst nach Rücksprache berechnet."
+      : "* Vielen Dank für Ihren Auftrag! Alle Beträge inkl. 19% MwSt.";
+    const noticeWrapped = doc.splitTextToSize(noticeText, 72);
+    doc.text(noticeWrapped, 4, y); y += noticeWrapped.length * 3 + 2;
     
     y += 2;
     doc.setFontSize(8);
@@ -268,11 +306,45 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
             {order?.cost && (
               <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Netto:</span><span>{Number(order.cost.net || 0).toFixed(2)} €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>MwSt. 19%:</span><span>{Number(order.cost.tax || 0).toFixed(2)} €</span></div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px" }}><span>GESAMT:</span><span>{Number(order.cost.gross || 0).toFixed(2)} €</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Netto:</span><span>{Number(order.cost.net || order.net || 0).toFixed(2)} €</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>MwSt. 19%:</span><span>{Number(order.cost.tax || order.tax || 0).toFixed(2)} €</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px" }}><span>GESAMT:</span><span>{Number(order.cost.gross || order.gross || 0).toFixed(2)} €</span></div>
+                
+                {Number(order.cost.anzahlung || order.anzahlung || 0) > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#0066cc" }}><span>Anzahlung:</span><span>-{Number(order.cost.anzahlung || order.anzahlung || 0).toFixed(2)} €</span></div>
+                )}
+                {Number(order.cost.paid_amount || order.paid_amount || 0) > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "#008800" }}><span>Bereits bezahlt:</span><span>-{Number(order.cost.paid_amount || order.paid_amount || 0).toFixed(2)} €</span></div>
+                )}
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "11px", borderTop: "1px solid #000", marginTop: "1mm", paddingTop: "1mm" }}>
+                  <span>Restbetrag:</span><span>{Number(order.cost.remaining_amount || order.remaining_amount || 0).toFixed(2)} €</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", marginTop: "1mm" }}>
+                  <span>Zahlungsstatus:</span><span>{order.cost.payment_status || order.payment_status || "Offen"}</span>
+                </div>
               </div>
             )}
+
+            {Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0) > 0 && (() => {
+              const isPaid = 
+                order?.is_diagnosis_paid_at_intake === true || 
+                order?.cost?.is_diagnosis_paid_at_intake === true ||
+                order?.diagnosis_payment_status === "PAID" ||
+                order?.cost?.diagnosis_payment_status === "PAID";
+
+              const diagFeeVal = Number(order?.cost?.diagnosis_fee || order?.diagnosis_fee || 0);
+
+              return (
+                <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Diagnose-Gebühr:</span>
+                    <span style={{ fontWeight: 700, color: isPaid ? "#008800" : "#cc0000" }}>
+                      {isPaid ? `BEZAHLT (${diagFeeVal.toFixed(2)} €)` : "NICHT BEZAHLT"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7px", lineHeight: 1.5 }}>
               <div style={{ fontWeight: 700, marginBottom: "1.5mm", fontSize: "8px", textAlign: "center", letterSpacing: "0.5px" }}>HAFTUNGSAUSSCHLUSS</div>
@@ -283,6 +355,14 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7.5px", lineHeight: 1.4, textAlign: "center" }}>
+              {order?.status === "ANGENOMMEN" ? (
+                <span>* Der genannte Betrag ist ein unverbindlicher Kostenvoranschlag. Zusätzliche Reparaturkosten werden erst nach Absprache berechnet.</span>
+              ) : (
+                <span>* Vielen Dank für Ihren Auftrag! Alle Beträge inkl. 19% MwSt.</span>
+              )}
             </div>
 
             <div style={{ paddingTop: "6mm", marginTop: "2mm", fontSize: "9px" }}>

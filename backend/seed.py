@@ -33,21 +33,21 @@ BRANCHES = [
         "name": "Handy & Laptop Krankenhaus",
         "address": " Pablo-Neruda-Str.2-4, 12559 Berlin ",
         "phone": " +49 1792087786 ",
-        "email": "",
-        "logo_url": ""
+        "email": "handy24krankenhaus@gmail.com",
+        "logo_url": "/logos/kauf park eiche.jpeg"
     },
     {
         "name": "Technik Kingdom Handy",
         "address": " Bülowstraße 11, 10783 Berlin ",
         "phone": " +49 1779766660 ",
         "email": "",
-        "logo_url": ""
+        "logo_url": "/logos/Gemini_Generated_Image_ibkykmibkykmibky.jpg"
     },
     {
         "name": "Technik Phone",
         "address": "Frankfurter Alle 53 , 10247 Berlin",
         "phone": " 030 89650662 ",
-        "email": "",
+        "email": "info@technik-phone.de",
         "logo_url": "/logos/basic-file.png"
     },
      {
@@ -91,25 +91,25 @@ BRANCHES = [
        "address": "Landsberger Ch 17, 16356 Ahrensfelde",
         "phone": "01631222240 ",
         "email": "info@handy-und-laptop-krankenhaus.de",
-        "logo_url": "\logos\kauf park eiche.jpeg"
-    },
+        "logo_url": "/logos/kauf park eiche.jpeg"
+        },
          {
         "name": "A 10 center",
-        "address": "",
-        "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "address": "Chausseestraße 1 , 15745 Wildau",
+        "phone": "+4917670367874 ",
+        "email": "Info@laptop-handy-experten.de",
+        "logo_url": "/logos/linden A10.png"
     },
             {
         "name": "Linden Center",
-        "address": "",
+        "address": "Prerower Platz 1, 13051 Bezirk Lichtenberg",
         "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "email": "Info@handy-laptop-experten-2.de",
+        "logo_url": "/logos/linden A10.png"
     },
             {
         "name": "Victoria Center",
-        "address": " im Victoria-Center (Kaufland, Marktstraße 6, 10317 Berlin",
+        "address": " ",
         "phone": "+49 1639489567 ",
         "email": "",
         "logo_url": ""
@@ -130,9 +130,9 @@ BRANCHES = [
     },
             {
         "name": "Tempelhof Hafen",
-        "address": "",
-        "phone": "+49 ",
-        "email": "",
+        "address": "Tempelhofer Damm 227 ,12099 Berlin Neben O2 Shop",
+        "phone": "+49 177 9544500 ",
+        "email": "QVUG.Berlin@gmail.com",
         "logo_url": ""
     },
             {

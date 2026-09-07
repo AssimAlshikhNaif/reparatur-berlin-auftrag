@@ -78,12 +78,13 @@ export default function OrderDetail() {
   const [partId, setPartId] = useState("");
   const [partQty, setPartQty] = useState(1);
   const [costForm, setCostForm] = useState({
-  diagnosis_fee: "",
-  labor_cost: "",
-  parts_cost: "",
-  paid_amount: "",
-  diagnosis_payment_status: "OPEN"
-});
+    diagnosis_fee: order?.cost?.diagnosis_fee || "",
+    labor_cost: order?.cost?.labor_cost || "",
+    parts_cost: order?.cost?.parts_cost || "",
+    paid_amount: order?.paid_amount || "",
+    diagnosis_payment_status: order?.diagnosis_payment_status || "OPEN",
+    anzahlung: order?.anzahlung || 0
+  });
 
 // 2. أضف هذا الـ useEffect ليقوم بتعبئة البيانات فور توفرها
 useEffect(() => {
@@ -93,6 +94,7 @@ useEffect(() => {
       labor_cost: order.cost?.labor_cost ?? order.labor_cost ?? "",
       parts_cost: order.cost?.parts_cost ?? order.parts_cost ?? "",
       paid_amount: order.paid_amount ?? order.cost?.paid_amount ?? "",
+      anzahlung: order.anzahlung ?? order.cost?.anzahlung ?? "",
       diagnosis_payment_status: order.diagnosis_payment_status ?? order.cost?.diagnosis_payment_status ?? "OPEN"
     });
   }
@@ -201,7 +203,9 @@ const setStatus = async (status) => {
   };
 
   const assign = (techId) => act(() => api.post(`/orders/${id}/assign`, { techniker_id: techId }), t("toast.techAssigned"));
-  const accept = () => act(() => api.post(`/orders/${id}/accept`), t("toast.orderAccepted"));
+  const accept = () => {
+    act(() => api.patch(`/orders/${id}/status`, { status: "AKZEPTIERT" }), t("toast.orderAccepted"));
+  };
   const doReject = () => {
     if (!rejectReason.trim()) { toast.error(t("toast.reasonRequired")); return; }
     act(() => api.post(`/orders/${id}/reject`, { reason: rejectReason }), t("toast.orderRejected"))
@@ -240,324 +244,366 @@ const setStatus = async (status) => {
       });
   };
 
-  const saveCosts = () => act(async () => {
-    await api.patch(`/orders/${id}/costs`, {
-        diagnosis_fee: costForm.diagnosis_fee !== "" ? parseFloat(costForm.diagnosis_fee) : Number(order.cost?.diagnosis_fee ?? order.diagnosis_fee ?? 0),
-        labor_cost: costForm.labor_cost !== "" ? parseFloat(costForm.labor_cost) : Number(order.cost?.labor_cost ?? order.labor_cost ?? 0),
-        parts_cost: costForm.parts_cost !== "" ? parseFloat(costForm.parts_cost) : Number(order.cost?.parts_cost ?? order.parts_cost ?? 0),
-        paid_amount: costForm.paid_amount !== "" ? parseFloat(costForm.paid_amount) : Number(order.paid_amount ?? order.cost?.paid_amount ?? 0),
-        diagnosis_payment_status: costForm.diagnosis_payment_status || order.diagnosis_payment_status || order.cost?.diagnosis_payment_status || "OPEN"
-    });
+    const saveCosts = () => act(async () => {
+    const mode = costForm.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN";
+
+    let finalDiagFee = costForm.diagnosis_fee !== "" ? parseFloat(costForm.diagnosis_fee) : Number(order.cost?.diagnosis_fee ?? order.diagnosis_fee ?? 0);
     
+    const inputLabor = costForm.labor_cost !== undefined ? costForm.labor_cost : costForm.repair_cost;
+    let finalLaborCost = inputLabor !== undefined && inputLabor !== "" ? parseFloat(inputLabor) : Number(order.cost?.labor_cost ?? order.labor_cost ?? 0);
+    
+    let finalPartsCost = costForm.parts_cost !== "" ? parseFloat(costForm.parts_cost) : Number(order.cost?.parts_cost ?? order.parts_cost ?? 0);
+
+    if (mode === "PAID" || mode === "repair_only") {
+        finalDiagFee = 0;
+    } else if (mode === "NA" || mode === "diag_only") {
+        finalLaborCost = 0;
+        finalPartsCost = 0;
+    }
+
+    // استخدم مثيل الـ api الخاص بك لضمان إرسال الـ Token وتفادي خطأ 401
+    await api.patch(`/orders/${id}/costs`, {
+        diagnosis_fee: finalDiagFee,
+        labor_cost: finalLaborCost,
+        parts_cost: finalPartsCost,
+        paid_amount: costForm.paid_amount !== "" ? parseFloat(costForm.paid_amount) : Number(order.paid_amount ?? order.cost?.paid_amount ?? 0),
+        anzahlung: costForm.anzahlung !== "" ? parseFloat(costForm.anzahlung) : Number(order.anzahlung ?? order.cost?.anzahlung ?? 0),
+        diagnosis_payment_status: mode,
+        is_diagnosis_paid_at_intake: costForm.is_diagnosis_paid_at_intake ?? order.is_diagnosis_paid_at_intake ?? false
+    });
+  
     if (typeof load === "function") await load();
 }, t("toast.costsSaved"));
 
-  const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
-  const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), t("toast.paymentStatusUpdated"));
+    const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
+    const setDiagnosisPayment = (diagnosis_payment_status) => act(() => api.patch(`/orders/${id}/costs`, { diagnosis_payment_status }), t("toast.paymentStatusUpdated"));
 
-  const addPart = () => {
-    if (!partId) { toast.error(t("toast.choosePart")); return; }
-    act(() => api.post(`/orders/${id}/parts`, { inventory_id: partId, quantity: parseInt(partQty) || 1 }), t("toast.partInstalled"))
-      .then(() => { setPartId(""); setPartQty(1); api.get("/inventory").then((r) => setInventory(r.data)); });
-  };
+    const addPart = () => {
+      if (!partId) { toast.error(t("toast.choosePart")); return; }
+      act(() => api.post(`/orders/${id}/parts`, { inventory_id: partId, quantity: parseInt(partQty) || 1 }), t("toast.partInstalled"))
+        .then(() => { setPartId(""); setPartQty(1); api.get("/inventory").then((r) => setInventory(r.data)); });
+    };
 
-  const removePart = (pid) => act(() => api.delete(`/orders/${id}/parts/${pid}`), t("toast.partRemoved"))
-    .then(() => api.get("/inventory").then((r) => setInventory(r.data)));
+    const removePart = (pid) => act(() => api.delete(`/orders/${id}/parts/${pid}`), t("toast.partRemoved"))
+      .then(() => api.get("/inventory").then((r) => setInventory(r.data)));
 
-  const saveImei = () => {
-    if (!imeiInput.trim()) { toast.error(t("toast.enterImei")); return; }
-    act(() => api.patch(`/orders/${id}/imei`, { imei: imeiInput.trim() }), t("toast.imeiSaved"))
-      .then(() => setImeiInput(""));
-  };
+    const saveImei = () => {
+      if (!imeiInput.trim()) { toast.error(t("toast.enterImei")); return; }
+      act(() => api.patch(`/orders/${id}/imei`, { imei: imeiInput.trim() }), t("toast.imeiSaved"))
+        .then(() => setImeiInput(""));
+    };
 
-  const saveSignature = async (type, dataUrl) => {
-    setSavingSig(true);
-    try {
-      await api.post(`/orders/${id}/signature`, { type, signature: dataUrl, signer_name: order.customer_name || "" });
-      toast.success(type === "pickup" ? t("toast.pickupSigSaved") : t("toast.sigSaved"));
-      await load();
-    } catch (e) {
-      toast.error(e.response?.data?.detail || t("toast.sigError"));
-    } finally { setSavingSig(false); }
-  };
+    const saveSignature = async (type, dataUrl) => {
+      setSavingSig(true);
+      try {
+        await api.post(`/orders/${id}/signature`, { type, signature: dataUrl, signer_name: order.customer_name || "" });
+        toast.success(type === "pickup" ? t("toast.pickupSigSaved") : t("toast.sigSaved"));
+        await load();
+      } catch (e) {
+        toast.error(e.response?.data?.detail || t("toast.sigError"));
+      } finally { setSavingSig(false); }
+    };
 
-  const deleteMedia = async (m, index) => {
-    const mediaId = m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || String(index);
-    try {
-      await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
-      toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
-      await load();
-    } catch (e) {
-      console.error("Delete media error:", e.response?.data || e);
-      toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
-    }
-  };
-
-  const uploadFiles = async (files) => {
-    if (!files.length) return;
-    setUploading(true);
-    try {
-      for (const f of files) {
-        const fd = new FormData();
-        fd.append("file", f);
-        fd.append("media_type", user.role === "techniker" ? "repair" : "intake");
-        await api.post(`/orders/${id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+    const deleteMedia = async (m, index) => {
+      const mediaId = m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || String(index);
+      try {
+        await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
+        toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
+        await load();
+      } catch (e) {
+        console.error("Delete media error:", e.response?.data || e);
+        toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
       }
-      toast.success(t("toast.mediaUploaded"));
-      await load();
-    } catch (err) {
-      toast.error(t("toast.uploadFailed"));
-    } finally { setUploading(false); }
-  };
+    };
 
-  const uploadRepair = (e) => uploadFiles(Array.from(e.target.files || []));
-  const uploadCaptured = (file) => uploadFiles([file]);
+    const uploadFiles = async (files) => {
+      if (!files.length) return;
+      setUploading(true);
+      try {
+        for (const f of files) {
+          const fd = new FormData();
+          fd.append("file", f);
+          fd.append("media_type", user.role === "techniker" ? "repair" : "intake");
+          await api.post(`/orders/${id}/media`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+        }
+        toast.success(t("toast.mediaUploaded"));
+        await load();
+      } catch (err) {
+        toast.error(t("toast.uploadFailed"));
+      } finally { setUploading(false); }
+    };
 
-  const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
-  const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
-  const canManage = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker" || user.role === "TECHNIKER";
+    const uploadRepair = (e) => uploadFiles(Array.from(e.target.files || []));
+    const uploadCaptured = (file) => uploadFiles([file]);
+
+    const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
+    const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
+    const canManage = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker" || user.role === "TECHNIKER";
 
 
-  // Live cost totals: when the user can edit costs, compute Netto/MwSt/Brutto
-  // from the local costForm state so the totals update in real-time as they type.
+    // 1. تحديد الـ mode الحالي بناءً على الـ costForm أو الطلب
+  const currentMode = canManage 
+    ? (costForm.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN")
+    : (order.diagnosis_payment_status || "OPEN");
+
+  // 2. تطبيق منطق التصفير الحسابي بناءً على الخيار المختار
+  let calcDiagFee = parseFloat(costForm.diagnosis_fee) || 0;
+  let calcLaborCost = parseFloat(costForm.labor_cost) || 0;
+  let calcPartsCost = parseFloat(costForm.parts_cost) || 0;
+
+  if (currentMode === "PAID" || currentMode === "repair_only") {
+    calcDiagFee = 0; // إلغاء رسوم الفحص
+  } else if (currentMode === "NA" || currentMode === "diag_only") {
+    calcLaborCost = 0; // إلغاء أجور الإصلاح
+    calcPartsCost = 0; // إلغاء قطع الغيار
+  }
+
+  // 3. الحسابات اللحظية المحدثة
   const liveGross = canManage
-    ? (parseFloat(costForm.diagnosis_fee) || 0) + (parseFloat(costForm.labor_cost) || 0) + (parseFloat(costForm.parts_cost) || 0)
+    ? calcDiagFee + calcLaborCost + calcPartsCost
     : Number(order.cost?.gross || 0);
+
   const liveNet = canManage ? liveGross / 1.19 : Number(order.cost?.net || 0);
   const liveTax = canManage ? liveGross - liveNet : Number(order.cost?.tax || 0);
-  // Live paid and remaining calculations
+
   const livePaid = canManage
     ? (parseFloat(costForm.paid_amount) || 0)
     : Number(order.cost?.paid_amount || 0);
 
-  const liveRemaining = Math.max(0, liveGross - livePaid);
-  return (
-    <div>
+  const liveAnzahlung = canManage
+    ? (parseFloat(costForm.anzahlung) || 0)
+    : Number(order.anzahlung || 0);
 
-      {/* 1. قائمة الإدارة والموظفين للتحكم اليدوي بالحالة */}
-        {canManage && !isTech && (
-          <select 
-            key={order?.status || "default"} 
-            data-testid="manual-status-select" 
-            value={order?.status || "DIAGNOSE"}
-            onChange={(e) => {
-              const newStatus = e.target.value;
-              if (!newStatus) return;
-              if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
-                toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
-                return;
-              }
-              setStatus(newStatus);
-            }}
-            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
-          >
-            <option value="DIAGNOSE">Diagnose</option>
-            <option value="WARTEN_FREIGABE">Warten Freigabe</option>
-            <option value="IN_BEARBEITUNG">In Bearbeitung</option>
-            <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
-            <option value="FERTIG">Fertig</option>
-            <option value="ABGEHOLT">Abgeholt</option>
-          </select>
-        )}
-
-        {/* 2. قائمة التقني المخصصة للمرحلة الفنية */}
-        {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order?.status) && (
-          <select 
-            data-testid="tech-status-select"
-            value={order?.status || ""}
-            onChange={(e) => {
-              const newStatus = e.target.value;
-              if (newStatus) setStatus(newStatus);
-            }}
-            className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
-          >
-            {!TECH_STATUS_FLOW?.includes(order?.status) && order?.status && (
-              <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS?.[order.status] || order.status)}</option>
-            )}
-            {TECH_STATUS_FLOW?.map((s) => (
-              <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS?.[s] || s)}</option>
-            ))}
-          </select>
-        )}
-          {/* 3. أزرار الإدارة والموظفين فقط */}
-          {canManage && !isTech && (
-            <>
-              <button data-testid="open-edit" onClick={openEdit}
-                className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-4 py-2 hover:bg-muted transition-colors rounded-lg">
-                <PencilSimple size={14} /> {t("detail.editOrder")}
-              </button>
-              <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
-                className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-4 py-2 hover:bg-red-950 transition-colors rounded-lg">
-                <XCircle size={14} /> {t("detail.cancelOrder")}
-              </button>
-            </>
-          )}
+  const liveRemaining = Math.max(0, liveGross - livePaid - liveAnzahlung);
+    return (
+      <div>
       
 
-        <PageHeader label={branchName} title={order.auftragsnummer}>
-  <div className="flex flex-wrap items-center gap-2.5">
+        <PageHeader 
+  label={branchName} 
+  title={order.auftragsnummer}
+  rightAction={
+    <button data-testid="back-button" onClick={() => navigate("/auftraege")}
+      className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted/80 transition-all rounded-lg text-muted-foreground hover:text-foreground shadow-xs">
+      <ArrowLeft size={14} /> {t("common.back")}
+    </button>
+  }
+>
+  <div className="flex flex-wrap items-center gap-2 w-full">
     
-    {/* 1. قائمة التقني المخصصة للمرحلة الفنية */}
-    {isTech && !["ZUGEWIESEN", "ABGELEHNT", "ABGEHOLT"].includes(order?.status) && (
-      <select 
-        data-testid="tech-status-select"
-        value={order?.status || ""}
-        onChange={(e) => {
-          const newStatus = e.target.value;
-          if (newStatus) setStatus(newStatus);
-        }}
-        className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
-      >
-        {!TECH_STATUS_FLOW?.includes(order?.status) && order?.status && (
-          <option value={order.status}>{t(`status.${order.status}`, STATUS_LABELS?.[order.status] || order.status)}</option>
-        )}
-        {TECH_STATUS_FLOW?.map((s) => (
-          <option key={s} value={s}>{t(`status.${s}`, STATUS_LABELS?.[s] || s)}</option>
-        ))}
-      </select>
-    )}
-
-    {/* 2. قائمة الإدارة والموظفين للتحكم اليدوي بالحالة */}
-    {canManage && !isTech && (
-      <select 
-        key={order?.status || "default"} 
-        data-testid="manual-status-select" 
-        value={order?.status || "DIAGNOSE"}
-        onChange={(e) => {
-          const newStatus = e.target.value;
-          if (!newStatus) return;
-          if (newStatus === "ABGEHOLT" && !order?.pickup_signature) {
-            toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
-            return;
-          }
-          setStatus(newStatus);
-        }}
-        className="bg-background border border-border px-3 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none focus:border-accent"
-      >
-        <option value="DIAGNOSE">Diagnose</option>
-        <option value="WARTEN_FREIGABE">Warten Freigabe</option>
-        <option value="IN_BEARBEITUNG">In Bearbeitung</option>
-        <option value="WARTEN_ERSATZTEIL">Warten auf Ersatzteil</option>
-        <option value="FERTIG">Fertig</option>
-        <option value="ABGEHOLT">Abgeholt</option>
-      </select>
-    )}
-
-    {/* 3. أزرار الإدارة والموظفين */}
-    {canManage && !isTech && order.status !== "STORNIERT" && (
+   {/* ========================================== */}
+    {/* 1. واجهة التقني (أزرار تفاعلية شاملة للحالات) */}
+    {/* ========================================== */}
+    {isTech && !["STORNIERT"].includes(order?.status) && (
       <>
-        <button data-testid="open-edit" onClick={openEdit}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
-          <PencilSimple size={14} /> {t("detail.editOrder")}
-        </button>
-        <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-800 text-red-400 px-3.5 py-2 hover:bg-red-950 transition-colors rounded-lg">
-          <XCircle size={14} /> {t("detail.cancelOrder")}
-        </button>
+        {/* أزرار القبول أو الرفض الأوليّة */}
+        {order.status === "ZUGEWIESEN" && (
+          <>
+            <button data-testid="accept-order" onClick={accept}
+              className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:bg-blue-600 transition-all shadow-xs shrink-0">
+              <CheckCircle size={14} /> Akzeptieren
+            </button>
+            <button data-testid="reject-order" onClick={() => setShowReject(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider bg-red-600 text-white px-3.5 py-2 rounded-lg hover:bg-red-500 transition-all shadow-xs shrink-0">
+              <XCircle size={14} /> Ablehnen
+            </button>
+          </>
+        )}
+
+        {/* الحالات الكاملة كأزرار مباشرة للتقني (تشمل جميع المراحل حتى Abgeholt) */}
+        {["ANGENOMMEN", "AKZEPTIERT", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "WARTEN_FREIGABE", "FERTIG", "ABGEHOLT"].includes(order.status) && (
+          <div className="flex flex-wrap items-center gap-2">
+            
+            {/* زر Diagnose */}
+            <button onClick={() => setStatus("ANGENOMMEN")}
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "ANGENOMMEN" 
+                  ? "bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-muted-foreground"
+              }`}>
+              Diagnose
+            </button>
+
+            {/* زر Warten Freigabe */}
+            <button onClick={() => setStatus("WARTEN_FREIGABE")}
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "WARTEN_FREIGABE" 
+                  ? "bg-sky-600 text-white shadow-[0_0_15px_rgba(2,132,199,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-muted-foreground"
+              }`}>
+              Warten Freigabe
+            </button>
+
+            {/* زر In Bearbeitung */}
+            <button onClick={() => setStatus("IN_BEARBEITUNG")}
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "IN_BEARBEITUNG" 
+                  ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-muted-foreground"
+              }`}>
+              <Wrench size={14} /> In Bearbeitung
+            </button>
+
+            {/* زر Warten Ersatzteil */}
+            <button onClick={() => setStatus("WARTEN_ERSATZTEIL")}
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "WARTEN_ERSATZTEIL" 
+                  ? "bg-orange-600 text-white shadow-[0_0_15px_rgba(234,88,12,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-muted-foreground"
+              }`}>
+              <Package size={14} /> Warten Ersatzteil
+            </button>
+
+            {/* زر Fertig */}
+            <button onClick={() => setStatus("FERTIG")} 
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "FERTIG" 
+                  ? "bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-emerald-400"
+              }`}>
+              <CheckCircle size={14} /> Fertig
+            </button>
+
+            {/* زر Abgeholt (الاستلام النهائي) */}
+            <button onClick={() => setStatus("ABGEHOLT")} 
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                order.status === "ABGEHOLT" 
+                  ? "bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]" 
+                  : "border border-border hover:bg-muted/80 text-purple-400"
+              }`}>
+              <CheckCircle size={14} /> Abgeholt
+            </button>
+
+          </div>
+        )}
       </>
     )}
 
-    {canManage && (
+
+    {/* ========================================== */}
+    {/* 2. واجهة الإدارة والموظفين (تتضمن القوائم والطباعة) */}
+    {/* ========================================== */}
+    {canManage && !isTech && (
       <>
+        <select 
+          key={order?.status || "default"} 
+          data-testid="manual-status-select" 
+          value={order?.status === "ANGENOMMEN" ? "DIAGNOSE" : (order?.status || "DIAGNOSE")}
+          onChange={(e) => {
+            let newStatus = e.target.value;
+            if (newStatus === "DIAGNOSE") newStatus = "ANGENOMMEN";
+            if (!newStatus) return;
+            if (newStatus === "ABGEHOLT" && !order?.pickup_signature && !order?.signature) {
+              toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+              return;
+            }
+            setStatus(newStatus);
+          }}
+          className={`border px-3.5 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none transition-all shadow-xs shrink-0 font-semibold ${
+            order?.status === "ANGENOMMEN" 
+              ? "bg-blue-600/90 text-white border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]" :
+            order?.status === "WARTEN_FREIGABE" 
+              ? "bg-sky-600/90 text-white border-sky-500 shadow-[0_0_15px_rgba(2,132,199,0.4)]" :
+            order?.status === "IN_BEARBEITUNG" 
+              ? "bg-amber-600/90 text-white border-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.4)]" :
+            order?.status === "WARTEN_ERSATZTEIL" 
+              ? "bg-orange-600/90 text-white border-orange-500 shadow-[0_0_15px_rgba(234,88,12,0.4)]" :
+            order?.status === "FERTIG" 
+              ? "bg-emerald-600/90 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" :
+            order?.status === "ABGEHOLT" 
+              ? "bg-purple-600/90 text-white border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.4)]" :
+              "bg-background text-foreground border-border"
+          }`}
+        >
+          <option value="DIAGNOSE" className="bg-background text-foreground">Diagnose</option>
+          <option value="WARTEN_FREIGABE" className="bg-background text-foreground">Warten Freigabe</option>
+          <option value="IN_BEARBEITUNG" className="bg-background text-foreground">In Bearbeitung</option>
+          <option value="WARTEN_ERSATZTEIL" className="bg-background text-foreground">Warten Ersatzteil</option>
+          <option value="FERTIG" className="bg-background text-foreground">Fertig</option>
+          <option value="ABGEHOLT" className="bg-background text-foreground">Abgeholt</option>
+        </select>
+        
+        {order.status !== "STORNIERT" && (
+          <>
+            <button data-testid="open-edit" onClick={openEdit}
+              className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3 py-2 hover:bg-muted/80 transition-all rounded-lg shadow-xs shrink-0">
+              <PencilSimple size={14} className="text-muted-foreground" /> {t("detail.editOrder")}
+            </button>
+            <button data-testid="open-cancel" onClick={() => setShowCancel(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-red-800/60 text-red-400 px-3 py-2 hover:bg-red-950/50 transition-all rounded-lg shadow-xs shrink-0">
+              <XCircle size={14} /> {t("detail.cancelOrder")}
+            </button>
+          </>
+        )}
+
         <button data-testid="open-label" onClick={() => setShowLabel(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
-          <Barcode size={14} /> {t("label.button")}
+          className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3 py-2 hover:bg-muted/80 transition-all rounded-lg shadow-xs shrink-0">
+          <Barcode size={14} className="text-muted-foreground" /> {t("label.button")}
         </button>
         <button data-testid="open-receipt" onClick={() => setShowReceipt(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
-          <Printer size={14} /> {t("actions.receipt")}
+          className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3 py-2 hover:bg-muted/80 transition-all rounded-lg shadow-xs shrink-0">
+          <Printer size={14} className="text-muted-foreground" /> {t("actions.receipt")}
         </button>
         <button data-testid="open-contract" onClick={() => setShowContract(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3.5 py-2 hover:bg-muted transition-colors rounded-lg">
-          <ClipboardText size={14} /> {t("actions.fullPrint")}
+          className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-border px-3 py-2 hover:bg-muted/80 transition-all rounded-lg shadow-xs shrink-0">
+          <ClipboardText size={14} className="text-muted-foreground" /> {t("actions.fullPrint")}
         </button>
-      </>
-    )}
 
-    {canManage && order.status === "ABGEHOLT" && (
-      <>
-        <button data-testid="open-invoice" onClick={() => setShowInvoice(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:bg-blue-600 transition-colors">
-          <Printer size={14} /> {t("actions.printInvoice")}
-        </button>
-        <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
-          state: {
-            reklamationOf: {
-              id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
-              device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
-              customer_name: order.customer_name, customer_phone: order.customer_phone,
-              customer_email: order.customer_email, customer_address: order.customer_address,
+        {order.status === "ABGEHOLT" && (
+          <>
+            <button data-testid="open-invoice" onClick={() => {
+              if (!order?.pickup_signature && !order?.signature) {
+                toast.error("Kundenunterschrift ist erforderlich, bevor die Rechnung gedruckt werden kann!");
+                return;
+              }
+              setShowInvoice(true);
+            }}
+              className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+                !order?.pickup_signature && !order?.signature 
+                  ? "bg-muted text-muted-foreground opacity-60 cursor-not-allowed" 
+                  : "bg-primary text-primary-foreground hover:bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+              }`}>
+              <Printer size={14} /> {t("actions.printInvoice")}
+            </button>
+
+            <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
+              state: {
+                reklamationOf: {
+                  id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
+                  device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
+                  customer_name: order.customer_name, customer_phone: order.customer_phone,
+                  customer_email: order.customer_email, customer_address: order.customer_address,
+                }
+              }
+            })}
+              className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600/60 text-amber-300 px-3 py-2 rounded-lg hover:bg-amber-950/50 transition-all shadow-xs shrink-0">
+              <ArrowsClockwise size={14} /> {t("actions.reklamation")}
+            </button>
+          </>
+        )}
+
+        {order.status === "FERTIG" && (
+          <button data-testid="mark-delivered" onClick={() => {
+            if (!order?.pickup_signature && !order?.signature) {
+              toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+              return;
             }
-          }
-        })}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600 text-amber-300 px-3.5 py-2 rounded-lg hover:bg-amber-950 transition-colors">
-          <ArrowsClockwise size={14} /> {t("actions.reklamation")}
-        </button>
+            setStatus("ABGEHOLT");
+          }}
+            className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-white px-3.5 py-2 rounded-lg hover:bg-emerald-500 transition-all shadow-xs shrink-0">
+            <CheckCircle size={14} /> {t("actions.collected")}
+          </button>
+        )}
+
+        {isAdmin && (
+          <button data-testid="delete-order-button" onClick={() => setShowDelete(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-red-700/60 bg-red-950/30 text-red-300 px-3 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-all shadow-xs shrink-0">
+            <Trash size={14} weight="bold" /> {t("detail.deleteOrder")}
+          </button>
+        )}
       </>
     )}
 
-    {canManage && order.status === "FERTIG" && (
-      <button data-testid="mark-delivered" onClick={() => setStatus("ABGEHOLT")}
-        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-white px-3.5 py-2 rounded-lg hover:bg-emerald-500 transition-colors">
-        <CheckCircle size={14} /> {t("actions.collected")}
-      </button>
-    )}
-
-    {/* 4. أزرار التقني الفنية */}
-    {isTech && order.status === "ZUGEWIESEN" && (
-      <>
-        <button data-testid="accept-order" onClick={accept}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-3.5 py-2 rounded-lg hover:bg-blue-600 transition-colors">
-          <CheckCircle size={14} /> {t("actions.accept")}
-        </button>
-        <button data-testid="reject-order" onClick={() => setShowReject(true)}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-red-600 text-white px-3.5 py-2 rounded-lg hover:bg-red-500 transition-colors">
-          <XCircle size={14} /> {t("actions.reject")}
-        </button>
-      </>
-    )}
-
-    {isTech && order.status === "AKZEPTIERT" && (
-      <button data-testid="start-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
-        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-white px-3.5 py-2 rounded-lg hover:bg-amber-500 transition-colors">
-        <Wrench size={14} /> {t("actions.startRepair")}
-      </button>
-    )}
-
-    {isTech && order.status === "IN_BEARBEITUNG" && (
-      <>
-        <button data-testid="wait-part" onClick={() => setStatus("WARTEN_ERSATZTEIL")}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-orange-600 text-white px-3.5 py-2 rounded-lg hover:bg-orange-500 transition-colors">
-          <Package size={14} /> {t("actions.waitPart")}
-        </button>
-        <button data-testid="mark-ready" onClick={() => setStatus("FERTIG")} disabled={repairMedia.length === 0 || !order.inspection}
-          title={repairMedia.length === 0 ? t("detail.markReadyMediaTitle") : (!order.inspection ? t("detail.markReadyInspectionTitle") : "")}
-          className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-emerald-600 text-white px-3.5 py-2 rounded-lg hover:bg-emerald-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-          <CheckCircle size={14} /> {t("actions.markReady")}
-        </button>
-      </>
-    )}
-
-    {isTech && order.status === "WARTEN_ERSATZTEIL" && (
-      <button data-testid="resume-repair" onClick={() => setStatus("IN_BEARBEITUNG")}
-        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider bg-amber-600 text-white px-3.5 py-2 rounded-lg hover:bg-amber-500 transition-colors">
-        <Wrench size={14} /> {t("actions.resumeRepair")}
-      </button>
-    )}
-
-    {/* زر الحذف للأدمن */}
-    {isAdmin && (
-      <button data-testid="delete-order-button" onClick={() => setShowDelete(true)}
-        className="flex items-center gap-2 text-xs font-head font-semibold uppercase tracking-wider border border-red-700 bg-red-950/40 text-red-300 px-3.5 py-2 rounded-lg hover:bg-red-700 hover:text-white transition-colors">
-        <Trash size={14} weight="bold" /> {t("detail.deleteOrder")}
-      </button>
-    )}
-
-    {/* زر الرجوع */}
-    <button data-testid="back-button" onClick={() => navigate("/auftraege")}
-      className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground px-2 py-2 transition-colors">
-      <ArrowLeft size={16} /> {t("common.back")}
-    </button>
   </div>
 </PageHeader>
 
@@ -667,22 +713,40 @@ const setStatus = async (status) => {
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{t("costs.paymentLabel")}</span>
         {canManage ? (
-          <select 
+  <select 
   data-testid="diagnosis-payment-select" 
-  value={costForm.diagnosis_payment_status}
-  onChange={(e) => setCostForm({ ...costForm, diagnosis_payment_status: e.target.value })}
+  value={costForm.diagnosis_payment_status || order.diagnosis_payment_status || "OPEN"}
+  onChange={(e) => {
+    setCostForm(prev => ({ ...prev, diagnosis_payment_status: e.target.value }));
+  }}
   className="bg-background border border-border px-2 py-1 text-xs font-mono uppercase tracking-widest rounded-lg outline-none focus:border-accent cursor-pointer"
 >
   <option value="OPEN">DIAGNOSE + REPARATUR (BEIDES)</option>
   <option value="PAID">NUR REPARATUR (DIAGNOSE ERLASSEN)</option>
   <option value="NA">NUR DIAGNOSE (KEINE REPARATUR)</option>
 </select>
-        ) : (
-          <span data-testid="diagnosis-payment-badge" className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg bg-muted border-border">
-            {order.diagnosis_payment_status || "OPEN"}
-          </span>
-        )}
+) : (
+  <span data-testid="diagnosis-payment-badge" className="inline-flex items-center px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded-lg bg-muted border-border">
+    {order.diagnosis_payment_status || "OPEN"}
+  </span>
+)}
       </div>
+
+{/* خانة تحديد ما إذا تم دفع رسوم الفحص عند الاستلام */}
+{canManage && (
+  <div className="flex items-center gap-2 pb-3 mb-2 border-b border-border">
+    <input 
+      type="checkbox" 
+      id="diagnosis_paid_intake"
+      checked={costForm.is_diagnosis_paid_at_intake ?? order.is_diagnosis_paid_at_intake ?? false}
+      onChange={(e) => setCostForm(prev => ({ ...prev, is_diagnosis_paid_at_intake: e.target.checked }))}
+      className="w-4 h-4 accent-accent cursor-pointer"
+    />
+    <label htmlFor="diagnosis_paid_intake" className="text-xs font-mono text-text-primary cursor-pointer">
+      Diagnosegebühr bei Annahme bereits bezahlt 
+    </label>
+  </div>
+)}
 
       {/* صندوق الحسابات والمدفوعات المتناسق */}
       <div className="border border-border bg-card/40 rounded-lg p-4 font-mono text-sm space-y-2">
@@ -690,62 +754,79 @@ const setStatus = async (status) => {
         <div className="flex justify-between text-muted-foreground"><span>{t("costs.tax")}</span><span data-testid="detail-cost-tax">{liveTax.toFixed(2)} €</span></div>
         <div className="flex justify-between text-foreground font-semibold text-base border-t border-border pt-2 mt-2"><span>{t("costs.gross")}</span><span data-testid="detail-cost-gross">{liveGross.toFixed(2)} €</span></div>
         
+        {/* حقل Anzahlung المضاف حديثاً */}
         <div className="border-t border-border pt-2 flex items-center justify-between">
-            <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
+            <span className="text-xs uppercase text-muted-foreground">Anzahlung:</span>
             {canManage ? (
                <input 
                   type="number" 
                   step="0.01" 
-                  value={costForm.paid_amount}
-                  onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+                  value={costForm.anzahlung}
+                  onChange={(e) => setCostForm({ ...costForm, anzahlung: e.target.value })}
                   placeholder="0.00"
                   className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
               />
             ) : (
-                <span className="text-foreground">{livePaid.toFixed(2)} €</span>
+                <span className="text-foreground">{Number(order.anzahlung || 0).toFixed(2)} €</span>
             )}
         </div>
-        
-        <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
-            <span>Restbetrag:</span>
-            <span className={liveRemaining > 0 ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
-                {liveRemaining.toFixed(2)} €
-            </span>
-        </div>
-        
-        <div className="pt-2 flex items-center justify-between border-t border-border">
-          <span className="text-[10px] uppercase text-muted-foreground">Zahlungsstatus:</span>
-          {Number(costForm.paid_amount || order.paid_amount || 0) <= 0 ? (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-red-500/10 text-red-400 rounded border border-red-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-              Offen (Nicht bezahlt)
-            </div>
-          ) : Number(costForm.paid_amount || order.paid_amount || 0) < liveGross ? (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Teilweise
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-              Bezahlt
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* زر الحفظ بمفرده وبشكل أنيق */}
-      {canManage && (
-        <div className="pt-2 border-t border-border flex justify-end">
-          <button data-testid="save-costs" onClick={saveCosts}
-            className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-5 py-2.5 hover:bg-blue-600 transition-colors rounded-lg shadow-sm">
-            {t("costs.save")}
-          </button>
+          <div className="border-t border-border pt-2 flex items-center justify-between">
+              <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
+              {canManage ? (
+                <input 
+                    type="number" 
+                    step="0.01" 
+                    value={costForm.paid_amount}
+                    onChange={(e) => setCostForm({ ...costForm, paid_amount: e.target.value })}
+                    placeholder="0.00"
+                    className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
+                />
+              ) : (
+                  <span className="text-foreground">{livePaid.toFixed(2)} €</span>
+              )}
+          </div>
+          
+          <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
+              <span>Restbetrag:</span>
+              <span className={liveRemaining > 0 ? "text-amber-500 font-semibold" : "text-emerald-500 font-semibold"}>
+                  {liveRemaining.toFixed(2)} €
+              </span>
+          </div>
+          
+          <div className="pt-2 flex items-center justify-between border-t border-border">
+            <span className="text-[10px] uppercase text-muted-foreground">Zahlungsstatus:</span>
+            {Number(costForm.paid_amount || order.paid_amount || 0) <= 0 ? (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-red-500/10 text-red-400 rounded border border-red-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                Offen (Nicht bezahlt)
+              </div>
+            ) : Number(costForm.paid_amount || order.paid_amount || 0) < liveGross ? (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Teilweise
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-400 rounded border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Bezahlt
+              </div>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* زر الحفظ بمفرده وبشكل أنيق */}
+        {canManage && (
+          <div className="pt-2 border-t border-border flex justify-end">
+            <button data-testid="save-costs" onClick={saveCosts}
+              className="text-xs font-head font-semibold uppercase tracking-wider bg-primary text-primary-foreground px-5 py-2.5 hover:bg-blue-600 transition-colors rounded-lg shadow-sm">
+              {t("costs.save")}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-)}
+  )}
             {/* قسم الملاحظات الداخلية للموظفين في العمود الأيمن */}
 {!isTech && (
   <div className="border border-border mt-4">
@@ -1032,32 +1113,36 @@ const setStatus = async (status) => {
               </Section>
             )}
 
-            {/* Chat */}
-            <OrderChat orderId={order.id} />
-            {canManage && (
-              <Section title={t("detail.commTitle")} icon={ChatCircleDots}>
-                <CommunicationPanel order={order} onSent={loadComms} />
-                <div className="mt-4 pt-4 border-t border-border/60">
-                  <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">{t("detail.history")}</div>
-                  {comms.length === 0 ? (
-                    <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noMessages")}</div>
-                  ) : (
-                    <div className="space-y-2" data-testid="comms-list">
-                      {comms.map((c) => (
-                        <div key={c.id} className="border border-border/60 px-3 py-2">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{(c.channel || t("detail.channelDefault")).toUpperCase()} → {c.to}{c.status ? ` · ${c.status}` : ""}</span>
-                            <span className="font-mono text-[10px] text-muted-foreground">{berlinDateTime(c.at)}</span>
-                          </div>
-                          <div className="text-sm text-foreground">{c.message}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">{t("detail.msgFrom")} {c.by}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            {/* يظهر للإدمن والموظف، ويُحجب عن التقني تماماً */}
+{!isTech && (
+  <>
+    {/* Chat */}
+    <OrderChat orderId={order.id} />
+    
+    <Section title={t("detail.commTitle")} icon={ChatCircleDots}>
+      <CommunicationPanel order={order} onSent={loadComms} />
+      <div className="mt-4 pt-4 border-t border-border/60">
+        <div className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-2">{t("detail.history")}</div>
+        {comms.length === 0 ? (
+          <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noMessages")}</div>
+        ) : (
+          <div className="space-y-2" data-testid="comms-list">
+            {comms.map((c) => (
+              <div key={c.id} className="border border-border/60 px-3 py-2">
+                <div className="flex items-center justify-between mb-0.5">
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-accent">{(c.channel || t("detail.channelDefault")).toUpperCase()} → {c.to}{c.status ? ` · ${c.status}` : ""}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{berlinDateTime(c.at)}</span>
                 </div>
-              </Section>
-            )}
+                <div className="text-sm text-foreground">{c.message}</div>
+                <div className="font-mono text-[10px] text-muted-foreground/70 mt-1">{t("detail.msgFrom")} {c.by}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Section>
+  </>
+)}
 
             {/* Audit-Log */}
             {canManage && (
@@ -1158,7 +1243,9 @@ const setStatus = async (status) => {
         </div>
       )}
       {showCamera && <CameraCapture onCapture={uploadCaptured} onClose={() => setShowCamera(false)} />}
-      {canManage && order.customer_phone && <WhatsAppFab order={order} onLogged={loadComms} />}
+      {!isTech && canManage && order.customer_phone && (
+  <WhatsAppFab order={order} onLogged={loadComms} />
+)}
 
       {showReject && (
         <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1205,63 +1292,128 @@ const setStatus = async (status) => {
       )}
 
 {showEdit && editForm && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-background border border-border max-w-lg w-full p-6 rounded-xl my-8">
-            <h3 className="font-head font-semibold text-lg mb-4">{t("detail.editOrder")}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {[
-                ["customer_name", t("oc.name")], ["customer_phone", t("oc.phone")],
-                ["customer_email", t("oc.email")], ["customer_address", t("oc.address")],
-                ["device_brand", t("oc.brand")], ["device_model", t("oc.model")],
-                ["imei", t("oc.imei")], ["device_passcode", t("oc.lockValue")],
-              ].map(([key, label]) => (
-                <div key={key}>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
-                  <input data-testid={`edit-${key}`} value={editForm[key] || ""}
-                    onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                    className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
-                </div>
-              ))}
+  <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="bg-card border border-border/80 max-w-xl w-full p-6 sm:p-8 rounded-2xl shadow-2xl my-8 relative">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between pb-4 mb-6 border-b border-border/60">
+        <div>
+          <h3 className="font-head font-bold text-xl text-foreground tracking-tight">{t("detail.editOrder")}</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Kundendaten, Gerätedetails und Techniker zuweisen</p>
+        </div>
+        <button 
+          onClick={() => setShowEdit(false)}
+          className="text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/60 transition-colors"
+        >
+          ✕
+        </button>
+      </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">
-                  {t("oc.technician") || "Techniker zuweisen"}
-                </label>
-                <select 
-                  data-testid="edit-assigned_techniker_id" 
-                  value={editForm.assigned_techniker_id || ""}
-                  onChange={(e) => setEditForm({ ...editForm, assigned_techniker_id: e.target.value })}
-                  className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent"
-                >
-                  <option value="">{t("Kein Techniker") || "— Kein Techniker —"}</option>
-                  {technicians && technicians.map((tech) => (
-                    <option key={tech._id || tech.id} value={tech._id || tech.id}>
-                      {tech.name}
-                    </option>
-                  ))}
-                </select>
+      {/* Form Grid */}
+      <div className="space-y-5">
+        
+        {/* Customer Section */}
+        <div>
+          <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-3 font-semibold">Kundendaten</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              ["customer_name", t("oc.name")], 
+              ["customer_phone", t("oc.phone")],
+              ["customer_email", t("oc.email")], 
+              ["customer_address", t("oc.address")],
+            ].map(([key, label]) => (
+              <div key={key} className="space-y-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{label}</label>
+                <input 
+                  data-testid={`edit-${key}`} 
+                  value={editForm[key] || ""}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all" 
+                />
               </div>
+            ))}
+          </div>
+        </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground mb-1">{t("oc.issue")}</label>
-                <textarea data-testid="edit-issue_description" value={editForm.issue_description || ""} rows={3}
-                  onChange={(e) => setEditForm({ ...editForm, issue_description: e.target.value })}
-                  className="w-full bg-background border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent" />
+        <div className="border-t border-border/40"></div>
+
+        {/* Device & Technician Section */}
+        <div>
+          <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-3 font-semibold">Gerätedetails & Reparatur</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              ["device_brand", t("oc.brand")], 
+              ["device_model", t("oc.model")],
+              ["imei", t("oc.imei")], 
+              ["device_passcode", t("oc.lockValue")],
+            ].map(([key, label]) => (
+              <div key={key} className="space-y-1">
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{label}</label>
+                <input 
+                  data-testid={`edit-${key}`} 
+                  value={editForm[key] || ""}
+                  onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
+                  className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all" 
+                />
               </div>
+            ))}
+
+            {/* Technician Select */}
+            <div className="sm:col-span-2 space-y-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                {t("oc.technician") || "Techniker zuweisen"}
+              </label>
+              <select 
+                data-testid="edit-assigned_techniker_id" 
+                value={editForm.assigned_techniker_id || ""}
+                onChange={(e) => setEditForm({ ...editForm, assigned_techniker_id: e.target.value })}
+                className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all cursor-pointer"
+              >
+                <option value="">{t("Kein Techniker") || "— Kein Techniker —"}</option>
+                {technicians && technicians.map((tech) => (
+                  <option key={tech._id || tech.id} value={tech._id || tech.id}>
+                    {tech.name}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button data-testid="confirm-edit" onClick={saveEdit}
-                className="flex-1 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider py-2.5 rounded-lg hover:bg-blue-600 transition-colors">
-                {t("common.save")}
-              </button>
-              <button onClick={() => setShowEdit(false)}
-                className="px-6 border border-border text-muted-foreground hover:text-primary-foreground hover:bg-muted transition-colors rounded-lg">
-                {t("common.cancel")}
-              </button>
+
+            {/* Issue Description */}
+            <div className="sm:col-span-2 space-y-1">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.issue")}</label>
+              <textarea 
+                data-testid="edit-issue_description" 
+                value={editForm.issue_description || ""} 
+                rows={3}
+                onChange={(e) => setEditForm({ ...editForm, issue_description: e.target.value })}
+                className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all resize-none" 
+              />
             </div>
           </div>
         </div>
-      )}
+
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center gap-3 mt-8 pt-4 border-t border-border/60">
+        <button 
+          onClick={() => setShowEdit(false)}
+          className="px-5 py-2.5 border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all rounded-xl text-sm font-medium"
+        >
+          {t("common.cancel")}
+        </button>
+        <button 
+          data-testid="confirm-edit" 
+          onClick={saveEdit}
+          className="flex-1 bg-primary text-primary-foreground font-head font-semibold text-sm uppercase tracking-wider py-2.5 px-4 rounded-xl hover:opacity-90 active:scale-[0.99] transition-all shadow-lg shadow-primary/20"
+        >
+          {t("common.save")}
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
 
     </div>
   );
