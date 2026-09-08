@@ -74,6 +74,7 @@ if (mode === "OPEN" || mode === "diag_and_repair") {
   partsCost = 0;
 }
 
+
 const liveNet = diagFee + laborCost + partsCost;
 const liveTax = liveNet * 0.19;
 const liveGross = liveNet + liveTax;
@@ -439,19 +440,7 @@ const submit = async (e) => {
           className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
         />
       </div>
-    {/* الحاسبة الذكية للمدفوع والمتبقي عند الإنشاء */}
-    <div className="border-t border-dashed border-border pt-3 mt-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase text-muted-foreground">Bezahlt:</span>
-        <input 
-          type="number" 
-          step="0.01" 
-          value={form.paid_amount ?? 0}
-          onChange={set("paid_amount")}
-          placeholder="0.00"
-          className="w-32 bg-background border border-border px-2 py-1 text-sm rounded-lg outline-none focus:border-accent text-right font-mono" 
-        />
-      </div>
+    
       <div className="flex justify-between text-foreground font-semibold pt-1 border-t border-dashed border-border">
         <span>Restbetrag:</span>
         <span className={(grossTotal - Number(form.paid_amount || 0)) > 0 ? "text-amber-500" : "text-emerald-500"}>
@@ -480,7 +469,7 @@ const submit = async (e) => {
   )}
 </div>
     </div>
-  </div>
+
 </section>
 
         {/* Zustandsprotokoll Media */}

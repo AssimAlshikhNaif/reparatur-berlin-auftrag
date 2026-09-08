@@ -74,18 +74,24 @@ def compute_costs(order: dict) -> dict:
     d = float(order.get("diagnosis_fee") or 0)
     l = float(order.get("labor_cost") or 0)
     p = float(order.get("parts_cost") or 0)
-    # Die eingegebenen Beträge sind Bruttopreise (inkl. MwSt.) – das ist der
-    # Endbetrag, den der Kunde zahlt. Netto und MwSt. werden daraus rückwirkend
-    # herausgerechnet (Gesamt bleibt unverändert = Summe der Eingaben).
-    gross = round(d + l + p, 2)
-    net = round(gross / (1 + TAX_RATE), 2)
-    tax = round(gross - net, 2)
+    mode = order.get("diagnosis_payment_status", "OPEN")  # OPEN=Diagnose+Reparatur, PAID=Nur Reparatur, NA=Nur Diagnose
+    if mode == "PAID":
+        net = round(l + p, 2)
+    elif mode == "NA":
+        net = round(d, 2)
+    else:
+        net = round(d + l + p, 2)
+    tax = round(net * TAX_RATE, 2)
+    gross = round(net + tax, 2)
+    anzahlung = round(float(order.get("anzahlung") or 0), 2)
+    restbetrag = round(max(0.0, gross - anzahlung), 2)
     return {
         "diagnosis_fee": d, "labor_cost": l, "parts_cost": p,
         "net": net, "tax": tax, "gross": gross, "tax_rate": 19,
+        "anzahlung": anzahlung, "restbetrag": restbetrag,
+        "billing_mode": mode,
         "status": order.get("cost_status", "WARTET"),
     }
-
 
 def compute_warranty(order: dict) -> dict:
     months = int(order.get("warranty_months") or 0)
@@ -124,6 +130,7 @@ def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
     o["used_parts"] = order.get("used_parts", [])
     o["imei_unreadable"] = bool(order.get("imei_unreadable", False))
     o["diagnosis_payment_status"] = order.get("diagnosis_payment_status", "OPEN")
+    o["is_diagnosis_paid_at_intake"] = bool(order.get("is_diagnosis_paid_at_intake", False))
     o["imei_reminder"] = bool(order.get("imei_unreadable", False)) and not (order.get("imei") or "").strip()
     o.update(compute_warranty(order))
     # Signature presence flags (avoid shipping heavy base64 in list views)
@@ -296,15 +303,13 @@ class InspectionInput(BaseModel):
 
 
 class CostUpdate(BaseModel):
-        diagnosis_fee: Optional[float] = None
-        labor_cost: Optional[float] = None
-        parts_cost: Optional[float] = None
-        paid_amount: Optional[float] = None
-        anzahlung: Optional[float] = None
-        cost_status: Optional[str] = None
-        diagnosis_payment_status: Optional[str] = None  # PAID | OPEN | NA
-        is_diagnosis_paid_at_intake: Optional[bool] = None  # 👈 أضف هذا السطر هنا
-
+    diagnosis_fee: Optional[float] = None
+    labor_cost: Optional[float] = None
+    parts_cost: Optional[float] = None
+    cost_status: Optional[str] = None
+    diagnosis_payment_status: Optional[str] = None  # OPEN=beides | PAID=nur Reparatur | NA=nur Diagnose
+    anzahlung: Optional[float] = None
+    is_diagnosis_paid_at_intake: Optional[bool] = None
 
 class UsedPartInput(BaseModel):
     inventory_id: str
@@ -810,9 +815,9 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
     # 👈 استخراج ومعالجة الـ Anzahlung هنا ليتم حفظها عند الإنشاء
     anzahlung = float(getattr(input, "anzahlung", 0) or 0)
 
-    net = diagnosis_fee + labor_cost + parts_cost
-    tax = net * 0.19
-    gross = net + tax
+    gross = diagnosis_fee + labor_cost + parts_cost
+    net = gross / 1.19
+    tax = gross - net
     
     # 👈 طرح كل من المبلغ المدفوع والـ Anzahlung لحساب الباقي بشكل صحيح سليم
     remaining_amount = max(0.0, gross - paid_amount - anzahlung)
@@ -1235,102 +1240,46 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
 # ==================== COSTS ====================
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
-                        current=Depends(require_roles("admin", "mitarbeiter"))):
+                       current=Depends(require_roles("admin", "mitarbeiter"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-    
-    # دمج القيم الجديدة مع القيم القديمة الموجودة في الطلب لضمان حساب دقيق للمجاميع
-    current_cost = order.get("cost", {})
-    
-    diagnosis_fee = input.diagnosis_fee if input.diagnosis_fee is not None else float(current_cost.get("diagnosis_fee", order.get("diagnosis_fee", 0)))
-    labor_cost = input.labor_cost if input.labor_cost is not None else float(current_cost.get("labor_cost", order.get("labor_cost", 0)))
-    parts_cost = input.parts_cost if input.parts_cost is not None else float(current_cost.get("parts_cost", order.get("parts_cost", 0)))
-    paid_amount = input.paid_amount if input.paid_amount is not None else float(current_cost.get("paid_amount", order.get("paid_amount", 0)))
-    anzahlung = input.anzahlung if input.anzahlung is not None else float(current_cost.get("anzahlung", order.get("anzahlung", 0)))
-    
-    # 👈 حساب المجاميع المالية وتحديثها بشكل سليم
-    net = diagnosis_fee + labor_cost + parts_cost
-    tax = net * 0.19
-    gross = net + tax
-    remaining_amount = max(0.0, gross - paid_amount - anzahlung)
-
     updates = {}
-    
-    # تعبئة التكاليف في كائن الـ cost وفي المستند الرئيسي
-    updates["cost.diagnosis_fee"] = diagnosis_fee
-    updates["diagnosis_fee"] = diagnosis_fee
-    
-    updates["cost.labor_cost"] = labor_cost
-    updates["labor_cost"] = labor_cost
-    
-    updates["cost.parts_cost"] = parts_cost
-    updates["parts_cost"] = parts_cost
-    
-    updates["cost.paid_amount"] = paid_amount
-    updates["paid_amount"] = paid_amount
-    
-    updates["cost.anzahlung"] = anzahlung
-    updates["anzahlung"] = anzahlung
-
-    # 👈 تحديث المجاميع الحسابية في قاعدة البيانات لكي تظهر مباشرة في الفرونت إند
-    updates["cost.net"] = round(net, 2)
-    updates["net"] = round(net, 2)
-    
-    updates["cost.tax"] = round(tax, 2)
-    updates["tax"] = round(tax, 2)
-    
-    updates["cost.gross"] = round(gross, 2)
-    updates["gross"] = round(gross, 2)
-    
-    updates["cost.remaining_amount"] = round(remaining_amount, 2)
-    updates["remaining_amount"] = round(remaining_amount, 2)
-
+    for k in ("diagnosis_fee", "labor_cost", "parts_cost"):
+        v = getattr(input, k)
+        if v is not None:
+            updates[k] = float(v)
     if input.cost_status is not None:
-        updates["cost.cost_status"] = input.cost_status
-
-   # 👈 استقبال وحفظ حالة الـ Checkbox في الجذر وفي كائن الـ cost لضمان بقائها عند إعادة التحميل
-    if input.is_diagnosis_paid_at_intake is not None:
-        updates["is_diagnosis_paid_at_intake"] = input.is_diagnosis_paid_at_intake
-        updates["cost.is_diagnosis_paid_at_intake"] = input.is_diagnosis_paid_at_intake
-
-    # 2. معالجة وتوحيد حالة الدفع والتوجيه للسجل (Verlauf)
+        if input.cost_status not in COST_STATES:
+            raise HTTPException(status_code=400, detail="Ungültiger Kostenstatus")
+        updates["cost_status"] = input.cost_status
     if input.diagnosis_payment_status is not None:
-        status_mapping = {
-            "OPEN": "diag_and_repair",
-            "PAID": "repair_only",
-            "NA": "diag_only",
-            "diag_and_repair": "diag_and_repair",
-            "repair_only": "repair_only",
-            "diag_only": "diag_only"
-        }
-        normalized = status_mapping.get(input.diagnosis_payment_status, input.diagnosis_payment_status)
-        updates["cost.diagnosis_payment_status"] = normalized
-        updates["diagnosis_payment_status"] = normalized
-
-    # 3. تنفيذ التحديث في قاعدة البيانات وتوليد سجل التدقيق
+        if input.diagnosis_payment_status not in ("PAID", "OPEN", "NA"):
+            raise HTTPException(status_code=400, detail="Ungültiger Zahlungsstatus")
+        updates["diagnosis_payment_status"] = input.diagnosis_payment_status
+    if input.anzahlung is not None:
+        if input.anzahlung < 0:
+            raise HTTPException(status_code=400, detail="Anzahlung darf nicht negativ sein")
+        updates["anzahlung"] = round(float(input.anzahlung), 2)
+    if input.is_diagnosis_paid_at_intake is not None:
+        updates["is_diagnosis_paid_at_intake"] = bool(input.is_diagnosis_paid_at_intake)
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})
-        
-        audit_details = []
-        if "cost.diagnosis_payment_status" in updates or "diagnosis_payment_status" in updates:
-            status_labels = {
-                "diag_and_repair": "Diagnose + Reparatur (Beides)",
-                "repair_only": "Nur Reparatur (Diagnose erlassen)",
-                "diag_only": "Nur Diagnose (Keine Reparatur)"
-            }
-            current_val = updates.get("diagnosis_payment_status", "diag_and_repair")
-            label = status_labels.get(current_val, "Diagnose + Reparatur (Beides)")
-            audit_details.append(f"Zahlungsstatus: {label}")
-            
-        audit_details.append("Beträge/Kosten aktualisiert")
-
-        detail_msg = " | ".join(audit_details) if audit_details else "Kosten aktualisiert"
-        await log_audit(order_id, "KOSTEN", detail_msg, current["name"])
-
-    return {"success": True, "message": "Kosten erfolgreich aktualisiert"}
-# ==================== USED PARTS ====================
+        if "cost_status" in updates:
+            await log_audit(order_id, "KOSTEN", f"Kostenstatus → {updates['cost_status']}", current["name"])
+        else:
+            await log_audit(order_id, "KOSTEN", "Kosten aktualisiert", current["name"])
+        await push_notification(
+            kind="KOSTEN", title="Kosten aktualisiert",
+            message=f"{current['name']} hat Kosten für {order.get('auftragsnummer','')} aktualisiert.",
+            by=current["name"], by_role=current["role"],
+            order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+        )
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(order, current)
+    
+        # ==================== USED PARTS ====================
 async def _assert_order_access(order, current):
     if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
@@ -1915,7 +1864,7 @@ async def _notif_query(user: dict, branch_id_param: str = None):
     if role == "techniker":
         return {"target_user_id": str(user["_id"])}
 
-    from bson import ObjectId
+    
     target_branch = branch_id_param or user.get("branch_id")
 
     # إذا تم تحديد فرع معين
