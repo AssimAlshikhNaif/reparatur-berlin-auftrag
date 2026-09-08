@@ -13,18 +13,18 @@ BRANCHES = [
         "name": "Phone Store Mobile",
         "address": " Boxhagener str.123 , 10245 Berlin",
         "phone": " 030 81302550 ",
-        "email": "",
+        "email": "info@phonestore.berlin",
         "logo_url": "/logos/phone store.png"
     },
     {
         "name": "Praxis Smartphone",
         "address": " Schönhauser Allee 89-90, 10439 Berlin",
         "phone": " 030 23299000 ",
-        "email": "",
+        "email": "info@laptop-und-smartphone-apotheke.de",
         "logo_url": "/logos/handy_laptop_praxi-removebg-preview.png"
     },
     {
-        "name": " Smartphone Tegel",
+        "name": " SmartPhone Tegel",
         "address": " Gorkistr.17 , 13507 Berlin",
         "phone": " 015733555555 ",
         "logo_url": ""
@@ -40,7 +40,7 @@ BRANCHES = [
         "name": "Technik Kingdom Handy",
         "address": " Bülowstraße 11, 10783 Berlin ",
         "phone": " +49 1779766660 ",
-        "email": "",
+        "email": "info@technik-kingdom.de",
         "logo_url": "/logos/Gemini_Generated_Image_ibkykmibkykmibky.jpg"
     },
     {
@@ -79,11 +79,11 @@ BRANCHES = [
         "logo_url": ""
      },
      {
-        "name": "M.T Wittenberg",
-        "address": "",
-        "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "name": "Media Technik A&E Wittenberg",
+        "address": "Arsenalpl. 1, 06886 Lutherstadt Wittenberg",
+        "phone": "+49 177 1394444 ",
+        "email": "info@mediatechnik-ae.de",
+        "logo_url": "/logos/m.t. wittenberg.jpg"
     },
 
     {
@@ -122,7 +122,7 @@ BRANCHES = [
         "logo_url": "/logos/PoneFix.png"
     },
             {
-        "name": "Media Technik Obai",
+        "name": "Media Technik ",
         "address": " Dörpfeldstraße 21, 12489 Berlin",
         "phone": "+49 15218432160 ",
         "email": " mediatechnik235@gmail.com",
@@ -130,7 +130,7 @@ BRANCHES = [
     },
             {
         "name": "Tempelhof Hafen",
-        "address": "Tempelhofer Damm 227 ,12099 Berlin Neben O2 Shop",
+        "address": "Tempelhofer Damm 227,12099 Berlin ",
         "phone": "+49 177 9544500 ",
         "email": "QVUG.Berlin@gmail.com",
         "logo_url": ""

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 import { Printer, X, FilePdf } from "@phosphor-icons/react";
 import { berlinDateTime, berlinNow } from "@/lib/datetime";
 import { SHOP_INFO } from "@/lib/constants";
@@ -12,11 +13,9 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const cost = order.cost || {};
   const parts = order.used_parts || [];
   const invoiceNo = order.invoice_number || order.auftragsnummer;
-  // خريطة اللوغوهات الخاصة بكل فرع بناءً على اسمه
+  
   const branchLogos = {
     "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
-    // أضف أي فرع آخر هنا مستقبلاً بهذه الطريقة:
-    // "اسم الفرع الثاني": "/logos/اسم_الصورة.png"
   };
 
   const resolvedBranchName = branch?.name || branchName || SHOP_INFO.name;
@@ -26,14 +25,22 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     address: branch?.address || `${SHOP_INFO.addressLine1}, ${SHOP_INFO.addressLine2}`,
     phone: branch?.phone || SHOP_INFO.phone,
     email: branch?.email || SHOP_INFO.email,
-    taxNumber: branch?.tax_number || SHOP_INFO.taxNumber,
-    steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer,
+    taxNumber: branch?.tax_number || SHOP_INFO.taxNumber || "",
+    steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer || "",
     city: branch?.city || "Berlin",
-    // سيأخذ اللوغو من قاعدة البيانات إذا وجد، أو من القاموس بناءً على اسم الفرع، أو اللوغو الافتراضي العام
     logo_url: branch?.logo_url || branchLogos[resolvedBranchName] || SHOP_INFO.logo_url || "",
   };
   const ortDatumShort = `${shop.city}, ${order.invoice_date ? berlinDate(order.invoice_date) : berlinDate()}`;
   const customerSignature = order.pickup_signature || order.intake_signature || null;
+
+  // حساب المجموع الإجمالي (Brutto)
+  const diagFee = Number(cost.diagnosis_fee || 0);
+  const laborCost = Number(cost.labor_cost || 0);
+  const grossTotal = diagFee + laborCost + (parts.length > 0 ? parts.reduce((acc, p) => acc + Number(p.total || 0), 0) : Number(cost.parts_cost || 0));
+  
+  // استخراج الصافي والضريبة عكسياً من الإجمالي (Brutto)
+  const calculatedNet = grossTotal / 1.19;
+  const calculatedTax = grossTotal - calculatedNet;
 
   useEffect(() => {
     let active = true;
@@ -52,79 +59,38 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     return () => window.removeEventListener("afterprint", handleAfterPrint);
   }, [onClose]);
 
-  const handlePrint = () => window.print();
+  // توليد PDF عالي الجودة باستخدام html2canvas لضمان ظهور اللوغو والتنسيقات بشكل مطابق تماماً للشاشة
+  const generatePdfCanvas = async () => {
+    const input = document.getElementById("rechnung");
+    if (!input) return null;
 
-  const downloadPdf = () => {
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
-    let y = 16;
+    const canvas = await html2canvas(input, {
+      scale: 2, // دقة عالية جداً للطباعة والـ PDF
+      useCORS: true,
+      logging: false,
+    });
 
-    // تضمين اللوجو في ملف الـ PDF إذا كان متوفراً
-    if (shop.logo_url) {
-      try {
-        doc.addImage(shop.logo_url, "PNG", 14, y, 35, 14);
-        y += 18;
-      } catch (e) {
-        // تجاهل الخطأ في حال تعذر تحميل الصورة
-      }
-    }
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    doc.setFont("helvetica", "bold"); doc.setFontSize(16);
-    doc.text(shop.name, 14, y); y += 6;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(shop.address, 14, y); y += 4;
-    doc.text(`${shop.phone} · ${shop.email}`, 14, y); y += 4;
-    doc.text(`${shop.steuernummer} · ${shop.taxNumber}`, 14, y);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(18);
-    doc.text("RECHNUNG", 196, 16, { align: "right" });
-    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`Rechnungs-Nr.: ${invoiceNo}`, 196, 22, { align: "right" });
-    doc.text(`Auftrags-Nr.: ${order.auftragsnummer}`, 196, 26, { align: "right" });
-    doc.text(`Datum: ${order.invoice_date ? berlinDateTime(order.invoice_date) : berlinNow()}`, 196, 30, { align: "right" });
-    y += 10;
-    doc.setDrawColor(200); doc.line(14, y, 196, y); y += 8;
-    doc.setFont("helvetica", "bold"); doc.text("Rechnungsempfänger:", 14, y);
-    doc.text("Auftragsdetails:", 110, y); y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.text(String(order.customer_name || ""), 14, y);
-    doc.text(`Filiale: ${branchName || "-"}`, 110, y); y += 4;
-    doc.text(String(order.customer_phone || ""), 14, y);
-    doc.text(`Gerät: ${order.device_brand || ""} ${order.device_model || ""}`, 110, y); y += 4;
-    if (order.customer_address) { doc.text(String(order.customer_address), 14, y); }
-    doc.text(`IMEI/SN: ${order.imei || "-"}`, 110, y); y += 10;
+    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+    return pdf;
+  };
 
-    // Table header
-    doc.setFont("helvetica", "bold"); doc.setFillColor(240); doc.rect(14, y - 4, 182, 7, "F");
-    doc.text("Position", 16, y); doc.text("Menge", 120, y); doc.text("Betrag", 194, y, { align: "right" }); y += 7;
-    doc.setFont("helvetica", "normal");
-    const row = (name, qty, amount) => {
-      doc.text(String(name).substring(0, 60), 16, y);
-      doc.text(String(qty), 120, y);
-      doc.text(amount, 194, y, { align: "right" }); y += 6;
-    };
-    if (Number(cost.diagnosis_fee)) row("Diagnosegebühr", "1", `${Number(cost.diagnosis_fee).toFixed(2)} EUR`);
-    if (Number(cost.labor_cost)) row("Arbeitskosten", "1", `${Number(cost.labor_cost).toFixed(2)} EUR`);
-    parts.forEach((p) => row(p.name || p.sku, p.quantity, `${Number(p.total || 0).toFixed(2)} EUR`));
-    if (!parts.length && Number(cost.parts_cost)) row("Versuchszeit", "1", `${Number(cost.parts_cost).toFixed(2)} EUR`);
-    y += 2; doc.line(120, y, 196, y); y += 6;
-    doc.text("Nettobetrag:", 150, y, { align: "right" }); doc.text(`${Number(cost.net || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 5;
-    doc.text("zzgl. 19% MwSt.:", 150, y, { align: "right" }); doc.text(`${Number(cost.tax || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 5;
-    doc.setFont("helvetica", "bold");
-    doc.text("Gesamtbetrag:", 150, y, { align: "right" }); doc.text(`${Number(cost.gross || 0).toFixed(2)} EUR`, 194, y, { align: "right" }); y += 16;
+  const handlePrint = async () => {
+    const pdf = await generatePdfCanvas();
+    if (!pdf) return;
+    pdf.autoPrint();
+    window.open(pdf.output('bloburl'), '_blank');
+  };
 
-    // Ort/Datum + customer signature line
-    doc.setFontSize(9); doc.setFont("helvetica", "normal");
-    doc.text(ortDatumShort, 14, y - 2);
-    if (customerSignature) {
-      try { doc.addImage(customerSignature, "PNG", 120, y - 16, 60, 16); } catch (e) { /* ignore */ }
-    }
-    doc.setDrawColor(0);
-    doc.line(14, y + 2, 80, y + 2);
-    doc.line(120, y + 2, 190, y + 2);
-    doc.setFontSize(8); doc.setTextColor(90);
-    doc.text("Ort, Datum", 14, y + 6);
-    doc.text("Unterschrift Kunde", 120, y + 6);
-
-    doc.save(`Rechnung_${invoiceNo}.pdf`);
+  const downloadPdf = async () => {
+    const pdf = await generatePdfCanvas();
+    if (!pdf) return;
+    pdf.save(`Rechnung_${invoiceNo}.pdf`);
   };
 
   const cellTh = { textAlign: "left", padding: "6px 8px", fontSize: "11px", borderBottom: "2px solid #000" };
@@ -155,18 +121,20 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
           <div id="rechnung" style={{ width: "190mm", padding: "12mm", background: "#fff", color: "#111", fontFamily: "Arial, sans-serif" }}>
             {/* Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
-                {shop.logo_url ? (
-                  <img src={shop.logo_url} alt="Logo" data-testid="invoice-logo"
-                    style={{ maxHeight: "56px", maxWidth: "120px", objectFit: "contain" }} />
-                ) : null}
-                <div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  {shop.logo_url ? (
+                    <img src={shop.logo_url} alt="Logo" data-testid="invoice-logo"
+                      style={{ height: "40px", maxWidth: "140px", objectFit: "contain" }} />
+                  ) : null}
                   <div style={{ fontSize: "18px", fontWeight: 700 }} data-testid="invoice-shop-name">{shop.name}</div>
-                  <div style={{ fontSize: "11px", color: "#444", marginTop: "4px", lineHeight: 1.5 }} data-testid="invoice-branch-address">
-                    {shop.address}<br />
-                    {shop.phone} · {shop.email}<br />
-                    {shop.steuernummer} · {shop.taxNumber}
-                  </div>
+                </div>
+                <div style={{ fontSize: "11px", color: "#444", marginTop: "8px", lineHeight: 1.4 }} data-testid="invoice-branch-address">
+                  {shop.address}<br />
+                  {shop.phone} · {shop.email}
+                  {(shop.steuernummer || shop.taxNumber) && (
+                    <><br />{shop.steuernummer}{shop.steuernummer && shop.taxNumber ? " · " : ""}{shop.taxNumber}</>
+                  )}
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
@@ -207,17 +175,17 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
                 </tr>
               </thead>
               <tbody>
-                {Number(cost.diagnosis_fee) > 0 && (
-                  <tr><td style={cellTd}>Diagnosegebühr</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.diagnosis_fee).toFixed(2)} €</td></tr>
+                {diagFee > 0 && (
+                  <tr><td style={cellTd}>Diagnosegebühr</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{diagFee.toFixed(2)} €</td></tr>
                 )}
-                {Number(cost.labor_cost) > 0 && (
-                  <tr><td style={cellTd}>Arbeitskosten</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.labor_cost).toFixed(2)} €</td></tr>
+                {laborCost > 0 && (
+                  <tr><td style={cellTd}>Reparaturkosten</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{laborCost.toFixed(2)} €</td></tr>
                 )}
                 {parts.map((p) => (
                   <tr key={p.id}><td style={cellTd}>{p.name || p.sku}</td><td style={{ ...cellTd, textAlign: "center" }}>{p.quantity}</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(p.total || 0).toFixed(2)} €</td></tr>
                 ))}
                 {parts.length === 0 && Number(cost.parts_cost) > 0 && (
-                  <tr><td style={cellTd}>Versuchszeit</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.parts_cost).toFixed(2)} €</td></tr>
+                  <tr><td style={cellTd}>Ersatzteile / Material</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(cost.parts_cost).toFixed(2)} €</td></tr>
                 )}
               </tbody>
             </table>
@@ -226,9 +194,9 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px" }}>
               <table style={{ fontSize: "12px", minWidth: "240px" }}>
                 <tbody>
-                  <tr><td style={{ padding: "3px 8px", textAlign: "right", color: "#444" }}>Nettobetrag</td><td style={{ padding: "3px 8px", textAlign: "right" }} data-testid="invoice-net">{Number(cost.net || 0).toFixed(2)} €</td></tr>
-                  <tr><td style={{ padding: "3px 8px", textAlign: "right", color: "#444" }}>zzgl. 19% MwSt.</td><td style={{ padding: "3px 8px", textAlign: "right" }} data-testid="invoice-tax">{Number(cost.tax || 0).toFixed(2)} €</td></tr>
-                  <tr style={{ borderTop: "2px solid #000" }}><td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700 }}>Gesamtbetrag</td><td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, fontSize: "14px" }} data-testid="invoice-gross">{Number(cost.gross || 0).toFixed(2)} €</td></tr>
+                  <tr><td style={{ padding: "3px 8px", textAlign: "right", color: "#444" }}>Nettobetrag</td><td style={{ padding: "3px 8px", textAlign: "right" }} data-testid="invoice-net">{calculatedNet.toFixed(2)} €</td></tr>
+                  <tr><td style={{ padding: "3px 8px", textAlign: "right", color: "#444" }}>inkl. 19% MwSt.</td><td style={{ padding: "3px 8px", textAlign: "right" }} data-testid="invoice-tax">{calculatedTax.toFixed(2)} €</td></tr>
+                  <tr style={{ borderTop: "2px solid #000" }}><td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700 }}>Gesamtbetrag</td><td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, fontSize: "14px" }} data-testid="invoice-gross">{grossTotal.toFixed(2)} €</td></tr>
                 </tbody>
               </table>
             </div>
