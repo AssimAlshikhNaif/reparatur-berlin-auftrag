@@ -2059,23 +2059,20 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
     return serialize_order(new_order, current)
 
 
-@router.get("/api/files/{file_path:path}")  
+@router.get("/files/{file_path:path}")
 async def get_uploaded_file(file_path: str):
     UPLOAD_DIR = "/app/uploads"
-    
-    full_path = os.path.abspath(os.path.join(UPLOAD_DIR, file_path))
-    
-    # حماية أمنية لمنع الخروج عن مجلد الرفع
-    if not full_path.startswith(os.path.abspath(UPLOAD_DIR)):
-        raise HTTPException(status_code=403, detail="Access denied")
-        
-    if os.path.exists(full_path) and os.path.isfile(full_path):
-        return FileResponse(full_path)
-        
-# بحث مرن داخل مجلد uploads والمجلدات الفرعية
+    filename = os.path.basename(file_path)
+
+    # 1. البحث المباشر باسم الملف فقط في مجلد الرفع الرئيسي
+    direct_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.isfile(direct_path):
+        return FileResponse(direct_path)
+
+    # 2. البحث عن الملف داخل أي مجلدات فرعية في حال وجودها
     for root, dirs, files in os.walk(UPLOAD_DIR):
-        if file_path in files or os.path.basename(file_path) in files:
-            target_path = os.path.join(root, os.path.basename(file_path))
+        if filename in files:
+            target_path = os.path.join(root, filename)
             return FileResponse(target_path)
 
     raise HTTPException(status_code=404, detail="File not found")
