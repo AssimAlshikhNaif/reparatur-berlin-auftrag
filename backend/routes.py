@@ -8,7 +8,7 @@ from bson import ObjectId
 from fastapi import (APIRouter, HTTPException, Depends, UploadFile, File,
                      Query, Header, WebSocket, WebSocketDisconnect, Response, Form)
 from pydantic import BaseModel
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
 
 
 from db import db
@@ -2058,9 +2058,7 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
     new_order = await db.orders.find_one({"_id": ObjectId(new_id)})
     return serialize_order(new_order, current)
 
-
-@router.get("/files/{file_path:path}")
-@router.get("/api/files/{file_path:path}")
+@router.get("/uploads/{file_path:path}")
 async def get_uploaded_file(file_path: str):
     UPLOAD_DIR = "/app/uploads"
     filename = os.path.basename(file_path)
