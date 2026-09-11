@@ -1402,15 +1402,16 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 
 function MediaThumb({ m, onDelete }) {
     const fileName = m.storage_path ? m.storage_path.replace(/^.*[\\\/]/, '') : '';
-    const fileUrl = fileName ? `/uploads/${fileName}` : '';
+    // إضافة الجذر بالكامل لتجنب أي اختصار خاطئ من المتصفح
+    const exactUrl = fileName ? `${window.location.origin}/uploads/${fileName}` : '';
 
     return (
         <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">
-            <a href={fileUrl} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
+            <a href={exactUrl} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
                 {m.is_video ? (
-                    <video src={fileUrl} className="w-full h-full object-cover" />
+                    <video src={exactUrl} className="w-full h-full object-cover" />
                 ) : (
-                    <img src={fileUrl} alt={m.original_filename} className="w-full h-full object-cover" />
+                    <img src={exactUrl} alt={m.original_filename} className="w-full h-full object-cover" />
                 )}
             </a>
             {onDelete && (
