@@ -1402,8 +1402,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 
 function MediaThumb({ m, onDelete }) {
   const token = localStorage.getItem("token") || "";
-  const rawUrl = fileUrl(m.storage_path);
-  const url = rawUrl.includes("?") ? `${rawUrl}&auth=${token}` : `${rawUrl}?auth=${token}`;
+const rawUrl = m.storage_path ? (m.storage_path.startsWith('/uploads/') ? fileUrl(m.storage_path) : fileUrl(`/uploads/${m.storage_path}`)) : '';  const url = rawUrl.includes("?") ? `${rawUrl}&auth=${token}` : `${rawUrl}?auth=${token}`;
   return (
     <div className="relative group aspect-square border border-border overflow-hidden bg-background hover:border-accent transition-colors">
       <a href={url} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
