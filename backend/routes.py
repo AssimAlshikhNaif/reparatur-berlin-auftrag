@@ -1653,11 +1653,15 @@ async def post_message(order_id: str, input: ChatMessageInput, current=Depends(g
 async def stats(current=Depends(get_current_user)):
     query = await _order_query_for_user(current)
     
-    # جلب الحقول الأساسية فقط لتخفيف حجم البيانات المنقولة في الذاكرة
+    # إذا كان المستخدم أدمن، نلغي قيود الفروع من استعلام العدد الإجمالي ليرى كل الأفرع حقاً
+    total_query = {} if current.get("role") == "admin" else query
+    total_orders_count = await db.orders.count_documents(total_query)
+    
+    # جلب الحقول الأساسية للإحصائيات والرسوم البيانية (بما يتناسب مع حدود الـ 1000 أو الكيرسر)
     orders = await db.orders.find(
         query, 
         {"status": 1, "branch_id": 1, "created_at": 1, "diagnosis_fee": 1, "labor_cost": 1, "parts_cost": 1}
-    ).to_list(1000)
+    ).to_list(2000) # تم رفع الحد قليلاً لضمان شمولية الحسابات والرسوم البيانية
     
     by_status = {}
     sla_count = 0
@@ -1677,15 +1681,11 @@ async def stats(current=Depends(get_current_user)):
             
         if status == "ABGEHOLT":
             completed_repairs += 1
-            # حساب الإيرادات بشكل سريع وآمن
             costs = compute_costs(o)
             total_revenue += costs.get("gross", 0.0)
 
-    # إصلاح تعيين إجمالي الطلبات بشكل رقمي صافٍ وبدون أي len مضللة
-    total_orders_count = len(orders)  # إجمالي الطلبات المجلوبة في الاستعلام
-
     result = {
-        "total_orders": total_orders_count,
+        "total_orders": total_orders_count,  # العدد الإجمالي الحقيقي الدقيق لكل الأفرع للأدمن
         "by_status": by_status,
         "sla_breached": sla_count,
         "active_orders": active_orders,
