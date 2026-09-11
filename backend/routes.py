@@ -2060,6 +2060,7 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
 
 
 @router.get("/files/{file_path:path}")
+@router.get("/api/files/{file_path:path}")
 async def get_uploaded_file(file_path: str):
     UPLOAD_DIR = "/app/uploads"
     filename = os.path.basename(file_path)
