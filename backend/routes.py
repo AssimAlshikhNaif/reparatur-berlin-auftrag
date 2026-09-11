@@ -1682,7 +1682,7 @@ async def stats(current=Depends(get_current_user)):
             total_revenue += costs.get("gross", 0.0)
 
     result = {
-        "total_orders": len(active_orders_list) if active_orders_list else 0,
+        "total_orders": len(active_orders) if active_orders else 0,
         "by_status": by_status,
         "sla_breached": sla_count,
         "active_orders": active_orders,
