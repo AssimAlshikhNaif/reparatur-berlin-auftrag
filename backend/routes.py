@@ -1681,23 +1681,36 @@ async def stats(current=Depends(get_current_user)):
             costs = compute_costs(o)
             total_revenue += costs.get("gross", 0.0)
 
+    # إصلاح تعيين إجمالي الطلبات بشكل رقمي صافٍ وبدون أي len مضللة
+    total_orders_count = len(orders)  # إجمالي الطلبات المجلوبة في الاستعلام
+
     result = {
-        "total_orders": len(active_orders) if active_orders else 0,
+        "total_orders": total_orders_count,
         "by_status": by_status,
         "sla_breached": sla_count,
         "active_orders": active_orders,
     }
     
-    if current["role"] == "admin":
-        result["total_users"] = await db.users.count_documents({})
-        result["total_branches"] = await db.branches.count_documents({})
+    if current.get("role") == "admin":
+        try:
+            result["total_users"] = await db.users.count_documents({})
+        except Exception:
+            result["total_users"] = 0
+
+        try:
+            result["total_branches"] = await db.branches.count_documents({})
+        except Exception:
+            result["total_branches"] = 0
+            
+        # جلب العناصر التي تقل عن الحد الأدنى بطريقة سريعة وآمنة
+        try:
+            low_stock = await db.inventory.find(
+                {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
+            ).to_list(500)
+        except Exception:
+            low_stock = []
         
-        # جلب العناصر التي تقل عن الحد الأدنى بطريقة سريعة
-        low_stock = await db.inventory.find(
-            {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
-        ).to_list(500)
-        
-        result["low_stock_count"] = len(low_stock)
+        result["low_stock_count"] = len(low_stock) if isinstance(low_stock, list) else 0
         result["low_stock_items"] = [
             {
                 "sku": i.get("sku"), 
@@ -1705,32 +1718,34 @@ async def stats(current=Depends(get_current_user)):
                 "part_type": i.get("part_type"),
                 "quantity": i.get("quantity"), 
                 "min_stock": i.get("min_stock")
-            } for i in low_stock
+            } for i in low_stock if isinstance(i, dict)
         ]
         
         result["completed_repairs"] = completed_repairs
         result["revenue"] = round(total_revenue, 2)
         
-        # تجميع إحصائيات الفروع بطريقة محسنة
-        branches = await db.branches.find({}, {"name": 1}).to_list(100)
-        bmap = {str(b["_id"]): b["name"] for b in branches}
-        
-        by_branch = {name: {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0} for name in bmap.values()}
-        
-        for o in orders:
-            name = bmap.get(o.get("branch_id"))
-            if not name or name not in by_branch:
-                continue
-            by_branch[name]["orders"] += 1
-            if o.get("status") == "ABGEHOLT":
-                by_branch[name]["completed"] += 1
-                costs = compute_costs(o)
-                by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + costs.get("gross", 0.0), 2)
-                
-        result["by_branch"] = list(by_branch.values())
+        # تجميع إحصائيات الفروع بطريقة محسنة ومحمية ضد الأخطاء
+        try:
+            branches = await db.branches.find({}, {"name": 1}).to_list(100)
+            bmap = {str(b["_id"]): b["name"] for b in branches if "_id" in b and "name" in b}
+            
+            by_branch = {name: {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0} for name in bmap.values()}
+            
+            for o in orders:
+                name = bmap.get(str(o.get("branch_id")))
+                if not name or name not in by_branch:
+                    continue
+                by_branch[name]["orders"] += 1
+                if o.get("status") == "ABGEHOLT":
+                    by_branch[name]["completed"] += 1
+                    costs = compute_costs(o)
+                    by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + costs.get("gross", 0.0), 2)
+                    
+            result["by_branch"] = list(by_branch.values())
+        except Exception:
+            result["by_branch"] = []
         
     return result
-
 # ==================== IMEI (late fill-in) ====================
 @router.patch("/orders/{order_id}/imei")
 async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_current_user)):
