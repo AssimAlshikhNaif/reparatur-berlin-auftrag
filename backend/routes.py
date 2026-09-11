@@ -2072,4 +2072,10 @@ async def get_uploaded_file(file_path: str):
     if os.path.exists(full_path) and os.path.isfile(full_path):
         return FileResponse(full_path)
         
+# بحث مرن داخل مجلد uploads والمجلدات الفرعية
+    for root, dirs, files in os.walk(UPLOAD_DIR):
+        if file_path in files or os.path.basename(file_path) in files:
+            target_path = os.path.join(root, os.path.basename(file_path))
+            return FileResponse(target_path)
+
     raise HTTPException(status_code=404, detail="File not found")
