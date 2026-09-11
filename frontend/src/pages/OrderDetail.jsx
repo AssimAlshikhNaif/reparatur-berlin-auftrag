@@ -1401,30 +1401,34 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 }
 
 function MediaThumb({ m, onDelete }) {
-  const token = localStorage.getItem("token") || "";
-  const rawUrl = m.storage_path ? `/uploads/${m.storage_path.replace(/^.*[\\\/]/, '')}` : '';
-  return (
-    <div className="relative group aspect-square border border-border overflow-hidden bg-background hover:border-accent transition-colors">
-      <a href={url} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
-        {m.is_video ? (
-          <video src={url} className="w-full h-full object-cover" />
-        ) : (
-          <img src={url} alt={m.original_filename} className="w-full h-full object-cover" />
-        )}
-      </a>
-      {onDelete && (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 hover:text-white rounded shadow transition-colors z-10"
-          title="Bild löschen"
-        >
-          <Trash size={14} weight="bold" />
-        </button>
-      )}
-    </div>
-  );
+    const token = localStorage.getItem("token") || "";
+    
+    // توليد الرابط بشكل آمن تماماً
+    const fileName = m.storage_path ? m.storage_path.replace(/^.*[\\\/]/, '') : '';
+    const fileUrl = fileName ? `/uploads/${fileName}` : '';
+
+    return (
+        <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">
+            <a href={fileUrl} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
+                {m.is_video ? (
+                    <video src={fileUrl} className="w-full h-full object-cover" />
+                ) : (
+                    <img src={fileUrl} alt={m.original_filename} className="w-full h-full object-cover" />
+                )}
+            </a>
+            {onDelete && (
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onDelete();
+                    }}
+                    className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 rounded-md transition-colors"
+                    title="حذف الملف"
+                >
+                    🗑️
+                </button>
+            )}
+        </div>
+    );
 }
