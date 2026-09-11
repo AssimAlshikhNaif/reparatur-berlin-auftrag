@@ -1401,9 +1401,6 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 }
 
 function MediaThumb({ m, onDelete }) {
-    const token = localStorage.getItem("token") || "";
-    
-    // توليد الرابط بشكل آمن تماماً
     const fileName = m.storage_path ? m.storage_path.replace(/^.*[\\\/]/, '') : '';
     const fileUrl = fileName ? `/uploads/${fileName}` : '';
 
