@@ -2057,3 +2057,19 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
     
     new_order = await db.orders.find_one({"_id": ObjectId(new_id)})
     return serialize_order(new_order, current)
+
+    # أضف هذا المسار هنا
+@router.get("/files/{file_path:path}")  # <- تأكد من إضافة هذا السطر فوق الدالة
+async def get_uploaded_file(file_path: str):
+    UPLOAD_DIR = "/app/uploads"
+    
+    full_path = os.path.abspath(os.path.join(UPLOAD_DIR, file_path))
+    
+    # حماية أمنية لمنع الخروج عن مجلد الرفع
+    if not full_path.startswith(os.path.abspath(UPLOAD_DIR)):
+        raise HTTPException(status_code=403, detail="Access denied")
+        
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        return FileResponse(full_path)
+        
+    raise HTTPException(status_code=404, detail="File not found")
