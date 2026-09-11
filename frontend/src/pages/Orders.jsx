@@ -21,16 +21,29 @@ export default function Orders() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [printOrder, setPrintOrder] = useState(null);
+  
+  // حالة لتخزين أعداد الطلبات لكل تبويب لعرضها بشكل دقيق
+  const [statusCounts, setStatusCounts] = useState({
+    all: 0,
+    ANGENOMMEN: 0,
+    IN_BEARBEITUNG: 0,
+    FERTIG: 0,
+    ABGEHOLT: 0,
+    REKLAMATION: 0,
+    STORNIERT: 0
+  });
+
   const canManage = user.role === "admin" || user.role === "mitarbeiter";
 
-const load = async () => {
+  const load = async () => {
     try {
       setLoading(true);
 
       if (statusFilter === "REKLAMATION") {
         try {
           const { data } = await api.get("/reklamationen");
-          setOrders(Array.isArray(data) ? (branchId ? data.filter((o) => o.branch_id === branchId) : data) : []);
+          const filteredData = Array.isArray(data) ? (branchId ? data.filter((o) => o.branch_id === branchId) : data) : [];
+          setOrders(filteredData);
         } catch (err) {
           console.error("Reklamationen load error:", err);
           setOrders([]);
@@ -51,8 +64,46 @@ const load = async () => {
     }
   };
 
+  // جلب الأعداد لكل الحالات بشكل دقيق ومتطابق مع منطق الجدول والفرع
+  const fetchCounts = async () => {
+    try {
+      const params = {};
+      if (branchId) params.branch_id = branchId;
+
+      const [ordersRes, rekRes] = await Promise.all([
+        api.get("/orders", { params }),
+        api.get("/reklamationen").catch(() => ({ data: [] }))
+      ]);
+
+      const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
+      const allRek = Array.isArray(rekRes.data) ? (branchId ? rekRes.data.filter(o => o.branch_id === branchId) : rekRes.data) : [];
+
+      const angenommenCount = allOrders.filter(o => o.status === "ANGENOMMEN").length;
+      const inBearbeitungCount = allOrders.filter(o => o.status === "IN_BEARBEITUNG").length;
+      const fertigCount = allOrders.filter(o => o.status === "FERTIG").length;
+      const abgeholtCount = allOrders.filter(o => o.status === "ABGEHOLT").length;
+      const reklamationCount = allRek.length;
+      const storniertCount = allOrders.filter(o => o.status === "STORNIERT").length;
+
+      const allActiveCount = allOrders.filter(o => o.status !== "ABGEHOLT").length;
+
+      setStatusCounts({
+        all: allActiveCount,
+        ANGENOMMEN: angenommenCount,
+        IN_BEARBEITUNG: inBearbeitungCount,
+        FERTIG: fertigCount,
+        ABGEHOLT: abgeholtCount,
+        REKLAMATION: reklamationCount,
+        STORNIERT: storniertCount
+      });
+    } catch (err) {
+      console.error("Error fetching status counts:", err);
+    }
+  };
+
   useEffect(() => { 
     load(); 
+    fetchCounts();
     /* eslint-disable-next-line */ 
   }, [statusFilter, branchId]);
 
@@ -64,6 +115,10 @@ const load = async () => {
   };
 
   const filtered = orders.filter((o) => {
+    if (!statusFilter && o.status === "ABGEHOLT") {
+      return false;
+    }
+
     if (!q) return true;
     const s = q.toLowerCase();
     return (
@@ -77,7 +132,7 @@ const load = async () => {
   return (
     <div>
       <PageHeader label={t("orders.label")} title={t("orders.title")}>
-        {(user.role === "admin" || user.role === "mitarbeiter") && (
+        {canManage && (
           <button
             data-testid="header-new-order"
             onClick={() => navigate("/auftrag/neu")}
@@ -99,30 +154,36 @@ const load = async () => {
         </div>
       )}
 
-      {/* Quick filter tabs */}
+      {/* Quick filter tabs with Counts */}
       <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
         {[
-          { key: "", label: "Alle" },
-          { key: "ANGENOMMEN", label: "Diagnose" },
-          { key: "IN_BEARBEITUNG", label: "In Bearbeitung" },
-          { key: "FERTIG", label: "Fertig" },
-          { key: "ABGEHOLT", label: "Abgeholt" },
-          { key: "REKLAMATION", label: "Reklamation" },
-          { key: "STORNIERT", label: "Storniert" },
-        ].map((tab) => (
-          <button
-            key={tab.key || "all"}
-            data-testid={`filter-tab-${tab.key ? tab.key.toLowerCase() : "all"}`}
-            onClick={() => setStatusFilter(tab.key)}
-            className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors ${
-              statusFilter === tab.key
-                ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : tab.key === "STORNIERT" ? "border-red-500 bg-red-950/60 text-red-200" : "border-accent bg-accent/10 text-foreground")
-                : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : tab.key === "STORNIERT" ? "border-red-700/60 text-red-400 hover:text-red-200" : "border-border text-muted-foreground hover:text-foreground")
-            }`}
-          >
-            {tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : tab.key === "STORNIERT" ? "Storniert" : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}
-          </button>
-        ))}
+          { key: "", label: "Alle", countKey: "all" },
+          { key: "ANGENOMMEN", label: "Diagnose", countKey: "ANGENOMMEN" },
+          { key: "IN_BEARBEITUNG", label: "In Bearbeitung", countKey: "IN_BEARBEITUNG" },
+          { key: "FERTIG", label: "Fertig", countKey: "FERTIG" },
+          { key: "ABGEHOLT", label: "Abgeholt", countKey: "ABGEHOLT" },
+          { key: "REKLAMATION", label: "Reklamation", countKey: "REKLAMATION" },
+          { key: "STORNIERT", label: "Storniert", countKey: "STORNIERT" },
+        ].map((tab) => {
+          const count = statusCounts[tab.countKey] || 0;
+          return (
+            <button
+              key={tab.key || "all"}
+              data-testid={`filter-tab-${tab.key ? tab.key.toLowerCase() : "all"}`}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors flex items-center gap-1.5 ${
+                statusFilter === tab.key
+                  ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : tab.key === "STORNIERT" ? "border-red-500 bg-red-950/60 text-red-200" : "border-accent bg-accent/10 text-foreground")
+                  : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : tab.key === "STORNIERT" ? "border-red-700/60 text-red-400 hover:text-red-200" : "border-border text-muted-foreground hover:text-foreground")
+              }`}
+            >
+              <span>{tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : tab.key === "STORNIERT" ? "Storniert" : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}</span>
+              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono ${statusFilter === tab.key ? "bg-accent/20 text-foreground" : "bg-muted text-muted-foreground"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Toolbar */}
@@ -156,14 +217,14 @@ const load = async () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="max-h-[75vh] overflow-y-auto overflow-x-auto border-t border-b border-border/60">
         {loading ? (
           <div className="p-8 font-mono text-muted-foreground">{t("orders.loading")}</div>
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center font-mono text-muted-foreground text-sm">{t("orders.empty")}</div>
         ) : (
           <table className="w-full text-sm border-collapse">
-            <thead>
+            <thead className="sticky top-0 bg-background/95 backdrop-blur-sm z-30">
               <tr className="border-b border-border text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 <th className="px-6 md:px-8 py-3 font-medium">{t("orders.colNumber")}</th>
                 <th className="px-4 py-3 font-medium">{t("orders.colDevice")}</th>

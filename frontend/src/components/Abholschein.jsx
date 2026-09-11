@@ -65,7 +65,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   
   const isDiagPaid = order?.is_diagnosis_paid_at_intake === true;
   const diagLabel = billingMode === "PAID" || billingMode === "repair_only" ? "ERLASSEN" : isDiagPaid ? "BEZAHLT" : "NICHT BEZAHLT";
-  const payStatus = grossVal > 0 && restVal <= 0 ? "Bezahlt" : anzahlungVal > 0 ? "Teilweise" : "Offen";
+  const payStatus = grossVal > 0 && restVal <= 0 ? "Bezahlt" : anzahlungVal > 0 ? "Teilweise" : "Nicht bezahlt";
 
   // طباعة المعاينة عبر نافذة منبثقة
   const handlePrint = () => {

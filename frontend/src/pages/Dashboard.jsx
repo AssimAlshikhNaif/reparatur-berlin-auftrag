@@ -157,7 +157,7 @@ function Metric({ label, value, icon: Icon, accent, testid }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({ total_orders: 0 });
   const [slaOrders, setSlaOrders] = useState([]);
 
   if (user?.role === "mitarbeiter") return <MitarbeiterDashboard />;

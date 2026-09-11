@@ -35,7 +35,7 @@ export default function ReklamationPanel() {
                 className="w-full rounded-lg flex items-center justify-between gap-3 border border-amber-900/40 bg-amber-950/20 px-4 py-3 text-left hover:bg-amber-950/40 transition-colors">
                 <div className="min-w-0">
                   <div className="font-mono text-sm font-semibold text-foreground">{o.auftragsnummer}</div>
-                  <div className="text-xs text-muted-foreground truncate">{o.device_brand} {o.device_model} · {o.branch_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{o.device_brand} {o.device_model} · {o.branch_name} {o.created_by ? `· ${o.created_by}` : ""}</div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {o.is_reclamation && (

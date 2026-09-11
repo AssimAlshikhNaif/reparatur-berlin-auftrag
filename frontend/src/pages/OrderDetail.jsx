@@ -16,8 +16,7 @@ import CommunicationPanel from "@/components/CommunicationPanel";
 import InspectionForm from "@/components/InspectionForm";
 import ContractPrint from "@/components/ContractPrint";
 import LabelPrint from "@/components/LabelPrint";
-import { PatternDisplay } from "@/components/PatternLock";
-import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, TECH_STATUS_FLOW } from "@/lib/constants";
+import PatternLock, { PatternDisplay } from "@/components/PatternLock";import { STATUS_LABELS, COST_STATUS_LABELS, COST_STATUS_STYLES, PICKUP_WAIVER, TECH_STATUS_FLOW } from "@/lib/constants";
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -253,6 +252,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
       anzahlung: parseFloat(costForm.anzahlung) || 0,
       diagnosis_payment_status: costForm.diagnosis_payment_status || "OPEN",
       is_diagnosis_paid_at_intake: !!costForm.is_diagnosis_paid_at_intake,
+      defect_description: costForm.defect_description || order.defect_description
     }), t("toast.costsSaved"));;
 
   const setCostStatus = (cost_status) => act(() => api.patch(`/orders/${id}/costs`, { cost_status }), t("toast.costStatusUpdated"));
@@ -523,21 +523,30 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                     }`}>
                     <Printer size={14} /> {t("actions.printInvoice")}
                   </button>
-                  <button data-testid="open-reklamation" onClick={() => navigate("/auftrag/neu", {
-                    state: {
-                      reklamationOf: {
-                        id: order.id, auftragsnummer: order.auftragsnummer, branch_id: order.branch_id,
-                        device_brand: order.device_brand, device_model: order.device_model, imei: order.imei,
-                        customer_name: order.customer_name, customer_phone: order.customer_phone,
-                        customer_email: order.customer_email, customer_address: order.customer_address,
+
+                  <button 
+                    data-testid="open-reklamation" 
+                    onClick={async () => {
+                      try {
+                        const res = await api.post(`/orders/${order.id}/create-reclamation`);
+                        if (res.data && res.data.id) {
+                          // الانتقال مباشرة لصفحة الطلب الخاص بالريكلاماتيون الذي تم إنشاؤه وربطه بالباك إند
+                          navigate(`/auftrag/${res.data.id}`);
+                        } else {
+                          window.location.reload();
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        toast.error("Fehler beim Erstellen der Reklamation");
                       }
-                    }
-                  })}
-                    className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600/60 text-amber-300 px-3 py-2 rounded-lg hover:bg-amber-950/50 transition-all shadow-xs shrink-0">
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider border border-amber-600/60 text-amber-300 px-3 py-2 rounded-lg hover:bg-amber-950/50 transition-all shadow-xs shrink-0"
+                  >
                     <ArrowsClockwise size={14} /> {t("actions.reklamation")}
                   </button>
                 </>
               )}
+              
               {order.status === "FERTIG" && (
                 <button data-testid="mark-delivered" onClick={() => {
                   if (!order?.pickup_signature && !order?.signature) {
@@ -625,6 +634,26 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                 </span>
               </div>
               <div className="p-4 space-y-4">
+                
+                {/* حقل وصف العطل أو الإصلاح للفاتورة */}
+                {canManage && (
+                  <div className="space-y-1.5 pb-3 border-b border-border">
+                    <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                      Reparaturbeschreibung / Fehler (für die Rechnung)
+                    </label>
+                    <textarea
+  data-testid="cost-defect-description-input"
+  value={costForm.defect_description !== undefined ? costForm.defect_description : (order.defect_description || "")}
+  onChange={(e) => {
+    setCostForm({ ...costForm, defect_description: e.target.value });
+  }}
+  placeholder="z.B. Displaytausch & Ladebuchse gereinigt..."
+  className="w-full bg-background border border-border px-3 py-2 text-xs rounded-lg outline-none focus:border-accent font-mono"
+  rows={2}
+/>
+                  </div>
+                )}
+
                 {canManage ? (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
@@ -648,7 +677,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   </div>
                 ) : (
                   <div className="font-mono text-sm space-y-1">
-                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_fee || 0).toFixed(2)} €</span></div>
+                    <div className="flex justify-between text-muted-foreground"><span>{t("costs.diagnosisFee")}</span><span>{Number(order.cost?.diagnosis_diagnosis_fee || 0).toFixed(2)} €</span></div>
                     <div className="flex justify-between text-muted-foreground"><span>{t("costs.labor")}</span><span>{Number(order.cost?.labor_cost || 0).toFixed(2)} €</span></div>
                     <div className="flex justify-between text-muted-foreground"><span>{t("costs.attempt")}</span><span>{Number(order.cost?.parts_cost || 0).toFixed(2)} €</span></div>
                   </div>
@@ -1092,7 +1121,13 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   </div>
                 ))}
               </div>
+              {/* اسم الموظف المسؤول مرتب تحت الـ Verlauf مباشرة داخل نفس الصندوق */}
+  <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between">
+    <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Erstellt von:</span>
+    <span className="text-xs font-mono font-semibold text-foreground">{order.created_by || "—"}</span>
+  </div>
             </Section>
+            
           </div>
         </div>
       )}
@@ -1176,66 +1211,139 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
       )}
 
       {showEdit && editForm && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-card border border-border/80 max-w-xl w-full p-6 sm:p-8 rounded-2xl shadow-2xl my-8 relative">
+  <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+    <div className="bg-card border border-border/80 max-w-xl w-full p-6 sm:p-8 rounded-2xl shadow-2xl my-8 relative">
 
-            <div className="flex items-center justify-between pb-4 mb-6 border-b border-border/60">
-              <div>
-                <h3 className="font-head font-bold text-xl text-foreground tracking-tight">{t("detail.editOrder")}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Kundendaten, Gerätedetails und Techniker zuweisen</p>
-              </div>
-              <button
-                onClick={() => setShowEdit(false)}
-                className="text-muted-foreground hover:text-foreground p-2 rounded-lg hover:bg-muted/60 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
+            <div>
+              {/* قسم بيانات العميل */}
+  <div className="mb-6">
+    <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-3 font-semibold">Kundendaten</div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      
+      <div className="space-y-1">
+        <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.name") || "Name"}</label>
+        <input
+          data-testid="edit-customer_name"
+          value={editForm.customer_name || ""}
+          onChange={(e) => setEditForm({ ...editForm, customer_name: e.target.value })}
+          className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+        />
+      </div>
 
-            <div className="space-y-5">
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-3 font-semibold">Kundendaten</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    ["customer_name", t("oc.name")],
-                    ["customer_phone", t("oc.phone")],
-                    ["customer_email", t("oc.email")],
-                    ["customer_address", t("oc.address")],
-                  ].map(([key, label]) => (
-                    <div key={key} className="space-y-1">
-                      <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{label}</label>
-                      <input
-                        data-testid={`edit-${key}`}
-                        value={editForm[key] || ""}
-                        onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                        className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
+      <div className="space-y-1">
+        <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.phone") || "Telefon"}</label>
+        <input
+          data-testid="edit-customer_phone"
+          value={editForm.customer_phone || ""}
+          onChange={(e) => setEditForm({ ...editForm, customer_phone: e.target.value })}
+          className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+        />
+      </div>
 
-              <div className="border-t border-border/40"></div>
+      <div className="space-y-1">
+        <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.email") || "E-Mail"}</label>
+        <input
+          data-testid="edit-customer_email"
+          value={editForm.customer_email || ""}
+          onChange={(e) => setEditForm({ ...editForm, customer_email: e.target.value })}
+          className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+        />
+      </div>
 
-              <div>
+      <div className="space-y-1">
+        <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.address") || "Adresse"}</label>
+        <input
+          data-testid="edit-customer_address"
+          value={editForm.customer_address || ""}
+          onChange={(e) => setEditForm({ ...editForm, customer_address: e.target.value })}
+          className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+        />
+      </div>
+
+    </div>
+  </div>
                 <div className="text-[11px] font-mono uppercase tracking-wider text-accent mb-3 font-semibold">Gerätedetails & Reparatur</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    ["device_brand", t("oc.brand")],
-                    ["device_model", t("oc.model")],
-                    ["imei", t("oc.imei")],
-                    ["device_passcode", t("oc.lockValue")],
-                  ].map(([key, label]) => (
-                    <div key={key} className="space-y-1">
-                      <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{label}</label>
-                      <input
-                        data-testid={`edit-${key}`}
-                        value={editForm[key] || ""}
-                        onChange={(e) => setEditForm({ ...editForm, [key]: e.target.value })}
-                        className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
-                      />
+                  
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.brand") || "Marke"}</label>
+                    <input
+                      data-testid="edit-device_brand"
+                      value={editForm.device_brand || ""}
+                      onChange={(e) => setEditForm({ ...editForm, device_brand: e.target.value })}
+                      className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.model") || "Modell"}</label>
+                    <input
+                      data-testid="edit-device_model"
+                      value={editForm.device_model || ""}
+                      onChange={(e) => setEditForm({ ...editForm, device_model: e.target.value })}
+                      className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.imei") || "IMEI / Seriennr."}</label>
+                    <input
+                      data-testid="edit-imei"
+                      value={editForm.imei || ""}
+                      onChange={(e) => setEditForm({ ...editForm, imei: e.target.value })}
+                      className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                    />
+                  </div>
+
+                  {/* اختيار نوع القفل ولوحة الرسم */}
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                      {t("oc.lock") || "Geräte-Sperre"}
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <select 
+                        data-testid="edit-order-lock-type" 
+                        value={editForm.device_lock_type || "none"}
+                        onChange={(e) => setEditForm({ ...editForm, device_lock_type: e.target.value, device_passcode: "" })}
+                        className="bg-background/50 border border-border/80 px-3.5 py-2.5 text-xs rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all cursor-pointer h-11"
+                      >
+                        <option value="none">{t("oc.lockNone") || "Keine Sperre"}</option>
+                        <option value="pattern">{t("oc.lockPattern") || "Muster (zeichnen)"}</option>
+                        <option value="pin">{t("oc.lockPin") || "PIN (numerisch)"}</option>
+                        <option value="password">{t("oc.lockPassword") || "Passwort (alphanumerisch)"}</option>
+                      </select>
+
+                      <div className="sm:col-span-2">
+                        {editForm.device_lock_type === "none" ? (
+                          <div className="bg-muted/30 border border-border/50 px-4 py-2.5 text-xs text-muted-foreground rounded-xl flex items-center h-11">
+                            Kein Sperrcode erforderlich
+                          </div>
+                        ) : editForm.device_lock_type === "pattern" ? (
+                          <div className="bg-background/50 border border-border/80 p-4 rounded-xl flex flex-col items-center justify-center space-y-3">
+                            <div className="w-48 h-48 flex items-center justify-center bg-card/40 rounded-lg border border-border/40 p-2">
+                              <div className="scale-90 transform origin-center">
+                                <PatternLock 
+                                  value={editForm.device_passcode || ""} 
+                                  onChange={(seq) => setEditForm((f) => ({ ...f, device_passcode: seq }))} 
+                                />
+                              </div>
+                            </div>
+                            
+                          </div>
+                        ) : (
+                          <input 
+                            data-testid="edit-order-lock-input"
+                            inputMode={editForm.device_lock_type === "pin" ? "numeric" : "text"}
+                            placeholder={editForm.device_lock_type === "pin" ? "PIN eingeben (z.B. 1234)..." : "Passwort eingeben..."}
+                            value={editForm.device_passcode || ""}
+                            onChange={(e) => setEditForm({ ...editForm, device_passcode: e.target.value })}
+                            className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all font-mono h-11"
+                          />
+                        )}
+                      </div>
                     </div>
-                  ))}
+                  </div>
+
                   <div className="sm:col-span-2 space-y-1">
                     <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
                       {t("oc.technician") || "Techniker zuweisen"}
@@ -1254,6 +1362,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                       ))}
                     </select>
                   </div>
+
                   <div className="sm:col-span-2 space-y-1">
                     <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.issue")}</label>
                     <textarea
@@ -1264,9 +1373,10 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                       className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all resize-none"
                     />
                   </div>
+
                 </div>
               </div>
-            </div>
+            
 
             <div className="flex items-center gap-3 mt-8 pt-4 border-t border-border/60">
               <button

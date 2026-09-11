@@ -24,7 +24,7 @@ BRANCHES = [
         "logo_url": "/logos/handy_laptop_praxi-removebg-preview.png"
     },
     {
-        "name": " SmartPhone Tegel",
+        "name": "SmartPhone Tegel",
         "address": " Gorkistr.17 , 13507 Berlin",
         "phone": " 015733555555 ",
         "logo_url": ""
@@ -141,7 +141,15 @@ BRANCHES = [
         "phone": "+49 1787477747 ",
         "email": " Info@mediaphone24.de ",
         "logo_url": "/logos/Mediaphone24.png"
-    }
+    },
+
+           {
+        "name": "TECHNIK WORLD",
+        "address": "Hauptstr. 9, 13055 Berlin",
+        "phone": " +49 17620926744 ",
+        "email": "servicetechnikworld@gmail.com",
+        "logo_url": "/logos/technikWorld.jpeg"
+    } 
 
 ]
 

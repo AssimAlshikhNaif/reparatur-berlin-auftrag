@@ -40,6 +40,7 @@ PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_add
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 EDITABLE_ORDER_FIELDS = [
     "device_brand", "device_model", "imei", "issue_description",
+    "defect_description",
     "customer_name", "customer_phone", "customer_email", "customer_address",
     "assigned_techniker_id", "device_passcode", "device_lock_type"
 ]
@@ -310,6 +311,7 @@ class CostUpdate(BaseModel):
     diagnosis_payment_status: Optional[str] = None  # OPEN=beides | PAID=nur Reparatur | NA=nur Diagnose
     anzahlung: Optional[float] = None
     is_diagnosis_paid_at_intake: Optional[bool] = None
+    defect_description: Optional[str] = None
 
 class UsedPartInput(BaseModel):
     inventory_id: str
@@ -344,6 +346,7 @@ class OrderEditInput(BaseModel):
     device_lock_type: Optional[str] = None
     issue_description: Optional[str] = None
     assigned_techniker_id: Optional[str] = None
+    defect_description: Optional[str] = None
 
 class UserCreate(BaseModel):
     name: str
@@ -805,6 +808,8 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
     if current["role"] == "mitarbeiter":
         branch_id = current.get("branch_id") or input.branch_id
     warranty_months = input.warranty_months if input.warranty_months is not None else WARRANTY_DEFAULT_MONTHS
+    # استخراج وصف العطل للفاتورة (إذا لم يُرسل، يأخذ وصف المشكلة الأساسي issue_description)
+    defect_description = getattr(input, "defect_description", None) or getattr(input, "issue_description", "")
     
     # ==================== حسابات التكاليف والمالية المتكاملة ====================
     diagnosis_fee = float(input.diagnosis_fee or 0)
@@ -878,6 +883,7 @@ async def create_order(input: OrderCreate, current=Depends(require_roles("admin"
         "pickup_signed_name": "",
         "pickup_signed_at": None,
         "assigned_techniker_id": input.assigned_techniker_id,
+        "defect_description": getattr(input, "defect_description", None) or input.issue_description.strip(),
         "status": status,
         "reject_reason": "",
         "media": input.media if input.media else [],
@@ -1237,127 +1243,81 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
 
-# ==================== COSTS ====================
+# ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
                        current=Depends(require_roles("admin", "mitarbeiter"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
     updates = {}
+    
+    # تحويل الـ input إلى Dictionary بأمان تام بغض النظر عن نوعه
+    if hasattr(input, "model_dump"):
+        input_data = input.model_dump()
+    elif hasattr(input, "dict"):
+        input_data = input.dict()
+    elif isinstance(input, dict):
+        input_data = input
+    else:
+        input_data = dict(input)
+
+    # 1. تحديث حقول التكاليف الرقمية بأمان
     for k in ("diagnosis_fee", "labor_cost", "parts_cost"):
-        v = getattr(input, k)
+        v = input_data.get(k)
         if v is not None:
-            updates[k] = float(v)
-    if input.cost_status is not None:
-        if input.cost_status not in COST_STATES:
+            try:
+                updates[k] = float(v)
+            except (ValueError, TypeError):
+                updates[k] = 0.0
+
+    # 2. تحديث وصف العطل بشكل منفصل
+    defect_desc = input_data.get("defect_description")
+    if defect_desc is not None:
+        updates["defect_description"] = str(defect_desc).strip()
+
+    # 3. باقي الحقول
+    if input_data.get("cost_status") is not None:
+        cost_status = input_data.get("cost_status")
+        if cost_status not in COST_STATES:
             raise HTTPException(status_code=400, detail="Ungültiger Kostenstatus")
-        updates["cost_status"] = input.cost_status
-    if input.diagnosis_payment_status is not None:
-        if input.diagnosis_payment_status not in ("PAID", "OPEN", "NA"):
+        updates["cost_status"] = cost_status
+        
+    if input_data.get("diagnosis_payment_status") is not None:
+        diag_status = input_data.get("diagnosis_payment_status")
+        if diag_status not in ("PAID", "OPEN", "NA"):
             raise HTTPException(status_code=400, detail="Ungültiger Zahlungsstatus")
-        updates["diagnosis_payment_status"] = input.diagnosis_payment_status
-    if input.anzahlung is not None:
-        if input.anzahlung < 0:
+        updates["diagnosis_payment_status"] = diag_status
+        
+    if input_data.get("anzahlung") is not None:
+        anzahlung = input_data.get("anzahlung")
+        if anzahlung < 0:
             raise HTTPException(status_code=400, detail="Anzahlung darf nicht negativ sein")
-        updates["anzahlung"] = round(float(input.anzahlung), 2)
-    if input.is_diagnosis_paid_at_intake is not None:
-        updates["is_diagnosis_paid_at_intake"] = bool(input.is_diagnosis_paid_at_intake)
+        updates["anzahlung"] = round(float(anzahlung), 2)
+        
+    if input_data.get("is_diagnosis_paid_at_intake") is not None:
+        updates["is_diagnosis_paid_at_intake"] = bool(input_data.get("is_diagnosis_paid_at_intake"))
+
+    # التنفيذ في قاعدة البيانات
     if updates:
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         await db.orders.update_one({"_id": ObjectId(order_id)}, {"$set": updates})
+        
         if "cost_status" in updates:
             await log_audit(order_id, "KOSTEN", f"Kostenstatus → {updates['cost_status']}", current["name"])
         else:
             await log_audit(order_id, "KOSTEN", "Kosten aktualisiert", current["name"])
+            
         await push_notification(
             kind="KOSTEN", title="Kosten aktualisiert",
             message=f"{current['name']} hat Kosten für {order.get('auftragsnummer','')} aktualisiert.",
             by=current["name"], by_role=current["role"],
             order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
         )
+        
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
-    
-        # ==================== USED PARTS ====================
-async def _assert_order_access(order, current):
-    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-
-
-@router.post("/orders/{order_id}/parts")
-async def add_used_part(order_id: str, input: UsedPartInput, current=Depends(get_current_user)):
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    if not order:
-        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-    await _assert_order_access(order, current)
-    if input.quantity < 1:
-        raise HTTPException(status_code=400, detail="Menge muss mindestens 1 sein")
-    item = await db.inventory.find_one({"_id": ObjectId(input.inventory_id)})
-    if not item:
-        raise HTTPException(status_code=404, detail="Ersatzteil nicht gefunden")
-    if item["quantity"] < input.quantity:
-        raise HTTPException(status_code=400, detail=f"Nicht genügend Bestand ({item['quantity']} verfügbar)")
-    total = round(item["price"] * input.quantity, 2)
-    part = {
-        "id": str(uuid.uuid4()),
-        "inventory_id": str(item["_id"]),
-        "sku": item["sku"],
-        "name": f"{item['brand']} {item['device_model']} · {item['part_type']}",
-        "quantity": input.quantity,
-        "unit_price": item["price"],
-        "total": total,
-        "added_by": current["name"],
-        "added_at": datetime.now(timezone.utc).isoformat(),
-    }
-    await db.inventory.update_one({"_id": item["_id"]}, {"$inc": {"quantity": -input.quantity}})
-    new_parts_cost = round(float(order.get("parts_cost") or 0) + total, 2)
-    await db.orders.update_one(
-        {"_id": ObjectId(order_id)},
-        {"$push": {"used_parts": part},
-         "$set": {"parts_cost": new_parts_cost, "updated_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    await log_audit(order_id, "ERSATZTEIL", f"Verbaut: {input.quantity}× {part['sku']} (Lagerabzug)", current["name"])
-    await push_notification(
-        kind="ERSATZTEIL", title="Ersatzteil verbaut",
-        message=f"{current['name']} hat {input.quantity}× {part['sku']} für {order.get('auftragsnummer','')} verbaut.",
-        by=current["name"], by_role=current["role"],
-        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
-    )
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)
-
-
-@router.delete("/orders/{order_id}/parts/{part_id}")
-async def remove_used_part(order_id: str, part_id: str, current=Depends(get_current_user)):
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    if not order:
-        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-    await _assert_order_access(order, current)
-    part = next((p for p in order.get("used_parts", []) if p["id"] == part_id), None)
-    if not part:
-        raise HTTPException(status_code=404, detail="Verbautes Teil nicht gefunden")
-    try:
-        await db.inventory.update_one({"_id": ObjectId(part["inventory_id"])},
-                                      {"$inc": {"quantity": part["quantity"]}})
-    except Exception:
-        pass
-    new_parts_cost = round(max(0.0, float(order.get("parts_cost") or 0) - float(part["total"])), 2)
-    await db.orders.update_one(
-        {"_id": ObjectId(order_id)},
-        {"$pull": {"used_parts": {"id": part_id}},
-         "$set": {"parts_cost": new_parts_cost, "updated_at": datetime.now(timezone.utc).isoformat()}},
-    )
-    await log_audit(order_id, "ERSATZTEIL", f"Entfernt: {part['sku']} (Bestand zurückgebucht)", current["name"])
-    await push_notification(
-        kind="ERSATZTEIL", title="Ersatzteil entfernt",
-        message=f"{current['name']} hat {part['sku']} von {order.get('auftragsnummer','')} entfernt.",
-        by=current["name"], by_role=current["role"],
-        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
-    )
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)
-
 
 # ==================== AUDIT LOG ====================
 @router.get("/orders/{order_id}/audit")
@@ -1722,7 +1682,7 @@ async def stats(current=Depends(get_current_user)):
             total_revenue += costs.get("gross", 0.0)
 
     result = {
-        "total_orders": len(orders),
+        "total_orders": len(active_orders_list) if active_orders_list else 0,
         "by_status": by_status,
         "sla_breached": sla_count,
         "active_orders": active_orders,
@@ -1833,6 +1793,7 @@ async def add_signature(order_id: str, input: SignatureInput,
 
 
 # ==================== GLOBAL SEARCH ====================
+# ==================== GLOBAL SEARCH ====================
 @router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), current=Depends(get_current_user)):
     term = q.strip()
@@ -1841,20 +1802,29 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     import re
     safe = re.escape(term)
     rx = {"$regex": safe, "$options": "i"}
+    
+    # إذا كان النص المدخل عبارة عن أرقام قصيرة (مثل آخر أرقام من الأوفراغ)، نبحث عن مطابقة في النهاية أيضاً
+    auftrag_regex = rx
+    if term.isdigit() and len(term) <= 4:
+        auftrag_regex = {"$regex": f"({safe})$", "$options": "i"}
+
     base = await _order_query_for_user(current)
     or_clauses = [
-        {"auftragsnummer": rx},
+        {"auftragsnummer": auftrag_regex},
         {"imei": rx},
         {"customer_phone": rx},
+        {"device_brand": rx},      
+        {"device_model": rx},
+        {"defect_description": rx},
     ]
     # Only non-technicians can search by customer name (PII)
     if current["role"] != "techniker":
         or_clauses.append({"customer_name": rx})
+        
     query = {"$and": [base, {"$or": or_clauses}]} if base else {"$or": or_clauses}
     orders = await db.orders.find(query).sort("created_at", -1).to_list(50)
     bmap, umap = await _name_maps()
     return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
-
 
 # ==================== NOTIFICATIONS (Admin + Reception + targeted Technicians) ====================
 async def _notif_query(user: dict, branch_id_param: str = None):
@@ -2016,7 +1986,8 @@ async def global_activity(limit: int = 200, current=Depends(require_roles("admin
     } for e in entries]
 
 
-# ==================== REKLAMATION / GARANTIE OVERVIEW ====================
+# ==================== REKLAMATION / GARANTIE OVERVIEW & CREATION ====================
+
 @router.get("/reklamationen")
 async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter"))):
     base = await _order_query_for_user(current)
@@ -2031,52 +2002,43 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
         out.append(s)
     return out
 
-@router.get("/files/{file_path:path}")
-async def serve_file(file_path: str):
-    # قص أي رموز استعلام (Query Parameters) مثل ?auth=... ليبقى المسار صافياً تماماً
-    clean_path = file_path.split("?")[0].lstrip("/\\")
-    
-    UPLOAD_DIR = "/var/www/repair-berlin-uploads"
-    
-    # قائمة بكل الاحتمالات الممكنة لمكان وجود الملف على السيرفر
-    possible_paths = [
-        os.path.join(UPLOAD_DIR, clean_path),
-        os.path.join(UPLOAD_DIR, "repair-berlin", clean_path),
-        os.path.join(UPLOAD_DIR, clean_path.replace("repair-berlin/", "", 1))
-    ]
-    
-    target_file = None
-    for path in possible_paths:
-        if os.path.exists(path) and os.path.isfile(path):
-            target_file = path
-            break
-            
-    # إذا لم يُجد بالمسارات المباشرة، نبحث بالاسم الحقيقي كحل أخير مطلق
-    if not target_file:
-        filename = os.path.basename(clean_path)
-        if os.path.exists(UPLOAD_DIR):
-            for root, dirs, files in os.walk(UPLOAD_DIR):
-                if filename in files:
-                    target_file = os.path.join(root, filename)
-                    break
 
-    if not target_file or not os.path.exists(target_file):
-        raise HTTPException(status_code=404, detail=f"File truly not found: {clean_path}")
-
-    content_type = "application/octet-stream"
-    lower_path = target_file.lower()
-    if lower_path.endswith((".jpg", ".jpeg")):
-        content_type = "image/jpeg"
-    elif lower_path.endswith(".png"):
-        content_type = "image/png"
-    elif lower_path.endswith(".webp"):
-        content_type = "image/webp"
-    elif lower_path.endswith((".mp4", ".mov")):
-        content_type = "video/mp4"
-    elif lower_path.endswith(".webm"):
-        content_type = "video/webm"
-        
-    with open(target_file, "rb") as f:
-        content = f.read()
-        
-    return Response(content=content, media_type=content_type)
+@router.post("/orders/{order_id}/create-reclamation")
+async def create_reclamation_order(order_id: str, current = Depends(require_roles("admin", "mitarbeiter"))):
+    old_order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not old_order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    # توليد رقم أوفراغ مميز للريكلاماسيون منعاً لتكرار الأرقام
+    old_nr = old_order.get('auftragsnummer', '')
+    new_auftragsnummer = f"REK-{old_nr}" if not old_nr.startswith("REK-") else old_nr
+    
+    reklamation_data = {
+        "auftragsnummer": new_auftragsnummer,
+        "original_order_id": str(old_order["_id"]),
+        "is_reclamation": True,
+        "customer_name": old_order.get("customer_name"),
+        "customer_phone": old_order.get("customer_phone"),
+        "customer_email": old_order.get("customer_email"),
+        "customer_address": old_order.get("customer_address"),
+        "device_brand": old_order.get("device_brand"),
+        "device_model": old_order.get("device_model"),
+        "imei": old_order.get("imei"),
+        "branch_id": old_order.get("branch_id"),
+        "defect_description": f"Reklamation zu Auftrag {old_nr}: ",
+        "cost": {
+            "diagnosis_fee": 0,
+            "labor_cost": 0,
+            "parts_cost": 0,
+            "status": "BESTAETIGT"
+        },
+        "status": "Angenommen",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": current["name"]
+    }
+    
+    result = await db.orders.insert_one(reklamation_data)
+    new_id = str(result.inserted_id)
+    
+    new_order = await db.orders.find_one({"_id": ObjectId(new_id)})
+    return serialize_order(new_order, current)

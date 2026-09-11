@@ -59,13 +59,13 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     return () => window.removeEventListener("afterprint", handleAfterPrint);
   }, [onClose]);
 
-  // توليد PDF عالي الجودة باستخدام html2canvas لضمان ظهور اللوغو والتنسيقات بشكل مطابق تماماً للشاشة
+  // توليد PDF عالي الجودة باستخدام html2canvas
   const generatePdfCanvas = async () => {
     const input = document.getElementById("rechnung");
     if (!input) return null;
 
     const canvas = await html2canvas(input, {
-      scale: 2, // دقة عالية جداً للطباعة والـ PDF
+      scale: 2,
       useCORS: true,
       logging: false,
     });
@@ -165,21 +165,43 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
               </div>
             </div>
 
-            {/* Line items */}
+            {/* Line items + Repair / Defect Description */}
             <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "20px" }} data-testid="invoice-items">
               <thead>
                 <tr>
-                  <th style={cellTh}>Position / Leistung</th>
+                  <th style={cellTh}>Position / Leistung & Reparaturbeschreibung</th>
                   <th style={{ ...cellTh, textAlign: "center", width: "70px" }}>Menge</th>
                   <th style={{ ...cellTh, textAlign: "right", width: "110px" }}>Betrag</th>
                 </tr>
               </thead>
               <tbody>
+                {order.defect_description && (
+  <tr>
+    <td 
+      style={{ 
+        ...cellTd, 
+        color: "#555", 
+        fontStyle: "italic", 
+        fontSize: "11px",
+        wordBreak: "break-word",
+        overflowWrap: "break-word",
+        maxWidth: "160mm",
+        whiteSpace: "normal"
+      }} 
+      colSpan="3"
+    >
+      <span style={{ fontWeight: "bold", fontStyle: "normal", color: "#111" }}>Fehler / Service: </span> 
+      <span style={{ display: "inline-block", wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "140mm" }}>
+        {order.defect_description}
+      </span>
+    </td>
+  </tr>
+)}
                 {diagFee > 0 && (
                   <tr><td style={cellTd}>Diagnosegebühr</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{diagFee.toFixed(2)} €</td></tr>
                 )}
                 {laborCost > 0 && (
-                  <tr><td style={cellTd}>Reparaturkosten</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{laborCost.toFixed(2)} €</td></tr>
+                  <tr><td style={cellTd}>Reparaturkosten / Arbeitsleistung</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{laborCost.toFixed(2)} €</td></tr>
                 )}
                 {parts.map((p) => (
                   <tr key={p.id}><td style={cellTd}>{p.name || p.sku}</td><td style={{ ...cellTd, textAlign: "center" }}>{p.quantity}</td><td style={{ ...cellTd, textAlign: "right" }}>{Number(p.total || 0).toFixed(2)} €</td></tr>
