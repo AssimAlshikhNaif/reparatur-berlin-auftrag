@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 APP_NAME = "repair-berlin"
 
-UPLOAD_DIR = ""/app/uploads""
+UPLOAD_DIR = "/app/uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
