@@ -9,6 +9,7 @@ from fastapi import (APIRouter, HTTPException, Depends, UploadFile, File,
                      Query, Header, WebSocket, WebSocketDisconnect, Response, Form)
 from pydantic import BaseModel
 from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 
 from db import db
@@ -1217,7 +1218,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     if not target_media or target_index == -1:
         raise HTTPException(status_code=404, detail="Media not found")
 
-    # 3. حذف الملف الفعلي من السيرفر بأمان تام (سواء كان الكائن دكشنري أو نص)
+    # 3. حذف الملف الفعلي من السيرفر بأمان تام مع تجربة مسارات متعددة (لحل مشكلة السيرفر الحقيقي)
     file_path = None
     if isinstance(target_media, dict):
         file_path = target_media.get("file_path") or target_media.get("storage_path")
@@ -1225,12 +1226,20 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
         file_path = target_media
 
     if file_path:
-        full_path = os.path.join("/app", file_path) if not file_path.startswith("/") else file_path
-        if os.path.exists(full_path):
-            try:
-                os.remove(full_path)
-            except Exception:
-                pass
+        possible_paths = [
+            file_path,
+            os.path.join("/app", file_path.lstrip("/")),
+            os.path.join("/root/reparatur-berlin-auftrag/backend", file_path.lstrip("/")),
+            os.path.abspath(file_path)
+        ]
+        
+        for full_path in possible_paths:
+            if os.path.exists(full_path):
+                try:
+                    os.remove(full_path)
+                    break
+                except Exception:
+                    pass
 
     # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
     media_list.pop(target_index)
@@ -1242,7 +1251,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
-
+    
 # ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
@@ -1807,7 +1816,6 @@ async def add_signature(order_id: str, input: SignatureInput,
     return serialize_order(order, current)
 
 
-# ==================== GLOBAL SEARCH ====================
 # ==================== GLOBAL SEARCH ====================
 @router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), current=Depends(get_current_user)):
