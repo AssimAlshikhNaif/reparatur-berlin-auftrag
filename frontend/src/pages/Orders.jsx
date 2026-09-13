@@ -23,9 +23,10 @@ export default function Orders() {
   const [printOrder, setPrintOrder] = useState(null);
   
   // حالة لتخزين أعداد الطلبات لكل تبويب لعرضها بشكل دقيق
-  const [statusCounts, setStatusCounts] = useState({
+ const [statusCounts, setStatusCounts] = useState({
     all: 0,
     ANGENOMMEN: 0,
+    DIAGNOSE: 0,
     IN_BEARBEITUNG: 0,
     FERTIG: 0,
     ABGEHOLT: 0,
@@ -42,7 +43,10 @@ export default function Orders() {
       if (statusFilter === "REKLAMATION") {
         try {
           const { data } = await api.get("/reklamationen");
-          const filteredData = Array.isArray(data) ? (branchId ? data.filter((o) => o.branch_id === branchId) : data) : [];
+          // استثناء الطلبات التي حالتها ABGEHOLT من قائمة المرتجعات المعروضة
+          const filteredData = Array.isArray(data) 
+            ? data.filter((o) => (!branchId || o.branch_id === branchId) && o.status !== "ABGEHOLT") 
+            : [];
           setOrders(filteredData);
         } catch (err) {
           console.error("Reklamationen load error:", err);
@@ -52,6 +56,10 @@ export default function Orders() {
         const params = {};
         if (statusFilter) params.status = statusFilter;
         if (branchId) params.branch_id = branchId;
+        
+        if (!statusFilter) {
+          params.limit = 10000;
+        }
 
         const { data } = await api.get("/orders", { params });
         setOrders(Array.isArray(data) ? data : []);
@@ -64,11 +72,11 @@ export default function Orders() {
     }
   };
 
-  // جلب الأعداد لكل الحالات بشكل دقيق ومتطابق مع منطق الجدول والفرع
   const fetchCounts = async () => {
     try {
       const params = {};
       if (branchId) params.branch_id = branchId;
+      params.limit = 10000;
 
       const [ordersRes, rekRes] = await Promise.all([
         api.get("/orders", { params }),
@@ -78,18 +86,35 @@ export default function Orders() {
       const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
       const allRek = Array.isArray(rekRes.data) ? (branchId ? rekRes.data.filter(o => o.branch_id === branchId) : rekRes.data) : [];
 
-      const angenommenCount = allOrders.filter(o => o.status === "ANGENOMMEN").length;
-      const inBearbeitungCount = allOrders.filter(o => o.status === "IN_BEARBEITUNG").length;
+      // الحالات الأساسية مع دمج الحالات الفرعية لضمان مطابقة المجموع
+      const angenommenCount = allOrders.filter(o => o.status === "ANGENOMMEN" || o.status === "AKZEPTIERT").length;
+      
+      const diagnoseCount = allOrders.filter(o => 
+        o.status === "DIAGNOSE" || o.status === "Nach Diagnose / Freigabe"
+      ).length;
+      
+      const inBearbeitungCount = allOrders.filter(o => 
+        o.status === "IN_BEARBEITUNG" || o.status === "Warten auf Ersatzteil" || o.status === "ZUGEWIESEN"
+      ).length;
+      
       const fertigCount = allOrders.filter(o => o.status === "FERTIG").length;
       const abgeholtCount = allOrders.filter(o => o.status === "ABGEHOLT").length;
-      const reklamationCount = allRek.length;
-      const storniertCount = allOrders.filter(o => o.status === "STORNIERT").length;
+      
+      // حساب المرتجعات النشطة فقط (استبعاد ABGEHOLT من عداد الـ REKLAMATION)
+      const activeRek = allRek.filter(o => o.status !== "ABGEHOLT");
+      const reklamationCount = activeRek.length;
+      
+      const storniertCount = allOrders.filter(o => 
+        o.status === "STORNIERT" || o.status === "Abgelehnt"
+      ).length;
 
-      const allActiveCount = allOrders.filter(o => o.status !== "ABGEHOLT").length;
-
+      // زر ALLE: يحسب كل الطلبات النشطة في allOrders بدقة (ما عدا ABGEHOLT)
+      const baseActiveCount = allOrders.filter(o => o.status !== "ABGEHOLT").length;
+      const allActiveCount = baseActiveCount + reklamationCount;
       setStatusCounts({
         all: allActiveCount,
         ANGENOMMEN: angenommenCount,
+        DIAGNOSE: diagnoseCount,
         IN_BEARBEITUNG: inBearbeitungCount,
         FERTIG: fertigCount,
         ABGEHOLT: abgeholtCount,
@@ -128,7 +153,7 @@ export default function Orders() {
       (o.customer_name || "").toLowerCase().includes(s)
     );
   });
-
+  
   return (
     <div>
       <PageHeader label={t("orders.label")} title={t("orders.title")}>

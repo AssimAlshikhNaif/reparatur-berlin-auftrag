@@ -1169,57 +1169,6 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
         
     return {"message": "Notiz erfolgreich gelöscht"}
 
-    @router.delete("/uploads/{filename}")
-    @router.delete("/api/uploads/{filename}")
-    async def delete_upload_file(filename: str, current=Depends(get_current_user)):
-           import urllib.parse
-           decoded_filename = urllib.parse.unquote(filename)
-    
-    # 1. البحث في قاعدة البيانات عن أي طلب يحتوي على هذا الملف وإزالته من القائمة
-    order = await db.orders.find_one({
-        "$or": [
-            {"media": decoded_filename},
-            {"media.filename": decoded_filename},
-            {"media.file_path": {"$regex": decoded_filename}},
-            {"media.storage_path": {"$regex": decoded_filename}}
-        ]
-    })
-    
-    if order:
-        order_id = str(order["_id"])
-        media_list = order.get("media", [])
-        target_index = -1
-        
-        for i, m in enumerate(media_list):
-            if decoded_filename in str(m):
-                target_index = i
-                break
-        
-        if target_index != -1:
-            media_list.pop(target_index)
-            await db.orders.update_one(
-                {"_id": ObjectId(order_id)},
-                {"$set": {"media": media_list}}
-            )
-
-    # 2. حذف الملف الفعلي حصراً (وليس المجلد) من مسارات الـ uploads المحتملة
-    possible_paths = [
-        os.path.join("uploads", decoded_filename),
-        os.path.join("/app/uploads", decoded_filename),
-        os.path.join("/root/reparatur-berlin-auftrag/backend/uploads", decoded_filename),
-        f"/uploads/{decoded_filename}"
-    ]
-    
-    for full_path in possible_paths:
-        if os.path.exists(full_path):
-            try:
-                os.remove(full_path)
-                break
-            except Exception:
-                pass
-
-    return {"success": True, "message": "Deleted successfully"}
-
 @router.delete("/orders/{order_id}/media/{media_id}")
 async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
@@ -1269,7 +1218,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     if not target_media or target_index == -1:
         raise HTTPException(status_code=404, detail="Media not found")
 
-    # 3. حذف الملف الفعلي من السيرفر بأمان تام مع تجربة مسارات متعددة (لحل مشكلة السيرفر الحقيقي)
+    # 3. حذف الملف الفعلي من السيرفر بأمان تام (سواء كان الكائن دكشنري أو نص)
     file_path = None
     if isinstance(target_media, dict):
         file_path = target_media.get("file_path") or target_media.get("storage_path")
@@ -1277,20 +1226,12 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
         file_path = target_media
 
     if file_path:
-        possible_paths = [
-            file_path,
-            os.path.join("/app", file_path.lstrip("/")),
-            os.path.join("/root/reparatur-berlin-auftrag/backend", file_path.lstrip("/")),
-            os.path.abspath(file_path)
-        ]
-        
-        for full_path in possible_paths:
-            if os.path.exists(full_path):
-                try:
-                    os.remove(full_path)
-                    break
-                except Exception:
-                    pass
+        full_path = os.path.join("/app", file_path) if not file_path.startswith("/") else file_path
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+            except Exception:
+                pass
 
     # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
     media_list.pop(target_index)
@@ -1302,7 +1243,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
-    
+
 # ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
@@ -1716,6 +1657,17 @@ async def stats(current=Depends(get_current_user)):
     # إذا كان المستخدم أدمن، نلغي قيود الفروع من استعلام العدد الإجمالي ليرى كل الأفرع حقاً
     total_query = {} if current.get("role") == "admin" else query
     total_orders_count = await db.orders.count_documents(total_query)
+
+    # 2. الطلبات النشطة (حساب مباشر من قاعدة البيانات بدقة تامة)
+    active_orders = await db.orders.count_documents({
+        **query,
+        "status": {"$nin": list(FINAL_STATES) if 'FINAL_STATES' in globals() else ["ABGEHOLT", "STORNIERT"]}
+    })
+    # 3. الطلبات المكتملة / المسلمة (ABGEHOLT)
+    completed_repairs = await db.orders.count_documents({
+        **query,
+        "status": "ABGEHOLT"
+    })
     
     # جلب الحقول الأساسية للإحصائيات والرسوم البيانية (بما يتناسب مع حدود الـ 1000 أو الكيرسر)
     orders = await db.orders.find(
@@ -1867,6 +1819,7 @@ async def add_signature(order_id: str, input: SignatureInput,
     return serialize_order(order, current)
 
 
+# ==================== GLOBAL SEARCH ====================
 # ==================== GLOBAL SEARCH ====================
 @router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), current=Depends(get_current_user)):
