@@ -1170,6 +1170,7 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
     return {"message": "Notiz erfolgreich gelöscht"}
 
     @router.delete("/uploads/{filename}")
+    @router.delete("/api/uploads/{filename}")
     async def delete_upload_file(filename: str, current=Depends(get_current_user)):
            import urllib.parse
            decoded_filename = urllib.parse.unquote(filename)
