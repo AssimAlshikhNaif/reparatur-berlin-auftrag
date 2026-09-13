@@ -20,6 +20,8 @@ import PatternLock, { PatternDisplay } from "@/components/PatternLock";import { 
 import { berlinDateTime } from "@/lib/datetime";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
+
+
 import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
@@ -1401,9 +1403,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 }
 
 function MediaThumb({ m, onDelete }) {
-    const fileName = m.storage_path ? m.storage_path.replace(/^.*[\\\/]/, '') : '';
-    // إضافة الجذر بالكامل لتجنب أي اختصار خاطئ من المتصفح
-    const exactUrl = fileName ? `${window.location.origin}/uploads/${fileName}` : '';
+    const exactUrl = fileUrl(m.storage_path || m.path);
 
     return (
         <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">

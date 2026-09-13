@@ -1,8 +1,6 @@
 import axios from "axios";
 
-// إذا لم يتم تحديد REACT_APP_BACKEND_URL أثناء البناء (build)، نستخدم مسارًا نسبيًا "/api".
-// هذا يجعل الواجهة الأمامية تعمل تلقائياً عبر بروكسي Nginx (انظر nginx.conf) بغض النظر
-// عن الدومين أو IP السيرفر، بدلاً من ربطها بعنوان IP ثابت قد يتغيّر عند إعادة النشر.
+
 export const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
 export const API = `${BACKEND_URL}/api`;
 
@@ -17,7 +15,7 @@ export function setToken(token) {
   accessToken = token;
   if (token) {
     localStorage.setItem("rb_token", token);
-    localStorage.setItem("token", token); // حفظه بالطريقتين لضمان التوافق
+    localStorage.setItem("token", token); 
   } else {
     localStorage.removeItem("rb_token");
     localStorage.removeItem("token");
@@ -37,16 +35,26 @@ export function fileUrl(storagePath) {
   if (!storagePath) return "";
   if (storagePath.startsWith("http")) return storagePath;
   
-  const token = localStorage.getItem("rb_token") || localStorage.getItem("token") || accessToken || "";
+  const token =
+    localStorage.getItem("rb_token") ||
+    localStorage.getItem("token") ||
+    accessToken ||
+    "";
+
+  let cleanPath = storagePath.startsWith("/")
+    ? storagePath.slice(1)
+    : storagePath;
   
-  let cleanPath = storagePath.startsWith("/") ? storagePath.slice(1) : storagePath;
-  
-  // إذا كان المسار يبدأ بـ api/ أو api/files/ نقوم بإزالتها لكي لا تتكرر
   if (cleanPath.startsWith("api/files/")) {
     cleanPath = cleanPath.replace("api/files/", "");
   } else if (cleanPath.startsWith("files/")) {
     cleanPath = cleanPath.replace("files/", "");
   }
+
+  console.log("storagePath:", storagePath);
+  console.log("cleanPath:", cleanPath);
+  console.log("API:", API);
+  
 
   return `${API}/files/${cleanPath}?auth=${token}`;
 }
