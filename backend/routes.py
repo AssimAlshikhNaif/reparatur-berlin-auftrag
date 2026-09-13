@@ -1169,6 +1169,56 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
         
     return {"message": "Notiz erfolgreich gelöscht"}
 
+    @router.delete("/uploads/{filename}")
+    async def delete_upload_file(filename: str, current=Depends(get_current_user)):
+           import urllib.parse
+           decoded_filename = urllib.parse.unquote(filename)
+    
+    # 1. البحث في قاعدة البيانات عن أي طلب يحتوي على هذا الملف وإزالته من القائمة
+    order = await db.orders.find_one({
+        "$or": [
+            {"media": decoded_filename},
+            {"media.filename": decoded_filename},
+            {"media.file_path": {"$regex": decoded_filename}},
+            {"media.storage_path": {"$regex": decoded_filename}}
+        ]
+    })
+    
+    if order:
+        order_id = str(order["_id"])
+        media_list = order.get("media", [])
+        target_index = -1
+        
+        for i, m in enumerate(media_list):
+            if decoded_filename in str(m):
+                target_index = i
+                break
+        
+        if target_index != -1:
+            media_list.pop(target_index)
+            await db.orders.update_one(
+                {"_id": ObjectId(order_id)},
+                {"$set": {"media": media_list}}
+            )
+
+    # 2. حذف الملف الفعلي حصراً (وليس المجلد) من مسارات الـ uploads المحتملة
+    possible_paths = [
+        os.path.join("uploads", decoded_filename),
+        os.path.join("/app/uploads", decoded_filename),
+        os.path.join("/root/reparatur-berlin-auftrag/backend/uploads", decoded_filename),
+        f"/uploads/{decoded_filename}"
+    ]
+    
+    for full_path in possible_paths:
+        if os.path.exists(full_path):
+            try:
+                os.remove(full_path)
+                break
+            except Exception:
+                pass
+
+    return {"success": True, "message": "Deleted successfully"}
+
 @router.delete("/orders/{order_id}/media/{media_id}")
 async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
