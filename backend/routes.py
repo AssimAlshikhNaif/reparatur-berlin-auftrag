@@ -684,12 +684,12 @@ async def list_orders(
     except Exception:
         query = {}
     
-    # --- قيد الفروع بناءً على وجود allowed_branches لدى المستخدم ---
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # إذا كان لديه فروع مخصصة (حتى لو كان دوره admin)، نقيّده بها
-    if allowed_branches:
+    # --- تعديل المنطق هنا ليميز بين الأدمن والموظف العادي ---
+    if user_role in ["admin", "super_admin"] and allowed_branches:
+        # إذا كان أدمن ولديه فروع مخصصة (مثل George_Admin)
         branch_match_list = []
         for b in allowed_branches:
             branch_match_list.append(b)
@@ -697,10 +697,16 @@ async def list_orders(
                 branch_match_list.append(ObjectId(b))
             except Exception:
                 pass
-        
         query["branch_id"] = {"$in": branch_match_list}
+    elif user_role == "mitarbeiter":
+        # الموظف العادي يرى طلبات فرعه فقط بناءً على branch_id الخاص به
+        user_branch = current.get("branch_id")
+        if user_branch:
+            query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
+        else:
+            query["branch_id"] = {"$in": []}
     elif user_role not in ["admin", "super_admin"]:
-        # إذا لم يكن لديه فروع مخصصة وليس أدمن عام، لا يرى شيئاً
+        # لأي دور آخر غير مسموح
         query["branch_id"] = {"$in": []}
     
     if status:
@@ -725,7 +731,7 @@ async def list_orders(
     # Projection شامل لجلب رقم الطلب، الحقول الأساسية، ومعرفات الموظفين والتقنيين
     try:
         orders = await db.orders.find(
-            query,
+            query,  
             {
                 "auftragsnummer": 1, "customer_name": 1, "device_model": 1, 
                 "status": 1, "created_at": 1, "branch_id": 1, 
