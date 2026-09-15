@@ -673,7 +673,7 @@ async def list_orders(
     status: Optional[str] = None, 
     sla: Optional[bool] = None,
     branch_id: Optional[str] = None, 
-    limit: int = 50, 
+    limit: int = 20000, 
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
@@ -684,16 +684,42 @@ async def list_orders(
     except Exception:
         query = {}
     
+    # --- قيد الفروع بناءً على وجود allowed_branches لدى المستخدم ---
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", []) 
+    
+    # إذا كان لديه فروع مخصصة (حتى لو كان دوره admin)، نقيّده بها
+    if allowed_branches:
+        branch_match_list = []
+        for b in allowed_branches:
+            branch_match_list.append(b)
+            try:
+                branch_match_list.append(ObjectId(b))
+            except Exception:
+                pass
+        
+        query["branch_id"] = {"$in": branch_match_list}
+    elif user_role not in ["admin", "super_admin"]:
+        # إذا لم يكن لديه فروع مخصصة وليس أدمن عام، لا يرى شيئاً
+        query["branch_id"] = {"$in": []}
+    
     if status:
         query["status"] = status
         
     if branch_id:
         try:
+            # إذا طلب فرعاً معيناً، نتحقق أولاً هل هو ضمن فروعه المسموحة (لزيادة الأمان)
+            if user_role not in ["admin", "super_admin"] and allowed_branches:
+                if branch_id not in [str(b) for b in allowed_branches]:
+                    raise HTTPException(status_code=403, detail="ليس لديك صلاحية لعرض هذا الفرع")
+            
             query["$or"] = [
                 {"branch_id": branch_id},
                 {"branch_id": ObjectId(branch_id)}
             ]
-        except Exception:
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
             query["branch_id"] = branch_id
     
     # Projection شامل لجلب رقم الطلب، الحقول الأساسية، ومعرفات الموظفين والتقنيين

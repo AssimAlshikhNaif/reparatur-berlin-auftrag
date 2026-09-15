@@ -1,4 +1,3 @@
-
 services:
   backend:
     build: ./backend
@@ -6,6 +5,8 @@ services:
       - "8001:8001"
     env_file:
       - .env
+    volumes:
+      - ./uploads:/app/backend/uploads
     restart: always
 
   frontend:

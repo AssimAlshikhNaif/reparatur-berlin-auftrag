@@ -6,7 +6,8 @@ logger = logging.getLogger(__name__)
 
 APP_NAME = "repair-berlin"
 
-UPLOAD_DIR = "/app/uploads"
+LOCAL_UPLOAD_DIR = Path(__file__).parent / "uploads"
+UPLOAD_DIR = LOCAL_UPLOAD_DIR if not Path("/app/uploads").exists() else Path("/app/uploads")
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -16,15 +17,9 @@ def init_storage():
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
-    
     try:
         clean_path = path.lstrip("/\\")
-        
-        path_obj = Path(clean_path)
-        if len(path_obj.parts) > 1 and path_obj.parts[0] == APP_NAME:
-            path_obj = Path(*path_obj.parts[1:])
-
-        file_path = Path(UPLOAD_DIR) / path_obj
+        file_path = Path(UPLOAD_DIR) / clean_path
         
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -39,21 +34,19 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def get_object(path: str):
-    
     if not path:
         raise FileNotFoundError("Empty path")
         
     clean_path = path.lstrip("/\\")
-    path_obj = Path(clean_path)
+    search_root = Path(UPLOAD_DIR)
     
-    if len(path_obj.parts) > 1 and path_obj.parts[0] == APP_NAME:
-        path_obj = Path(*path_obj.parts[1:])
-
-    file_path = Path(UPLOAD_DIR) / path_obj
+    # البحث المباشر بالمسار الكامل
+    file_path = search_root / clean_path
     
+    # إذا لم يوجد، نبحث بالاسم في كافة المجلدات الفرعية تلقائياً
     if not file_path.exists():
         filename = Path(path).name
-        for root, dirs, files in os.walk(UPLOAD_DIR):
+        for root, dirs, files in os.walk(search_root):
             if filename in files:
                 file_path = Path(root) / filename
                 break
