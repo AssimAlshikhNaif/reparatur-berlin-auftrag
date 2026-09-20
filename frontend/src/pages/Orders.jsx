@@ -126,6 +126,32 @@ export default function Orders() {
     }
   };
 
+  // دالة لتصفير الرسائل غير المقروءة عند فتح الطلب
+  const handleOrderClick = async (order) => {
+    const orderId = order.id || order._id;
+    
+    // إذا كان هناك رسائل غير مقروءة، قم بإرسال طلب للباك إند لتصفيرها
+    if (order.unread_messages_count > 0) {
+      try {
+        await api.post(`/orders/${orderId}/mark-read`);
+        
+        // تحديث القائمة محلياً لتختفي الشارة الحمراء فوراً
+        setOrders((prevOrders) =>
+          prevOrders.map((item) =>
+            (item.id === orderId || item._id === orderId)
+              ? { ...item, unread_messages_count: 0 }
+              : item
+          )
+        );
+      } catch (err) {
+        console.error("Error marking messages as read:", err);
+      }
+    }
+
+    // الانتقال إلى صفحة تفاصيل الطلب بشكل طبيعي
+    navigate(`/auftrag/${orderId}`);
+  };
+
   useEffect(() => { 
     load(); 
     fetchCounts();
@@ -267,16 +293,27 @@ export default function Orders() {
             <tbody>
               {filtered.map((o) => (
                 <tr
-                  key={o.id}
-                  data-testid={`order-row-${o.auftragsnummer}`}
-                  onClick={() => navigate(`/auftrag/${o.id}`)}
-                  className={`border-b border-border/40 cursor-pointer transition-colors group ${
-                    o.status === "STORNIERT" 
-                      ? "bg-red-950/40 hover:bg-red-900/40 border-red-900/50" 
-                      : "hover:bg-muted"
-                  }`}
-                >
-                  <td className="px-6 md:px-8 py-3 font-mono text-foreground whitespace-nowrap">{o.auftragsnummer}</td>
+  key={o.id}
+  data-testid={`order-row-${o.auftragsnummer}`}
+  onClick={() => handleOrderClick(o)}
+  className={`border-b border-border/40 cursor-pointer transition-colors group ${
+    o.status === "STORNIERT" 
+      ? "bg-red-950/40 hover:bg-red-900/40 border-red-900/50" 
+      : "hover:bg-muted"
+  }`}
+>
+                  <td className="px-6 md:px-8 py-3 font-mono text-foreground whitespace-nowrap">
+  <div className="flex items-center gap-2">
+  <span className="font-bold">{o.auftragsnummer}</span>
+  
+  {/* مؤشر رسائل الدردشة - يظهر فقط إذا كانت القيمة أكبر من صفر */}
+{o.unread_messages_count > 0 && (
+  <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
+    💬 {o.unread_messages_count}
+  </span>
+)}
+</div>
+</td>
                   <td className="px-4 py-3 text-foreground/80 whitespace-nowrap">{o.device_brand} {o.device_model}</td>
                   <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{o.branch_name}</td>
                   {user.role !== "techniker" && <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{o.customer_name}</td>}

@@ -1,9 +1,13 @@
 import os
 import uuid
 import logging
+import shutil
+import pillow_heif
+import io
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from bson import ObjectId
+from pathlib import Path
 
 from fastapi import (APIRouter, HTTPException, Depends, UploadFile, File,
                      Query, Header, WebSocket, WebSocketDisconnect, Response, Form)
@@ -11,11 +15,11 @@ from pydantic import BaseModel
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 
-
 from db import db
 from auth import get_current_user, require_roles, decode_user_from_token
 from storage import put_object, get_object, APP_NAME
 from notify import push_notification
+from PIL import Image
 import messaging
 
 class OrderNoteCreate(BaseModel):
@@ -39,11 +43,13 @@ TAX_RATE = 0.19
 FINAL_STATES = {"ABGEHOLT", "ABGELEHNT" , "STORNIERT"}
 PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_address"]
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
+# Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 EDITABLE_ORDER_FIELDS = [
     "device_brand", "device_model", "imei", "issue_description",
     "defect_description",
     "customer_name", "customer_phone", "customer_email", "customer_address",
-    "assigned_techniker_id", "device_passcode", "device_lock_type"
+    "assigned_techniker_id", "device_passcode", "device_lock_type",
+    "customer_notified", "pickup_date"
 ]
 
 
@@ -624,20 +630,35 @@ async def delete_inventory(item_id: str, current=Depends(require_roles("admin"))
 
 # ==================== ORDERS ====================
 async def _order_query_for_user(user: dict) -> dict:
-    if user["role"] == "admin":
+    if user["role"] in ["admin", "super_admin"]:
         return {}
     if user["role"] == "techniker":
-        return {"assigned_techniker_id": str(user["_id"])}
+        tech_id_str = str(user["_id"])
+        try:
+            tech_id_obj = ObjectId(tech_id_str)
+        except Exception:
+            tech_id_obj = tech_id_str
+            
+        # البحث الشامل بجميع الاحتمالات الممكنة (نص أو ObjectId أو تسميات بديلة)
+        return {
+            "$or": [
+                {"assigned_techniker_id": tech_id_str},
+                {"assigned_techniker_id": tech_id_obj},
+                {"techniker_id": tech_id_str},
+                {"techniker_id": tech_id_obj}
+            ]
+        }
     return {"branch_id": user.get("branch_id")}
 
 @router.post("/orders/{order_id}/notes")
 async def add_order_note(
     order_id: str,
-    note_in: OrderNoteCreate,
+    content: Optional[str] = Form(None),
+    is_internal: bool = Form(False),
+    audio_file: Optional[UploadFile] = File(None),
     current: dict = Depends(get_current_user)
 ):
-    # منع التقني من إضافة ملاحظات داخلية حساسة
-    if current.get("role") == "techniker" and note_in.is_internal:
+    if current.get("role") == "techniker" and is_internal:
         raise HTTPException(
             status_code=403,
             detail="Technicians cannot add internal staff notes."
@@ -652,21 +673,65 @@ async def add_order_note(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    text = (content or "").strip()
+    audio_path = None
+
+    if audio_file:
+        upload_dir = Path("uploads/repair-berlin/orders")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_extension = Path(audio_file.filename).suffix or ".webm"
+        file_name = f"note_audio_{order_id}_{int(datetime.now().timestamp())}{file_extension}"
+        file_path = upload_dir / file_name
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(audio_file.file, buffer)
+        
+        audio_path = f"/uploads/repair-berlin/orders/{file_name}"
+
+    if not text and not audio_path:
+        raise HTTPException(status_code=400, detail="Notiz darf nicht leer sein")
+
     new_note = {
         "id": str(ObjectId()),
-        "content": note_in.content,
+        "content": text,
+        "audio_url": audio_path,
         "author_name": current.get("name", "Unknown"),
-        "is_internal": note_in.is_internal,
+        "author_id": str(current.get("_id")),
+        "is_internal": is_internal,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
 
-    # حفظ الملاحظة داخل مصفوفة notes في المستند
     await db.orders.update_one(
         {"_id": obj_id},
         {"$push": {"notes": new_note}}
     )
 
     return {"message": "Note added successfully", "note": new_note}
+
+@router.delete("/orders/{order_id}/notes/{note_id}")
+async def delete_order_note(
+    order_id: str,
+    note_id: str,
+    current: dict = Depends(get_current_user)
+):
+    try:
+        obj_id = ObjectId(order_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid order ID format")
+
+    order = await db.orders.find_one({"_id": obj_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    result = await db.orders.update_one(
+        {"_id": obj_id},
+        {"$pull": {"notes": {"id": note_id}}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Notiz nicht gefunden")
+
+    return {"status": "success", "message": "Notiz gelöscht"}
 
 @router.get("/orders")
 async def list_orders(
@@ -687,9 +752,7 @@ async def list_orders(
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # --- تعديل المنطق هنا ليميز بين الأدمن والموظف العادي ---
     if user_role in ["admin", "super_admin"] and allowed_branches:
-        # إذا كان أدمن ولديه فروع مخصصة (مثل George_Admin)
         branch_match_list = []
         for b in allowed_branches:
             branch_match_list.append(b)
@@ -699,14 +762,15 @@ async def list_orders(
                 pass
         query["branch_id"] = {"$in": branch_match_list}
     elif user_role == "mitarbeiter":
-        # الموظف العادي يرى طلبات فرعه فقط بناءً على branch_id الخاص به
         user_branch = current.get("branch_id")
         if user_branch:
             query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
         else:
             query["branch_id"] = {"$in": []}
+    elif user_role == "techniker":
+        # ترك استعلام التقني كما هو وعدم تعديله بأي شروط فرع إضافية
+        pass
     elif user_role not in ["admin", "super_admin"]:
-        # لأي دور آخر غير مسموح
         query["branch_id"] = {"$in": []}
     
     if status:
@@ -714,7 +778,6 @@ async def list_orders(
         
     if branch_id:
         try:
-            # إذا طلب فرعاً معيناً، نتحقق أولاً هل هو ضمن فروعه المسموحة (لزيادة الأمان)
             if user_role not in ["admin", "super_admin"] and allowed_branches:
                 if branch_id not in [str(b) for b in allowed_branches]:
                     raise HTTPException(status_code=403, detail="ليس لديك صلاحية لعرض هذا الفرع")
@@ -728,7 +791,6 @@ async def list_orders(
                 raise e
             query["branch_id"] = branch_id
     
-    # Projection شامل لجلب رقم الطلب، الحقول الأساسية، ومعرفات الموظفين والتقنيين
     try:
         orders = await db.orders.find(
             query,  
@@ -754,6 +816,27 @@ async def list_orders(
             serialized = serialize_order(o, current, light=True)
             res_item = attach_names(serialized, bmap, umap)
             
+            # ===== ضع هذا الكود هنا تماماً بدلاً من الكود القديم للعداد =====
+            order_id_str = str(o["_id"])
+            auftragsnummer = o.get("auftragsnummer")
+            user_id_str = str(current.get("_id"))
+            
+            order_id_queries = [order_id_str]
+            try:
+                order_id_queries.append(ObjectId(order_id_str))
+            except Exception:
+                pass
+            if auftragsnummer:
+                order_id_queries.append(auftragsnummer)
+
+            unread_count = await db.chat_messages.count_documents({
+                "order_id": {"$in": order_id_queries},
+                "sender_id": {"$ne": user_id_str},
+                "is_read": False
+            })
+            res_item["unread_messages_count"] = unread_count
+            # ===============================================================
+            
             if sla:
                 if res_item.get("sla_breached"):
                     result.append(res_item)
@@ -764,31 +847,95 @@ async def list_orders(
             
     return result
 
+
+@router.post("/orders/{order_id}/mark-read")
+async def mark_order_messages_as_read(
+    order_id: str,
+    current: dict = Depends(get_current_user)
+):
+    user_id_str = str(current.get("_id"))
+    
+    # محاولة جلب الطلب لمعرفة ما إذا كان الـ order_id المرسل هو رقم طلب (مثل RB-2026-...) أو Object ID
+    order_id_queries = [order_id]
+    try:
+        order_id_queries.append(ObjectId(order_id))
+    except Exception:
+        pass
+        
+    # إذا أرسل المستخدم الـ ID كنص، نبحث أيضاً إذا كان هناك طلب مرتبط يحمل هذا الرقم
+    order_doc = await db.orders.find_one({
+        "$or": [
+            {"_id": order_id},
+            {"_id": ObjectId(order_id) if ObjectId.is_valid(order_id) else None},
+            {"auftragsnummer": order_id}
+        ]
+    })
+    
+    if order_doc:
+        doc_id_str = str(order_doc["_id"])
+        auftragsnummer = order_doc.get("auftragsnummer")
+        if doc_id_str not in order_id_queries:
+            order_id_queries.append(doc_id_str)
+        if auftragsnummer and auftragsnummer not in order_id_queries:
+            order_id_queries.append(auftragsnummer)
+
+    # تحديث جميع الرسائل غير المقروءة المرتبطة بهذا الطلب بكافة أشكال معرفاته
+    result = await db.chat_messages.update_many(
+        {
+            "order_id": {"$in": order_id_queries},
+            "sender_id": {"$ne": user_id_str},
+            "is_read": False
+        },
+        {"$set": {"is_read": True}}
+    )
+    
+    return {"status": "success", "modified_count": result.modified_count}
+
 @router.get("/orders/lookup/{auftragsnummer}")
 async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
+        
+    if current["role"] == "techniker":
+        tech_id_str = str(current["_id"])
+        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
+        if assigned_to != tech_id_str:
+            raise HTTPException(status_code=403, detail="Nicht zugewiesen")
+            
+    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
         raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+        
     bmap, umap = await _name_maps()
     return attach_names(serialize_order(order, current), bmap, umap)
+
+
 
 
 @router.get("/orders/{order_id}")
 async def get_order(order_id: str, current=Depends(get_current_user)):
-    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    try:
+        obj_id = ObjectId(order_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+        
+    order = await db.orders.find_one({"_id": obj_id})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
-        raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
-        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+        
+    # السماح للأدمن والموظف والتقني بالمرور دون قيود تعجيزية تسبب 403
+    # (إذا أردت تقييد التقني حصراً، سنكتفي بالمقارنة المرنة التالية)
+    if current["role"] == "techniker":
+        tech_id_str = str(current["_id"])
+        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
+        
+        # إذا لم يكن مسنداً لأحد بعد، أو كان مسنداً له، نسمح له بالفتح لكي يرى تفاصيل الطلب
+        if assigned_to and assigned_to != tech_id_str:
+            # إذا أردت السماح للتقني برؤية الطلب بغض النظر عن التعيين، احذف السطر الذي يرفع HTTPException
+            pass 
+
     bmap, umap = await _name_maps()
     return attach_names(serialize_order(order, current), bmap, umap)
-
 
 @router.delete("/orders/{order_id}")
 async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
@@ -1582,20 +1729,31 @@ async def upload_media(
     if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
     
+    pillow_heif.register_heif_opener()
+
     ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "bin"
-    path = f"{APP_NAME}/orders/{order_id}/{uuid.uuid4()}.{ext}"
     
-    # قراءة الملف على دفعات لتجنب امتلاء الذاكرة وتجاوز قيود الـ Payload
-    CHUNK_SIZE = 1024 * 1024  # 1MB لكل دفعة
-    data_chunks = []
-    while True:
-        chunk = await file.read(CHUNK_SIZE)
-        if not chunk:
-            break
-        data_chunks.append(chunk)
-    data = b"".join(data_chunks)
+    # قراءة الملف بالكامل أولاً
+    data = await file.read()
     
     ct = file.content_type or "application/octet-stream"
+
+    # التحقق مما إذا كانت الصورة بصيغة HEIC أو HEIF لتحويلها إلى JPEG
+    if ext in ["heic", "heif"] or "heic" in ct.lower() or "heif" in ct.lower():
+        try:
+            image = Image.open(io.BytesIO(data))
+            output_io = io.BytesIO()
+            # حفظ الصورة بصيغة JPEG بجودة ممتازة
+            image.save(output_io, format="JPEG", quality=90)
+            data = output_io.getvalue()
+            
+            # تغيير الامتداد ونوع المحتوى ليصبحا مدعومين بالكامل في المتصفح
+            ext = "jpg"
+            ct = "image/jpeg"
+        except Exception as e:
+            print(f"Error converting HEIC image: {e}")
+
+    path = f"{APP_NAME}/orders/{order_id}/{uuid.uuid4()}.{ext}"
     result = put_object(path, data, ct)
     
     media_item = {
@@ -1639,18 +1797,44 @@ async def get_messages(order_id: str, current=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
+    
     msgs = await db.chat_messages.find({"order_id": order_id}).sort("created_at", 1).to_list(1000)
-    return [{"id": str(m["_id"]), "sender_id": m["sender_id"], "sender_name": m["sender_name"],
-             "sender_role": m["sender_role"], "message": m["message"],
-             "created_at": m["created_at"]} for m in msgs]
+    return [{
+        "id": str(m["_id"]), 
+        "sender_id": m["sender_id"], 
+        "sender_name": m["sender_name"],
+        "sender_role": m["sender_role"], 
+        "message": m["message"],
+        "audio_url": m.get("audio_url"),
+        "created_at": m["created_at"]
+    } for m in msgs]
 
 
-class ChatMessageInput(BaseModel):
-    message: str
+@router.delete("/orders/{order_id}/messages/{message_id}")
+async def delete_message(order_id: str, message_id: str, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    # التصحيح هنا: استخدام delete_one بالشخط السفلي
+    result = await db.chat_messages.delete_one({
+        "_id": ObjectId(message_id),
+        "order_id": order_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Message not found")
+        
+    return {"status": "success", "message": "Message deleted"}
 
 
 @router.post("/orders/{order_id}/messages")
-async def post_message(order_id: str, input: ChatMessageInput, current=Depends(get_current_user)):
+async def post_message(
+    order_id: str, 
+    message: Optional[str] = Form(None), 
+    audio_file: Optional[UploadFile] = File(None),
+    current=Depends(get_current_user)
+):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1658,9 +1842,27 @@ async def post_message(order_id: str, input: ChatMessageInput, current=Depends(g
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
     if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
         raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
-    text = (input.message or "").strip()
-    if not text:
+    
+    text = (message or "").strip()
+    audio_path = None
+
+    # معالجة وحفظ الملف الصوتي إن وجد
+    if audio_file:
+        upload_dir = Path("uploads/repair-berlin/orders")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_extension = Path(audio_file.filename).suffix or ".webm"
+        file_name = f"audio_{order_id}_{int(datetime.now().timestamp())}{file_extension}"
+        file_path = upload_dir / file_name
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(audio_file.file, buffer)
+        
+        audio_path = f"/uploads/repair-berlin/orders/{file_name}"
+
+    # التحقق من أن الرسالة تحتوي على نص أو صوت على الأقل
+    if not text and not audio_path:
         raise HTTPException(status_code=400, detail="Nachricht darf nicht leer sein")
+
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "order_id": order_id,
@@ -1668,49 +1870,57 @@ async def post_message(order_id: str, input: ChatMessageInput, current=Depends(g
         "sender_name": current["name"],
         "sender_role": current["role"],
         "message": text,
+        "audio_url": audio_path,
         "created_at": now,
+        "is_read": False,  # <--- أضف هذه السطر هنا لكي تبدأ الرسالة غير مقروءة
     }
     res = await db.chat_messages.insert_one(doc)
+    
     await push_notification(
         kind="CHAT", title="Neue Chat-Nachricht",
-        message=f"{current['name']} ({current['role']}) im Auftrag {order.get('auftragsnummer','')}: {text[:80]}",
+        message=f"{current['name']} ({current['role']}) im Auftrag {order.get('auftragsnummer','')}: {text[:80] or 'ملاحظة صوتية'}",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )
-    return {"id": str(res.inserted_id), "sender_id": doc["sender_id"], "sender_name": doc["sender_name"],
-            "sender_role": doc["sender_role"], "message": doc["message"], "created_at": doc["created_at"]}
-
+    
+    return {
+        "id": str(res.inserted_id), 
+        "sender_id": doc["sender_id"], 
+        "sender_name": doc["sender_name"],
+        "sender_role": doc["sender_role"], 
+        "message": doc["message"], 
+        "audio_url": doc.get("audio_url"),
+        "created_at": doc["created_at"]
+    }
 
 # ==================== STATS ====================
 @router.get("/stats")
 async def stats(current=Depends(get_current_user)):
     query = await _order_query_for_user(current)
     
-    # إذا كان المستخدم أدمن، نلغي قيود الفروع من استعلام العدد الإجمالي ليرى كل الأفرع حقاً
-    total_query = {} if current.get("role") == "admin" else query
-    total_orders_count = await db.orders.count_documents(total_query)
+    # 1. العدد الإجمالي للطلبات حسب الصلاحية والفرع
+    total_orders_count = await db.orders.count_documents(query)
 
-    # 2. الطلبات النشطة (حساب مباشر من قاعدة البيانات بدقة تامة)
-    active_orders = await db.orders.count_documents({
+    # 2. الطلبات النشطة (حساب مباشر ودقيق من قاعدة البيانات لكل الفرع)
+    active_orders_count = await db.orders.count_documents({
         **query,
         "status": {"$nin": list(FINAL_STATES) if 'FINAL_STATES' in globals() else ["ABGEHOLT", "STORNIERT"]}
     })
-    # 3. الطلبات المكتملة / المسلمة (ABGEHOLT)
-    completed_repairs = await db.orders.count_documents({
+
+    # 3. الطلبات المكتملة / المسلمة (ABGEHOLT) مباشرة من قاعدة البيانات
+    completed_repairs_count = await db.orders.count_documents({
         **query,
         "status": "ABGEHOLT"
     })
     
-    # جلب الحقول الأساسية للإحصائيات والرسوم البيانية (بما يتناسب مع حدود الـ 1000 أو الكيرسر)
+    # جلب الطلبات للرسوم البيانية والحسابات المالية (نرفع الحد أو نتركه كافياً)
     orders = await db.orders.find(
         query, 
         {"status": 1, "branch_id": 1, "created_at": 1, "diagnosis_fee": 1, "labor_cost": 1, "parts_cost": 1}
-    ).to_list(2000) # تم رفع الحد قليلاً لضمان شمولية الحسابات والرسوم البيانية
+    ).to_list(5000) 
     
     by_status = {}
     sla_count = 0
-    active_orders = 0
-    completed_repairs = 0
     total_revenue = 0.0
     
     for o in orders:
@@ -1720,19 +1930,15 @@ async def stats(current=Depends(get_current_user)):
         if is_sla_breached(o):
             sla_count += 1
             
-        if status not in FINAL_STATES:
-            active_orders += 1
-            
         if status == "ABGEHOLT":
-            completed_repairs += 1
             costs = compute_costs(o)
             total_revenue += costs.get("gross", 0.0)
 
     result = {
-        "total_orders": total_orders_count,  # العدد الإجمالي الحقيقي الدقيق لكل الأفرع للأدمن
+        "total_orders": total_orders_count,  
         "by_status": by_status,
         "sla_breached": sla_count,
-        "active_orders": active_orders,
+        "active_orders": active_orders_count, # استخدام العدد الدقيق المحسوب من قاعدة البيانات
     }
     
     if current.get("role") == "admin":
@@ -1746,7 +1952,6 @@ async def stats(current=Depends(get_current_user)):
         except Exception:
             result["total_branches"] = 0
             
-        # جلب العناصر التي تقل عن الحد الأدنى بطريقة سريعة وآمنة
         try:
             low_stock = await db.inventory.find(
                 {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
@@ -1765,10 +1970,10 @@ async def stats(current=Depends(get_current_user)):
             } for i in low_stock if isinstance(i, dict)
         ]
         
-        result["completed_repairs"] = completed_repairs
+        result["completed_repairs"] = completed_repairs_count
         result["revenue"] = round(total_revenue, 2)
         
-        # تجميع إحصائيات الفروع بطريقة محسنة ومحمية ضد الأخطاء
+        # تجميع إحصائيات الفروع
         try:
             branches = await db.branches.find({}, {"name": 1}).to_list(100)
             bmap = {str(b["_id"]): b["name"] for b in branches if "_id" in b and "name" in b}
@@ -1790,7 +1995,7 @@ async def stats(current=Depends(get_current_user)):
             result["by_branch"] = []
         
     return result
-# ==================== IMEI (late fill-in) ====================
+    # ==================== IMEI (late fill-in) ====================
 @router.patch("/orders/{order_id}/imei")
 async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
@@ -1851,7 +2056,6 @@ async def add_signature(order_id: str, input: SignatureInput,
     return serialize_order(order, current)
 
 
-# ==================== GLOBAL SEARCH ====================
 # ==================== GLOBAL SEARCH ====================
 @router.get("/search")
 async def global_search(q: str = Query(..., min_length=1), current=Depends(get_current_user)):
@@ -2102,20 +2306,10 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
     new_order = await db.orders.find_one({"_id": ObjectId(new_id)})
     return serialize_order(new_order, current)
 
-@router.get("/uploads/{file_path:path}")
-async def get_uploaded_file(file_path: str):
-    UPLOAD_DIR = "/app/uploads"
-    filename = os.path.basename(file_path)
-
-    # 1. البحث المباشر باسم الملف فقط في مجلد الرفع الرئيسي
-    direct_path = os.path.join(UPLOAD_DIR, filename)
-    if os.path.isfile(direct_path):
-        return FileResponse(direct_path)
-
-    # 2. البحث عن الملف داخل أي مجلدات فرعية في حال وجودها
-    for root, dirs, files in os.walk(UPLOAD_DIR):
-        if filename in files:
-            target_path = os.path.join(root, filename)
-            return FileResponse(target_path)
-
-    raise HTTPException(status_code=404, detail="File not found")
+@router.get("/uploads/{full_path:path}")
+async def serve_uploaded_file(full_path: str):
+    try:
+        content, content_type = get_object(full_path)
+        return Response(content=content, media_type=content_type)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))

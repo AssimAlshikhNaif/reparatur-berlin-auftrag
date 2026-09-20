@@ -27,8 +27,29 @@ api.interceptors.request.use((config) => {
 });
 
 export function fileUrl(storagePath) {
-  return `${API}/files/${storagePath}?auth=${accessToken}`;
+  if (!storagePath) return "";
+  if (storagePath.startsWith("http")) return storagePath;
+
+  // تنظيف المسار تماماً
+  let clean = storagePath.trim().replace(/^\/+/, "").replace(/^uploads\//, "");
+  
+  // إذا كان المسار يحتوي على orders مسبقاً، نتركه كما هو
+  if (clean.includes("orders")) {
+    return `http://127.0.0.1:8001/uploads/${clean}`;
+  }
+
+  // إذا كان يبدأ بـ repair-berlin ولم تقترن بـ orders، نقوم بحقن orders فوراً
+  if (clean.startsWith("repair-berlin/")) {
+    clean = clean.replace("repair-berlin/", "repair-berlin/orders/");
+  } else {
+    clean = `repair-berlin/orders/${clean}`;
+  }
+
+  const finalUrl = `http://127.0.0.1:8001/uploads/${clean}`;
+  console.log("Forced Fixed URL:", finalUrl); // لتتأكد من شكل الرابط الجديد في الكونسول
+  return finalUrl;
 }
+
 
 export function formatApiErrorDetail(detail) {
   if (detail == null) return "Ein Fehler ist aufgetreten. Bitte erneut versuchen.";

@@ -108,6 +108,9 @@ export default function OrderDetail() {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showExternalProcurement, setShowExternalProcurement] = useState(false);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker";
   const isAdmin = user.role === "admin";
@@ -508,6 +511,103 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 >
   🛒 Beschaffung & Einkauf
 </button>
+
+{["FERTIG", "ABGEHOLT"].includes(order.status) && (
+  <div 
+    onClick={async () => {
+      const newState = !order.customer_notified;
+      try {
+        await api.patch(`/orders/${order.id}`, { customer_notified: newState });
+        
+        if (typeof setOrder === "function") {
+          setOrder(prev => ({ ...prev, customer_notified: newState }));
+        } else {
+          order.customer_notified = newState;
+        }
+
+        toast.success(newState ? "Kunde als benachrichtigt markiert" : "Benachrichtigung aufgehoben");
+      } catch (err) {
+        toast.error("Fehler beim Aktualisieren des Status");
+      }
+    }}
+    className={`flex flex-wrap items-center gap-3 w-full mt-2 pt-2 border-t border-border/60 p-2.5 rounded-lg cursor-pointer transition-all select-none ${
+      order.customer_notified 
+        ? "bg-emerald-500/20 border border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.2)]" 
+        : "bg-muted/30 border border-transparent hover:bg-muted/50"
+    }`}
+  >
+    
+    {/* 1. خانة إعلام الزبون */}
+    <div className="flex items-center gap-2 text-xs font-semibold text-foreground pointer-events-none">
+      <input
+        type="checkbox"
+        data-testid="customer-notified-checkbox"
+        checked={Boolean(order.customer_notified)}
+        readOnly
+        className="w-4 h-4 rounded border-border text-primary accent-emerald-500 pointer-events-none"
+      />
+      <span>{order.customer_notified ? "✓ Kunde benachrichtigt (SMS / Anruf)" : "Kunde benachrichtigen (SMS / Anruf)"}</span>
+    </div>
+
+    <div className="h-4 w-[1px] bg-border hidden sm:block" />
+
+    {/* 2. حقل تاريخ الاستلام (أصفر فقط إذا كان الموعد غداً) */}
+    <div className="flex items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+      <span className="text-muted-foreground font-medium">Abholdatum:</span>
+      <input
+        type="date"
+        data-testid="pickup-date-input"
+        value={order.pickup_date ? order.pickup_date.split("T")[0] : ""}
+        onChange={async (e) => {
+          const newDate = e.target.value;
+          try {
+            await api.patch(`/orders/${order.id}`, { pickup_date: newDate });
+            
+            if (typeof setOrder === "function") {
+              setOrder(prev => ({ ...prev, pickup_date: newDate }));
+            } else {
+              order.pickup_date = newDate;
+            }
+
+            toast.success("Abholdatum aktualisiert");
+          } catch (err) {
+            toast.error("Fehler beim Speichern des Datums");
+          }
+        }}
+        className={`border px-2.5 py-1 rounded-md text-xs font-mono outline-none transition-all shadow-xs cursor-pointer ${
+          (() => {
+            if (!order.pickup_date) return "bg-background border-border text-foreground";
+            
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const pickupDate = new Date(order.pickup_date);
+            pickupDate.setHours(0, 0, 0, 0);
+
+            // حساب الفارق بالأيام بين تاريخ اليوم وتاريخ الاستلام
+            const diffTime = pickupDate.getTime() - today.getTime();
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays === 0) {
+              // أخضر إذا كان موعد الاستلام اليوم
+              return "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]";
+            } else if (diffDays === 1) {
+              // أصفر حصرياً إذا كان الموعد غداً (قبل يوم واحد من التسليم)
+              return "bg-amber-500/15 border-amber-500 text-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]";
+            } else if (diffDays < 0) {
+              // أحمر إذا فات موعد الاستلام ولم يحضر الزبون
+              return "bg-rose-500/15 border-rose-500 text-rose-400 font-bold shadow-[0_0_10px_rgba(244,63,94,0.3)]";
+            } else {
+              // لون عادي إذا كان الموعد بعد أكثر من يوم (مثل تاريخ 22 أو 30 الشهر)
+              return "bg-background border-border text-foreground";
+            }
+          })()
+        }`}
+      />
+    </div>
+
+  </div>
+)}
               
               {order.status === "ABGEHOLT" && (
                 <>
@@ -781,68 +881,178 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
             </div>
             )}
 
-            {/* قسم الملاحظات الداخلية للموظفين */}
-            {!isTech && (
-              <div className="border border-border mt-4">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
-                  <div className="flex items-center gap-2">
-                    <ChatCircleDots size={16} className="text-accent" />
-                    <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
-                  </div>
+      {/* قسم الملاحظات الداخلية للموظفين */}
+{!isTech && (
+  <div className="border border-border mt-4">
+    <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
+      <div className="flex items-center gap-2">
+        <ChatCircleDots size={16} className="text-accent" />
+        <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
+      </div>
+    </div>
+    <div className="p-4 space-y-4">
+      <div className="space-y-2 max-h-60 overflow-y-auto">
+        {order?.notes && order.notes.length > 0 ? (
+          order.notes.map((note) => (
+            <div key={note.id || note._id} className="relative bg-background border border-border p-3 rounded-lg text-sm group pr-8">
+              {/* عرض النص إذا وجد */}
+              {note.content && <p className="text-foreground whitespace-pre-wrap mb-2">{note.content}</p>}
+              
+              {/* عرض مشغل الصوت إذا كانت ملاحظة صوتية */}
+              {note.audio_url && (
+                <div className="mb-2">
+                  <audio controls className="w-full h-8">
+                    <source src={`http://127.0.0.1:8001${note.audio_url}`} type="audio/webm" />
+                    Dein Browser unterstützt kein Audio-Element.
+                  </audio>
                 </div>
-                <div className="p-4 space-y-4">
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {order?.notes && order.notes.length > 0 ? (
-                      order.notes.map((note) => (
-                        <div key={note.id} className="relative bg-background border border-border p-3 rounded-lg text-sm group pr-8">
-                          <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
-                          <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
-                            <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
-                            <span>{new Date(note.created_at).toLocaleString()}</span>
-                          </div>
-                          {(isAdmin || note.author_id === user?.id || note.user_id === user?.id) && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  await api.delete(`/orders/${order.id}/notes/${note.id}`);
-                                  toast.success("Notiz gelöscht");
-                                  load();
-                                } catch (err) {
-                                  toast.error("Fehler beim Löschen");
-                                }
-                              }}
-                              className="absolute top-2 right-2 text-red-500 hover:text-red-700 opacity-60 hover:opacity-100 transition-opacity p-1 text-xs"
-                              title="Notiz löschen"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
-                    )}
-                  </div>
-                  <form onSubmit={handleAddNote} className="flex gap-2 pt-2 border-t border-border">
-                    <input
-                      type="text"
-                      value={newNoteContent}
-                      onChange={(e) => setNewNoteContent(e.target.value)}
-                      placeholder="Interne Notiz hinzufügen..."
-                      className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent"
-                    />
-                    <button
-                      type="submit"
-                      disabled={loadingNote}
-                      className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
-                    >
-                      {loadingNote ? '...' : 'Hinzufügen'}
-                    </button>
-                  </form>
-                </div>
+              )}
+
+              <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
+                <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
+                <span>{new Date(note.created_at).toLocaleString()}</span>
               </div>
-            )}
+              {(isAdmin || note.author_id === user?.id || note.user_id === user?.id) && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await api.delete(`/orders/${order.id}/notes/${note.id || note._id}`);
+                      toast.success("Notiz gelöscht");
+                      load();
+                    } catch (err) {
+                      toast.error("Fehler beim Löschen");
+                    }
+                  }}
+                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 opacity-60 hover:opacity-100 transition-opacity p-1 text-xs"
+                  title="Notiz löschen"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))
+        ) : (
+          <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
+        )}
+      </div>
+
+      {/* نموذج الإضافة (نص + تسجيل صوتي) */}
+      <form 
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!newNoteContent.trim() && !recordedAudioBlob) return;
+
+          const formData = new FormData();
+          if (newNoteContent.trim()) formData.append("content", newNoteContent);
+          formData.append("is_internal", "true");
+          if (recordedAudioBlob) {
+            formData.append("audio_file", recordedAudioBlob, "voice_note.webm");
+          }
+
+          try {
+            setLoadingNote(true);
+            await api.post(`/orders/${order.id}/notes`, formData, {
+              headers: { "Content-Type": "multipart/form-data" }
+            });
+            setNewNoteContent("");
+            setRecordedAudioBlob(null);
+            setAudioUrl(null);
+            toast.success("Notiz hinzugefügt");
+            load();
+          } catch (err) {
+            toast.error("Fehler beim Hinzufügen");
+          } finally {
+            setLoadingNote(false);
+          }
+        }} 
+        className="flex flex-col gap-2 pt-2 border-t border-border"
+      >
+        {/* معاينة التسجيل الصوتي قبل الإرسال */}
+        {audioUrl && (
+          <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-border">
+            <audio controls src={audioUrl} className="w-full h-8" />
+            <button
+              type="button"
+              onClick={() => { setRecordedAudioBlob(null); setAudioUrl(null); }}
+              className="text-red-500 text-xs px-2 py-1 hover:bg-red-500/10 rounded"
+            >
+              Lتاöschen
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            value={newNoteContent}
+            onChange={(e) => setNewNoteContent(e.target.value)}
+            placeholder={isRecording ? "Aufnahme läuft..." : "Interne Notiz oder Sprachnotiz hinzufügen..."}
+            disabled={isRecording}
+            className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent disabled:opacity-50"
+          />
+
+          {/* زر الميكروفون للتسجيل */}
+          {!isRecording ? (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                  const mediaRecorder = new MediaRecorder(stream);
+                  window.localMediaRecorder = mediaRecorder;
+                  window.localAudioChunks = [];
+
+                  mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) window.localAudioChunks.push(event.data);
+                  };
+
+                  mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(window.localAudioChunks, { type: 'audio/webm' });
+                    setRecordedAudioBlob(audioBlob);
+                    setAudioUrl(URL.createObjectURL(audioBlob));
+                    stream.getTracks().forEach(track => track.stop());
+                  };
+
+                  mediaRecorder.start();
+                  setIsRecording(true);
+                } catch (err) {
+                  toast.error("Mikrofon-Zugriff verweigert");
+                }
+              }}
+              className="p-2 border border-border rounded-lg hover:bg-card text-muted-foreground hover:text-foreground transition"
+              title="Sprachnotiz aufnehmen"
+            >
+              🎤
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.localMediaRecorder) {
+                  window.localMediaRecorder.stop();
+                  setIsRecording(false);
+                }
+              }}
+              className="p-2 bg-red-500 text-white rounded-lg animate-pulse transition"
+              title="Aufnahme stoppen"
+            >
+              ⏹️
+            </button>
+          )}
+
+          <button
+            type="submit"
+            disabled={loadingNote || (isRecording)}
+            className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
+          >
+            {loadingNote ? '...' : 'Hinzufügen'}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
 
             {/* Verbaute Ersatzteile */}
             <div className="border border-border">
@@ -1049,7 +1259,6 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
               </Section>
             )}
 
-{/* 1. الشات الداخلي - يظهر للجميع (تقني + موظف + أدمن) */}
 <OrderChat orderId={order.id} />
 
 {/* 2. قسم الاتصالات والمراسلات - يخفى عن التقني تماماً */}
@@ -1403,7 +1612,19 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 }
 
 function MediaThumb({ m, onDelete }) {
-    const exactUrl = fileUrl(m.storage_path || m.path);
+    let rawPath = m.storage_path || m.path || "";
+    
+    // تنظيف المسار والتأكد من وجود مجلد orders
+    rawPath = rawPath.trim().replace(/^\/+/, "").replace(/^uploads\//, "");
+    
+    if (!rawPath.includes("orders") && rawPath.startsWith("repair-berlin/")) {
+        rawPath = rawPath.replace("repair-berlin/", "repair-berlin/orders/");
+    } else if (!rawPath.includes("repair-berlin")) {
+        rawPath = `repair-berlin/orders/${rawPath}`;
+    }
+
+    const exactUrl = `http://127.0.0.1:8001/uploads/${rawPath}`;
+    console.log("Fixed Image URL:", exactUrl);
 
     return (
         <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">
