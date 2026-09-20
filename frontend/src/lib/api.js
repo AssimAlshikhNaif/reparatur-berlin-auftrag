@@ -33,9 +33,9 @@ export function fileUrl(storagePath) {
   // تنظيف المسار تماماً
   let clean = storagePath.trim().replace(/^\/+/, "").replace(/^uploads\//, "");
   
-  // إذا كان المسار يحتوي على orders مسبقاً، نتركه كما هو
+  // إذا كان المسار يحتوي على orders مسبقاً
   if (clean.includes("orders")) {
-    return `http://127.0.0.1:8001/uploads/${clean}`;
+    return `/uploads/${clean}`;
   }
 
   // إذا كان يبدأ بـ repair-berlin ولم تقترن بـ orders، نقوم بحقن orders فوراً
@@ -45,8 +45,8 @@ export function fileUrl(storagePath) {
     clean = `repair-berlin/orders/${clean}`;
   }
 
-  const finalUrl = `http://127.0.0.1:8001/uploads/${clean}`;
-  console.log("Forced Fixed URL:", finalUrl); // لتتأكد من شكل الرابط الجديد في الكونسول
+  const finalUrl = `/uploads/${clean}`;
+  console.log("Fixed Relative URL:", finalUrl); 
   return finalUrl;
 }
 

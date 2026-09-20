@@ -128,6 +128,7 @@ export default function GlobalSearch({ compact = false }) {
       )}
 
       {/* 2. نسخة اللابتوب والشاشات الكبيرة: شريط البحث الطبيعي بالكامل */}
+      {/* 2. نسخة اللابتوب والشاشات الكبيرة: شريط البحث الطبيعي بالكامل */}
       <div className={`hidden md:flex relative ${compact ? "w-[180px] sm:w-[220px]" : "w-full max-w-md"}`}>
         <div className="flex items-center gap-2 bg-background border border-border rounded-lg px-3 h-9 shadow-sm w-full">
           <MagnifyingGlass size={15} className="text-muted-foreground shrink-0" />
@@ -160,7 +161,7 @@ export default function GlobalSearch({ compact = false }) {
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
             <div 
               data-testid="global-search-results"
-              className="absolute left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
+              className="absolute top-full left-0 right-0 mt-2 max-h-[60vh] overflow-y-auto z-50 bg-card border border-border rounded-xl shadow-2xl"
             >
               {loading ? (
                 <div className="text-xs font-mono text-muted-foreground/70 py-6 text-center">{t("common.searching")}</div>
@@ -179,7 +180,7 @@ export default function GlobalSearch({ compact = false }) {
                       <div className="flex items-center gap-1.5">
                         {o.under_warranty && (
                           <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border border-emerald-700 text-emerald-300 bg-emerald-950">
-                            <ShieldCheck size= {10} /> Garantie
+                            <ShieldCheck size={10} /> Garantie
                           </span>
                         )}
                         {o.imei_reminder && (

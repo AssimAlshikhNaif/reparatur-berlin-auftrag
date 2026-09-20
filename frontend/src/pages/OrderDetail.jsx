@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api, { fileUrl } from "@/lib/api";
@@ -84,6 +84,7 @@ export default function OrderDetail() {
   const [inventory, setInventory] = useState([]);
   const [partId, setPartId] = useState("");
   const [partQty, setPartQty] = useState(1);
+  const [deletingNoteId, setDeletingNoteId] = useState(null);
   const [costForm, setCostForm] = useState({ diagnosis_fee: "", labor_cost: "", parts_cost: "", anzahlung: "", diagnosis_payment_status: "OPEN", is_diagnosis_paid_at_intake: false });
   useEffect(() => {
     if (order) {
@@ -111,6 +112,15 @@ export default function OrderDetail() {
   const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
   const [audioUrl, setAudioUrl] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
+  const prevNotesLengthRef = useRef(order?.notes?.length);
+  const notesEndRef = useRef(null); 
+useEffect(() => {
+  // التمرير يحدث فقط إذا زاد عدد الملاحظات (أي تم إضافة ملاحظة جديدة) وليس عند فتح الصفحة لأول مرة
+  if (order?.notes && order.notes.length > prevNotesLengthRef.current) {
+    notesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
+  prevNotesLengthRef.current = order?.notes?.length;
+}, [order?.notes]);
 
   const canManageRef = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker";
   const isAdmin = user.role === "admin";
@@ -883,61 +893,97 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 
       {/* قسم الملاحظات الداخلية للموظفين */}
 {!isTech && (
-  <div className="border border-border mt-4">
+  <div className="border border-border/80 rounded-xl mt-4 shadow-sm bg-card/30 backdrop-blur-sm overflow-hidden">
     <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
       <div className="flex items-center gap-2">
-        <ChatCircleDots size={16} className="text-accent" />
-        <h2 className="font-head font-semibold text-sm tracking-tight">Interne Notizen</h2>
+        <ChatCircleDots size={18} className="text-accent" />
+        <h2 className="font-head font-semibold text-sm tracking-tight text-foreground">Interne Notizen</h2>
       </div>
     </div>
+    
     <div className="p-4 space-y-4">
-      <div className="space-y-2 max-h-60 overflow-y-auto">
+      {/* 1. قائمة الملاحظات أولاً */}
+      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
         {order?.notes && order.notes.length > 0 ? (
-          order.notes.map((note) => (
-            <div key={note.id || note._id} className="relative bg-background border border-border p-3 rounded-lg text-sm group pr-8">
-              {/* عرض النص إذا وجد */}
-              {note.content && <p className="text-foreground whitespace-pre-wrap mb-2">{note.content}</p>}
-              
-              {/* عرض مشغل الصوت إذا كانت ملاحظة صوتية */}
-              {note.audio_url && (
-                <div className="mb-2">
-                  <audio controls className="w-full h-8">
-                    <source src={`http://127.0.0.1:8001${note.audio_url}`} type="audio/webm" />
-                    Dein Browser unterstützt kein Audio-Element.
-                  </audio>
-                </div>
-              )}
+          order.notes.map((note) => {
+            const noteId = note.id || note._id;
+            const isDeleting = deletingNoteId === noteId;
 
-              <div className="flex justify-between items-center mt-2 text-[11px] font-mono text-muted-foreground">
-                <span>Von: <strong className="text-foreground">{note.author_name}</strong></span>
-                <span>{new Date(note.created_at).toLocaleString()}</span>
+            return (
+              <div 
+                key={noteId} 
+                className="relative bg-background/80 border border-border/70 p-3.5 rounded-xl text-sm transition-all duration-200 hover:border-border group"
+              >
+                {note.content && <p className="text-foreground/90 whitespace-pre-wrap mb-2.5 leading-relaxed">{note.content}</p>}
+                
+                {note.audio_url && (
+                  <div className="mb-2.5 bg-card/50 p-2 rounded-lg border border-border/50">
+                    <audio controls className="w-full h-8 accent-accent">
+                      <source src={`http://127.0.0.1:8001${note.audio_url}`} type="audio/webm" />
+                      Dein Browser unterstützt kein Audio-Element.
+                    </audio>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center mt-2 pt-2 border-t border-border/40 text-[11px] font-mono text-muted-foreground">
+                  <span>Von: <strong className="text-foreground font-medium">{note.author_name}</strong></span>
+                  <span>{new Date(note.created_at).toLocaleString()}</span>
+                </div>
+
+                {(isAdmin || note.author_id === user?.id || note.user_id === user?.id) && (
+                  <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 bg-background/90 p-1 rounded-lg border border-border/50 shadow-sm">
+                    {isDeleting ? (
+                      <>
+                        <span className="text-[10px] font-medium text-red-400 px-1.5">Löschen?</span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await api.delete(`/orders/${order.id}/notes/${noteId}`);
+                              toast.success("Notiz gelöscht");
+                              setDeletingNoteId(null);
+                              load();
+                            } catch (err) {
+                              toast.error("Fehler beim Löschen");
+                              setDeletingNoteId(null);
+                            }
+                          }}
+                          className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[11px] font-medium transition"
+                        >
+                          Ja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingNoteId(null)}
+                          className="px-2 py-0.5 bg-muted hover:bg-muted/80 text-foreground rounded text-[11px] font-medium transition"
+                        >
+                          Nein
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeletingNoteId(noteId)}
+                        className="text-muted-foreground hover:text-red-500 transition-colors p-1 rounded hover:bg-red-500/10"
+                        title="Notiz löschen"
+                      >
+                        <Trash size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              {(isAdmin || note.author_id === user?.id || note.user_id === user?.id) && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await api.delete(`/orders/${order.id}/notes/${note.id || note._id}`);
-                      toast.success("Notiz gelöscht");
-                      load();
-                    } catch (err) {
-                      toast.error("Fehler beim Löschen");
-                    }
-                  }}
-                  className="absolute top-2 right-2 text-red-500 hover:text-red-700 opacity-60 hover:opacity-100 transition-opacity p-1 text-xs"
-                  title="Notiz löschen"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          ))
+            );
+          })
         ) : (
-          <p className="text-muted-foreground text-sm font-mono">Keine Notizen vorhanden.</p>
+          <p className="text-muted-foreground text-sm font-mono text-center py-4">Keine Notizen vorhanden.</p>
         )}
+        
+        {/* مرجع التمرير لأسفل القائمة */}
+        <div ref={notesEndRef} />
       </div>
 
-      {/* نموذج الإضافة (نص + تسجيل صوتي) */}
+      {/* 2. نموذج الإضافة في الأسفل */}
       <form 
         onSubmit={async (e) => {
           e.preventDefault();
@@ -966,18 +1012,17 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
             setLoadingNote(false);
           }
         }} 
-        className="flex flex-col gap-2 pt-2 border-t border-border"
+        className="flex flex-col gap-2.5 pt-3 border-t border-border/80"
       >
-        {/* معاينة التسجيل الصوتي قبل الإرسال */}
         {audioUrl && (
-          <div className="flex items-center gap-2 bg-card p-2 rounded-lg border border-border">
+          <div className="flex items-center gap-2 bg-card p-2 rounded-xl border border-border">
             <audio controls src={audioUrl} className="w-full h-8" />
             <button
               type="button"
               onClick={() => { setRecordedAudioBlob(null); setAudioUrl(null); }}
-              className="text-red-500 text-xs px-2 py-1 hover:bg-red-500/10 rounded"
+              className="text-red-500 text-xs px-2 py-1 hover:bg-red-500/10 rounded font-medium transition"
             >
-              Lتاöschen
+              Löschen
             </button>
           </div>
         )}
@@ -989,10 +1034,9 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
             onChange={(e) => setNewNoteContent(e.target.value)}
             placeholder={isRecording ? "Aufnahme läuft..." : "Interne Notiz oder Sprachnotiz hinzufügen..."}
             disabled={isRecording}
-            className="flex-1 bg-background border border-border px-3 py-1.5 text-sm rounded-lg outline-none focus:border-accent disabled:opacity-50"
+            className="flex-1 bg-background border border-border/80 px-3.5 py-2 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent/50 disabled:opacity-50 transition-all shadow-sm"
           />
 
-          {/* زر الميكروفون للتسجيل */}
           {!isRecording ? (
             <button
               type="button"
@@ -1020,7 +1064,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   toast.error("Mikrofon-Zugriff verweigert");
                 }
               }}
-              className="p-2 border border-border rounded-lg hover:bg-card text-muted-foreground hover:text-foreground transition"
+              className="p-2.5 border border-border/80 rounded-xl hover:bg-card text-muted-foreground hover:text-foreground transition shadow-sm"
               title="Sprachnotiz aufnehmen"
             >
               🎤
@@ -1034,7 +1078,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   setIsRecording(false);
                 }
               }}
-              className="p-2 bg-red-500 text-white rounded-lg animate-pulse transition"
+              className="p-2.5 bg-red-500 text-white rounded-xl animate-pulse transition shadow-sm"
               title="Aufnahme stoppen"
             >
               ⏹️
@@ -1043,8 +1087,8 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 
           <button
             type="submit"
-            disabled={loadingNote || (isRecording)}
-            className="bg-accent text-accent-foreground px-3 py-1.5 rounded-lg text-sm font-medium transition disabled:opacity-50"
+            disabled={loadingNote || isRecording}
+            className="bg-accent text-accent-foreground px-4 py-2 rounded-xl text-sm font-medium transition disabled:opacity-50 shadow-sm hover:opacity-90"
           >
             {loadingNote ? '...' : 'Hinzufügen'}
           </button>
@@ -1053,114 +1097,149 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     </div>
   </div>
 )}
-
             {/* Verbaute Ersatzteile */}
-            <div className="border border-border">
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
-                <Package size={16} className="text-accent" />
-                <h2 className="font-head font-semibold text-sm tracking-tight">{t("detail.partsTitle")}</h2>
+<div className="border border-border/80 rounded-xl shadow-sm bg-card/30 backdrop-blur-sm overflow-hidden">
+  <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-card/60">
+    <Package size={18} className="text-accent" />
+    <h2 className="font-head font-semibold text-sm tracking-tight text-foreground">{t("detail.partsTitle")}</h2>
+  </div>
+  <div className="p-4">
+    {(order.used_parts || []).length === 0 ? (
+      <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noParts")}</div>
+    ) : (
+      <div className="space-y-2.5 mb-4">
+        {order.used_parts.map((p) => {
+          const isDeletingPart = deletingPartId === p.id;
+
+          return (
+            <div key={p.id} data-testid={`used-part-${p.sku}`} className="flex items-center justify-between border border-border/70 bg-background/80 px-3.5 py-2.5 rounded-xl transition-all duration-200 hover:border-border">
+              <div className="min-w-0 pr-2">
+                <div className="text-sm font-medium text-foreground truncate">{p.name}</div>
+                <div className="font-mono text-[11px] text-muted-foreground mt-0.5">{p.sku} · {p.quantity}×{!isTech && p.unit_price != null ? ` à ${Number(p.unit_price).toFixed(2)} €` : ""}</div>
               </div>
-              <div className="p-4">
-                {(order.used_parts || []).length === 0 ? (
-                  <div className="text-xs font-mono text-muted-foreground/70 py-3 text-center">{t("detail.noParts")}</div>
-                ) : (
-                  <div className="space-y-2 mb-3">
-                    {order.used_parts.map((p) => (
-                      <div key={p.id} data-testid={`used-part-${p.sku}`} className="flex items-center justify-between border border-border/60 px-3 py-2">
-                        <div className="min-w-0">
-                          <div className="text-sm text-foreground truncate">{p.name}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">{p.sku} · {p.quantity}×{!isTech && p.unit_price != null ? ` à ${Number(p.unit_price).toFixed(2)} €` : ""}</div>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {!isTech && p.total != null && (
-                            <span className="font-mono text-sm text-foreground">{Number(p.total).toFixed(2)} €</span>
-                          )}
-                          {order.status !== "ABGEHOLT" && (
-                            <button data-testid={`remove-part-${p.sku}`} onClick={() => removePart(p.id)} className="p-1 border border-border hover:bg-red-950 text-red-400"><Trash size={13} /></button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <div className="flex items-center gap-3 shrink-0">
+                {!isTech && p.total != null && (
+                  <span className="font-mono text-sm font-semibold text-foreground">{Number(p.total).toFixed(2)} €</span>
                 )}
                 {order.status !== "ABGEHOLT" && (
-                  <div className="flex gap-2 border-t border-border pt-3">
-                    <select data-testid="part-select" value={partId} onChange={(e) => setPartId(e.target.value)}
-                      className="flex-1 min-w-0 bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent">
-                      <option value="">{t("detail.choosePart")}</option>
-                      {inventory.filter((i) => i.quantity > 0).map((i) => (
-                        <option key={i.id} value={i.id}>{`${i.brand} ${i.device_model} · ${i.part_type} (${i.quantity} · ${Number(i.price).toFixed(2)}€)`}</option>
-                      ))}
-                    </select>
-                    <input data-testid="part-qty" type="number" min="1" value={partQty} onChange={(e) => setPartQty(e.target.value)}
-                      className="w-16 bg-background border border-border px-2 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono" />
-                    <button data-testid="add-part" onClick={addPart}
-                      className="flex items-center gap-1 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 hover:bg-blue-600 hover:text-primary-foreground transition-colors">
-                      <Plus size={14} /> {t("detail.install")}
-                    </button>
+                  <div className="flex items-center gap-1.5 bg-background/90 p-1 rounded-lg border border-border/50 shadow-sm">
+                    {isDeletingPart ? (
+                      <>
+                        <span className="text-[10px] font-medium text-red-400 px-1.5">Löschen?</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removePart(p.id);
+                            setDeletingPartId(null);
+                          }}
+                          className="px-2 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded text-[11px] font-medium transition"
+                        >
+                          Ja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingPartId(null)}
+                          className="px-2 py-0.5 bg-muted hover:bg-muted/80 text-foreground rounded text-[11px] font-medium transition"
+                        >
+                          Nein
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        data-testid={`remove-part-${p.sku}`} 
+                        onClick={() => setDeletingPartId(p.id)} 
+                        className="p-1.5 rounded-md hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                        title="Teil entfernen"
+                      >
+                        <Trash size={14} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
             </div>
+          );
+        })}
+      </div>
+    )}
+    {order.status !== "ABGEHOLT" && (
+      <div className="flex gap-2.5 border-t border-border/80 pt-3.5">
+        <select data-testid="part-select" value={partId} onChange={(e) => setPartId(e.target.value)}
+          className="flex-1 min-w-0 bg-background border border-border/80 px-3 py-2 text-sm rounded-xl outline-none focus:border-accent shadow-sm">
+          <option value="">{t("detail.choosePart")}</option>
+          {inventory.filter((i) => i.quantity > 0).map((i) => (
+            <option key={i.id} value={i.id}>{`${i.brand} ${i.device_model} · ${i.part_type} (${i.quantity} · ${Number(i.price).toFixed(2)}€)`}</option>
+          ))}
+        </select>
+        <input data-testid="part-qty" type="number" min="1" value={partQty} onChange={(e) => setPartQty(e.target.value)}
+          className="w-16 bg-background border border-border/80 px-2 py-2 text-sm rounded-xl outline-none focus:border-accent font-mono text-center shadow-sm" />
+        <button data-testid="add-part" onClick={addPart}
+          className="flex items-center gap-1.5 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-4 py-2 rounded-xl hover:bg-blue-600 transition shadow-sm">
+          <Plus size={14} /> {t("detail.install")}
+        </button>
+      </div>
+    )}
+  </div>
+</div>
 
-            {isTech ? (
-              <div className="border border-amber-900/50 bg-amber-950/20 px-4 py-3 flex items-center gap-3">
-                <ShieldCheck size={20} className="text-amber-400 shrink-0" />
-                <div>
-                  <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400">{t("detail.dsgvoTitle")}</div>
-                  <div className="text-xs text-muted-foreground">{t("detail.dsgvoDesc")}</div>
-                </div>
-              </div>
-            ) : (
-              <Section title={t("detail.customer")} icon={User}>
-                <Field label={t("detail.name")} value={order.customer_name} />
-                <Field label={t("detail.phone")} value={order.customer_phone} />
-                <Field label={t("detail.email")} value={order.customer_email} />
-                <Field label={t("detail.address")} value={order.customer_address} />
-              </Section>
-            )}
+{isTech ? (
+  <div className="border border-amber-500/30 bg-amber-950/20 px-4 py-3.5 rounded-xl flex items-center gap-3 shadow-sm">
+    <ShieldCheck size={20} className="text-amber-400 shrink-0" />
+    <div>
+      <div className="font-mono text-[11px] uppercase tracking-wider text-amber-400 font-semibold">{t("detail.dsgvoTitle")}</div>
+      <div className="text-xs text-muted-foreground mt-0.5">{t("detail.dsgvoDesc")}</div>
+    </div>
+  </div>
+) : (
+  <Section title={t("detail.customer")} icon={User}>
+    <Field label={t("detail.name")} value={order.customer_name} />
+    <Field label={t("detail.phone")} value={order.customer_phone} />
+    <Field label={t("detail.email")} value={order.customer_email} />
+    <Field label={t("detail.address")} value={order.customer_address} />
+  </Section>
+)}
 
-            {/* Media */}
-            <Section title={t("detail.intakeMedia")} icon={Camera}>
-              {intakeMedia.length === 0 ? (
-                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                  {intakeMedia.map((m, index) => (
-                    <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
-                  ))}
-                </div>
-              )}
-            </Section>
+{/* Media */}
+<Section title={t("detail.intakeMedia")} icon={Camera}>
+  {intakeMedia.length === 0 ? (
+    <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noIntakeMedia")}</div>
+  ) : (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+      {intakeMedia.map((m, index) => (
+        <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+      ))}
+    </div>
+  )}
+</Section>
 
-            <Section title={t("detail.repairDoc")} icon={Wrench}>
-              {isTech && repairMedia.length === 0 && order.status !== "ABGEHOLT" && (
-                <div data-testid="repair-media-required" className="mb-3 border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-300 font-mono">
-                  {t("detail.repairRequired")}
-                </div>
-              )}
-              {repairMedia.length === 0 ? (
-                <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
-              ) : (
-                <div className=" sm:grid-cols-4 gap-2 mb-3">
-                  {repairMedia.map((m, index) => (
-                    <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
-                  ))}
-                </div>
-              )}
-              {(isTech || canManage) && order.status !== "ABGEHOLT" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label data-testid="upload-media-label" className="flex items-center justify-center gap-2 border border-dashed border-border py-3 cursor-pointer hover:border-accent transition-colors text-sm text-muted-foreground">
-                    <UploadSimple size={16} /> {uploading ? t("common.loading") : t("detail.uploadFile")}
-                    <input data-testid="upload-media-input" type="file" accept="image/*,video/*" multiple onChange={uploadRepair} className="hidden" disabled={uploading} />
-                  </label>
-                  <button data-testid="open-camera" onClick={() => setShowCamera(true)}
-                    className="flex items-center justify-center gap-2 border border-dashed border-accent/50 py-3 hover:border-accent hover:bg-accent/5 transition-colors text-sm text-foreground/80">
-                    <VideoCamera size={16} className="text-accent" /> {t("detail.liveCamera")}
-                  </button>
-                </div>
-              )}
-            </Section>
+<Section title={t("detail.repairDoc")} icon={Wrench}>
+  {isTech && repairMedia.length === 0 && order.status !== "ABGEHOLT" && (
+    <div data-testid="repair-media-required" className="mb-3.5 border border-amber-500/30 bg-amber-950/20 px-3.5 py-2.5 rounded-xl text-xs text-amber-300 font-mono shadow-sm">
+      {t("detail.repairRequired")}
+    </div>
+  )}
+  {repairMedia.length === 0 ? (
+    <div className="text-xs font-mono text-muted-foreground/70 py-4 text-center">{t("detail.noRepairMedia")}</div>
+  ) : (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      {repairMedia.map((m, index) => (
+        <MediaThumb key={m.id || m._id || index} m={m} onDelete={() => deleteMedia(m, index)} />
+      ))}
+    </div>
+  )}
+  {(isTech || canManage) && order.status !== "ABGEHOLT" && (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+      <label data-testid="upload-media-label" className="flex items-center justify-center gap-2 border border-dashed border-border/80 py-3 px-4 rounded-xl cursor-pointer hover:border-accent hover:bg-card/50 transition-all text-sm text-muted-foreground shadow-sm">
+        <UploadSimple size={16} /> {uploading ? t("common.loading") : t("detail.uploadFile")}
+        <input data-testid="upload-media-input" type="file" accept="image/*,video/*" multiple onChange={uploadRepair} className="hidden" disabled={uploading} />
+      </label>
+      <button data-testid="open-camera" onClick={() => setShowCamera(true)}
+        className="flex items-center justify-center gap-2 border border-dashed border-accent/50 py-3 px-4 rounded-xl hover:border-accent hover:bg-accent/5 transition-all text-sm text-foreground/90 font-medium shadow-sm">
+        <VideoCamera size={16} className="text-accent" /> {t("detail.liveCamera")}
+      </button>
+    </div>
+  )}
+</Section>
 
             {/* Endkontrolle / Prüfprotokoll & Eingangsprüfung */}
             <div className="space-y-6">
