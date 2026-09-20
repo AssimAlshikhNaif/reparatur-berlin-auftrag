@@ -1691,29 +1691,23 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
 }
 
 function MediaThumb({ m, onDelete }) {
-    let rawPath = m.storage_path || m.path || "";
-    
-    // تنظيف المسار والتأكد من وجود مجلد orders
-    rawPath = rawPath.trim().replace(/^\/+/, "").replace(/^uploads\//, "");
-    
-    if (!rawPath.includes("orders") && rawPath.startsWith("repair-berlin/")) {
-        rawPath = rawPath.replace("repair-berlin/", "repair-berlin/orders/");
-    } else if (!rawPath.includes("repair-berlin")) {
-        rawPath = `repair-berlin/orders/${rawPath}`;
-    }
+  let rawPath = m.storage_path || m.path || "";
+  
+  // استخراج اسم الملف الأخير فقط مباشرة (لتجنب مسارات repair-berlin/orders الخاطئة)
+  const fileName = rawPath.split('/').pop();
+  
+  const exactUrl = `/uploads/${fileName}`;
+  console.log("Fixed Image URL:", exactUrl);
 
-    const exactUrl = `/uploads/${rawPath}`;
-    console.log("Fixed Image URL:", exactUrl);
-
-    return (
-        <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">
-            <a href={exactUrl} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
-                {m.is_video ? (
-                    <video src={exactUrl} className="w-full h-full object-cover" />
-                ) : (
-                    <img src={exactUrl} alt={m.original_filename} className="w-full h-full object-cover" />
-                )}
-            </a>
+  return (
+    <div className="relative group aspect-square border border-border rounded-lg overflow-hidden bg-background">
+      <a href={exactUrl} target="_blank" rel="noreferrer" data-testid={`media-${m.id}`} className="block w-full h-full">
+        {m.is_video ? (
+          <video src={exactUrl} className="w-full h-full object-cover" />
+        ) : (
+          <img src={exactUrl} alt={m.original_filename} className="w-full h-full object-cover" />
+        )}
+      </a>
             {onDelete && (
                 <button
                     onClick={(e) => {
