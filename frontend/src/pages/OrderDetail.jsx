@@ -1702,7 +1702,7 @@ function MediaThumb({ m, onDelete }) {
         rawPath = `repair-berlin/orders/${rawPath}`;
     }
 
-    const exactUrl = `/api/files/uploads/${rawPath}`;
+    const exactUrl = `/uploads/${rawPath}`;
     console.log("Fixed Image URL:", exactUrl);
 
     return (
