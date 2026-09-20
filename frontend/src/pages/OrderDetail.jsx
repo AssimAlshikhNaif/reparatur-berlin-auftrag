@@ -919,7 +919,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                 {note.audio_url && (
                   <div className="mb-2.5 bg-card/50 p-2 rounded-lg border border-border/50">
                     <audio controls className="w-full h-8 accent-accent">
-                      <source src={`http://127.0.0.1:8001${note.audio_url}`} type="audio/webm" />
+                      <source src={note.audio_url} type="audio/webm" />
                       Dein Browser unterstützt kein Audio-Element.
                     </audio>
                   </div>
@@ -1702,7 +1702,7 @@ function MediaThumb({ m, onDelete }) {
         rawPath = `repair-berlin/orders/${rawPath}`;
     }
 
-    const exactUrl = `http://127.0.0.1:8001/uploads/${rawPath}`;
+    const exactUrl = `/api/files/uploads/${rawPath}`;
     console.log("Fixed Image URL:", exactUrl);
 
     return (
