@@ -53,11 +53,20 @@ export default function LabelPrint({ order, onClose }) {
     const canvas = document.getElementById("label-qr-canvas");
     if (!canvas) return;
     const qrDataUrl = canvas.toDataURL("image/png");
-    
-    const printWindow = window.open("", "_blank", "width=400,height=400");
-    if (!printWindow) return;
 
-    printWindow.document.write(`
+    const existingIframe = document.getElementById("print-iframe");
+    if (existingIframe) {
+      existingIframe.remove();
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.id = "print-iframe";
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
       <!DOCTYPE html>
       <html>
         <head>
@@ -87,11 +96,9 @@ export default function LabelPrint({ order, onClose }) {
               flex-direction: column;
               align-items: center;
               justify-content: center;
-              width: 50mm;
-              height: 30mm;
-              transform: rotate(90deg);
-              transform-origin: center center;
-              gap: 1px;
+              width: 30mm;
+              height: 50mm;
+              gap: 2px;
             }
             .branch-text {
               font-size: 9px;
@@ -101,12 +108,12 @@ export default function LabelPrint({ order, onClose }) {
               line-height: 1;
             }
             img {
-              width: 13mm;
-              height: 13mm;
+              width: 15mm;
+              height: 15mm;
               object-fit: contain;
             }
             .text {
-              font-size: 11px;
+              font-size: 10px;
               font-weight: bold;
               color: black;
               text-align: center;
@@ -118,21 +125,31 @@ export default function LabelPrint({ order, onClose }) {
         <body>
           <div class="label-container">
             ${branchName ? `<div class="branch-text">${branchName}</div>` : ''}
-            <img src="${qrDataUrl}" />
+            <img src="${qrDataUrl}" id="print-qr" />
             <div class="text">${order.auftragsnummer}</div>
           </div>
           <script>
-            window.onload = () => {
+            const imgElement = document.getElementById('print-qr');
+            const triggerPrint = () => {
               setTimeout(() => {
+                window.focus();
                 window.print();
-                window.close();
               }, 300);
             };
+
+            if (imgElement && imgElement.complete) {
+              triggerPrint();
+            } else if (imgElement) {
+              imgElement.onload = triggerPrint;
+              imgElement.onerror = triggerPrint;
+            } else {
+              triggerPrint();
+            }
           </script>
         </body>
       </html>
     `);
-    printWindow.document.close();
+    doc.close();
   };
 
   return (

@@ -59,6 +59,12 @@ function Field({ label, value }) {
 }
 
 export default function OrderDetail() {
+  // تعريف دالة معالجة روابط الوسائط هنا في البداية
+  const getMediaUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    return `http://${window.location.hostname}:8001${url}`;
+  };
   const { id } = useParams();
   const { user } = useAuth();
   const isTech = user?.role === "techniker";
@@ -452,7 +458,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
               <select
                 key={order?.status || "default"}
                 data-testid="manual-status-select"
-                value={order?.status === "ANGENOMMEN" ? "DIAGNOSE" : (order?.status || "DIAGNOSE")}
+                value={["ANGENOMMEN", "DIAGNOSE", "WARTEN_FREIGABE", "NACH DIAGNOSE / FREIGABE"].includes(order?.status) ? "DIAGNOSE" : (order?.status || "DIAGNOSE")}
                 onChange={(e) => {
                   let newStatus = e.target.value;
                   if (newStatus === "DIAGNOSE") newStatus = "ANGENOMMEN";
@@ -464,27 +470,25 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   setStatus(newStatus);
                 }}
                 className={`border px-3.5 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none transition-all shadow-xs shrink-0 font-semibold ${
-                  order?.status === "ANGENOMMEN"
+                  ["ANGENOMMEN", "DIAGNOSE", "WARTEN_FREIGABE", "NACH DIAGNOSE / FREIGABE"].includes(order?.status)
                     ? "bg-blue-600/90 text-white border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]" :
-                  order?.status === "WARTEN_FREIGABE"
-                    ? "bg-sky-600/90 text-white border-sky-500 shadow-[0_0_15px_rgba(2,132,199,0.4)]" :
-                  order?.status === "IN_BEARBEITUNG"
+                  ["IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "ZUGEWIESEN"].includes(order?.status)
                     ? "bg-amber-600/90 text-white border-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.4)]" :
-                  order?.status === "WARTEN_ERSATZTEIL"
-                    ? "bg-orange-600/90 text-white border-orange-500 shadow-[0_0_15px_rgba(234,88,12,0.4)]" :
                   order?.status === "FERTIG"
                     ? "bg-emerald-600/90 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" :
                   order?.status === "ABGEHOLT"
                     ? "bg-purple-600/90 text-white border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.4)]" :
+                  ["STORNIERT", "ABGELEHNT"].includes(order?.status)
+                    ? "bg-red-600/90 text-white border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]" :
                     "bg-background text-foreground border-border"
                 }`}
               >
                 <option value="DIAGNOSE" className="bg-background text-foreground">Diagnose</option>
-                <option value="WARTEN_FREIGABE" className="bg-background text-foreground">Warten Freigabe</option>
                 <option value="IN_BEARBEITUNG" className="bg-background text-foreground">In Bearbeitung</option>
                 <option value="WARTEN_ERSATZTEIL" className="bg-background text-foreground">Warten Ersatzteil</option>
                 <option value="FERTIG" className="bg-background text-foreground">Fertig</option>
                 <option value="ABGEHOLT" className="bg-background text-foreground">Abgeholt</option>
+                <option value="STORNIERT" className="bg-background text-foreground">Storniert</option>
               </select>
 
               {order.status !== "STORNIERT" && (
@@ -547,70 +551,101 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     }`}
   >
     
-    {/* 1. خانة إعلام الزبون */}
-    <div className="flex items-center gap-2 text-xs font-semibold text-foreground pointer-events-none">
-      <input
-        type="checkbox"
-        data-testid="customer-notified-checkbox"
-        checked={Boolean(order.customer_notified)}
-        readOnly
-        className="w-4 h-4 rounded border-border text-primary accent-emerald-500 pointer-events-none"
-      />
-      <span>{order.customer_notified ? "✓ Kunde benachrichtigt (SMS / Anruf)" : "Kunde benachrichtigen (SMS / Anruf)"}</span>
-    </div>
+ {/* 1. خانة إعلام الزبون (قابلة للنقر والحفظ الفوري) */}
+<div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+  <input
+    type="checkbox"
+    data-testid="customer-notified-checkbox"
+    checked={Boolean(order.customer_notified)}
+    onChange={async (e) => {
+      const isChecked = e.target.checked;
+      try {
+        await api.patch(`/orders/${order.id}`, { customer_notified: isChecked });
+        
+        if (typeof setOrder === "function") {
+          setOrder(prev => ({ ...prev, customer_notified: isChecked }));
+        } else {
+          order.customer_notified = isChecked;
+        }
 
-    <div className="h-4 w-[1px] bg-border hidden sm:block" />
+        toast.success("Kundenstatus aktualisiert");
+      } catch (err) {
+        toast.error("Fehler beim Aktualisieren des Kundenstatus");
+      }
+    }}
+    className="w-4 h-4 rounded border-border text-primary accent-emerald-500 cursor-pointer"
+  />
+  <span className="cursor-pointer" onClick={async () => {
+    // تفعيل الاختيار أيضاً عند النقر على النص لسهولة الاستخدام
+    const newVal = !order.customer_notified;
+    try {
+      await api.patch(`/orders/${order.id}`, { customer_notified: newVal });
+      if (typeof setOrder === "function") {
+        setOrder(prev => ({ ...prev, customer_notified: newVal }));
+      } else {
+        order.customer_notified = newVal;
+      }
+      toast.success("Kundenstatus aktualisiert");
+    } catch (err) {
+      toast.error("Fehler beim Aktualisieren des Kundenstatus");
+    }
+  }}>
+    {order.customer_notified ? "✓ Kunde benachrichtigt (SMS / Anruf)" : "Kunde benachrichtigen (SMS / Anruf)"}
+  </span>
+</div>
 
-    {/* 2. حقل تاريخ الاستلام (أصفر فقط إذا كان الموعد غداً) */}
-    <div className="flex items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
-      <span className="text-muted-foreground font-medium">Abholdatum:</span>
-      <input
-        type="date"
-        data-testid="pickup-date-input"
-        value={order.pickup_date ? order.pickup_date.split("T")[0] : ""}
-        onChange={async (e) => {
-          const newDate = e.target.value;
-          try {
-            await api.patch(`/orders/${order.id}`, { pickup_date: newDate });
-            
-            if (typeof setOrder === "function") {
-              setOrder(prev => ({ ...prev, pickup_date: newDate }));
-            } else {
-              order.pickup_date = newDate;
-            }
+<div className="h-4 w-[1px] bg-border hidden sm:block" />
 
-            toast.success("Abholdatum aktualisiert");
-          } catch (err) {
-            toast.error("Fehler beim Speichern des Datums");
-          }
-        }}
-        className={`border px-2.5 py-1 rounded-md text-xs font-mono outline-none transition-all shadow-xs cursor-pointer ${
-          (() => {
-            if (!order.pickup_date) return "bg-background border-border text-foreground";
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const pickupDate = new Date(order.pickup_date);
-            pickupDate.setHours(0, 0, 0, 0);
+{/* 2. حقل تاريخ الاستلام (أصفر فقط إذا كان الموعد غداً) */}
+<div className="flex items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+  <span className="text-muted-foreground font-medium">Abholdatum:</span>
+  <input
+    type="date"
+    data-testid="pickup-date-input"
+    value={order.pickup_date ? order.pickup_date.split("T")[0] : ""}
+    onChange={async (e) => {
+      const newDate = e.target.value;
+      try {
+        await api.patch(`/orders/${order.id}`, { pickup_date: newDate });
+        
+        if (typeof setOrder === "function") {
+          setOrder(prev => ({ ...prev, pickup_date: newDate }));
+        } else {
+          order.pickup_date = newDate;
+        }
 
-            // حساب الفارق بالأيام بين تاريخ اليوم وتاريخ الاستلام
-            const diffTime = pickupDate.getTime() - today.getTime();
-            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+        toast.success("Abholdatum aktualisiert");
+      } catch (err) {
+        toast.error("Fehler beim Speichern des Datums");
+      }
+    }}
+    className={`border px-2.5 py-1 rounded-md text-xs font-mono outline-none transition-all shadow-xs cursor-pointer ${
+      (() => {
+        if (!order.pickup_date) return "bg-background border-border text-foreground";
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const pickupDate = new Date(order.pickup_date);
+        pickupDate.setHours(0, 0, 0, 0);
 
-            if (diffDays === 0) {
-              // أخضر إذا كان موعد الاستلام اليوم
-              return "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]";
-            } else if (diffDays === 1) {
-              // أصفر حصرياً إذا كان الموعد غداً (قبل يوم واحد من التسليم)
-              return "bg-amber-500/15 border-amber-500 text-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]";
-            } else if (diffDays < 0) {
-              // أحمر إذا فات موعد الاستلام ولم يحضر الزبون
-              return "bg-rose-500/15 border-rose-500 text-rose-400 font-bold shadow-[0_0_10px_rgba(244,63,94,0.3)]";
-            } else {
-              // لون عادي إذا كان الموعد بعد أكثر من يوم (مثل تاريخ 22 أو 30 الشهر)
-              return "bg-background border-border text-foreground";
-            }
+        // حساب الفارق بالأيام بين تاريخ اليوم وتاريخ الاستلام
+        const diffTime = pickupDate.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 0) {
+          // أخضر إذا كان موعد الاستلام اليوم
+          return "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]";
+        } else if (diffDays === 1) {
+          // أصفر حصرياً إذا كان الموعد غداً (قبل يوم واحد من التسليم)
+          return "bg-amber-500/15 border-amber-500 text-amber-400 font-bold shadow-[0_0_10px_rgba(245,158,11,0.3)]";
+        } else if (diffDays < 0) {
+          // أحمر إذا فات موعد الاستلام ولم يحضر الزبون
+          return "bg-rose-500/15 border-rose-500 text-rose-400 font-bold shadow-[0_0_10px_rgba(244,63,94,0.3)]";
+        } else {
+          // لون عادي إذا كان الموعد بعد أكثر من يوم
+          return "bg-background border-border text-foreground";
+        }
           })()
         }`}
       />
@@ -917,13 +952,13 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                 {note.content && <p className="text-foreground/90 whitespace-pre-wrap mb-2.5 leading-relaxed">{note.content}</p>}
                 
                 {note.audio_url && (
-                  <div className="mb-2.5 bg-card/50 p-2 rounded-lg border border-border/50">
-                    <audio controls className="w-full h-8 accent-accent">
-                      <source src={note.audio_url} type="audio/webm" />
-                      Dein Browser unterstützt kein Audio-Element.
-                    </audio>
-                  </div>
-                )}
+  <div className="mb-2.5 bg-card/50 p-2 rounded-lg border border-border/50">
+    <audio controls className="w-full h-8 accent-accent">
+      <source src={getMediaUrl(note.audio_url)} type="audio/webm" />
+      Dein Browser unterstützt kein Audio-Element.
+    </audio>
+  </div>
+)}
 
                 <div className="flex justify-between items-center mt-2 pt-2 border-t border-border/40 text-[11px] font-mono text-muted-foreground">
                   <span>Von: <strong className="text-foreground font-medium">{note.author_name}</strong></span>
@@ -1696,7 +1731,9 @@ function MediaThumb({ m, onDelete }) {
   // استخراج اسم الملف الأخير فقط مباشرة (لتجنب مسارات repair-berlin/orders الخاطئة)
   const fileName = rawPath.split('/').pop();
   
-  const exactUrl = `/uploads/${fileName}`;
+  // إذا كنت تعمل محلياً يشير للبورت 8001، وعلى السيرفر يشير للدومين الأساسي
+  const API_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8001"; 
+  const exactUrl = `${API_URL}/uploads/${fileName}`;
   console.log("Fixed Image URL:", exactUrl);
 
   return (

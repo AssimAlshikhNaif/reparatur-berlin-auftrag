@@ -16,6 +16,7 @@ export default function OrderChat({ orderId }) {
   const [audioBlob, setAudioBlob] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const [deleteMessageId, setDeleteMessageId] = useState(null);
 
   const handleDeleteMessage = async (messageId) => {
     try {
@@ -149,7 +150,7 @@ export default function OrderChat({ orderId }) {
   };
 
   return (
-    <div className="flex flex-col h-[480px] border border-border bg-background">
+    <div className="flex flex-col h-[480px] border border-border bg-background relative">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/60">
         <div className="flex items-center gap-2">
           <ChatCircleDots size={18} className="text-accent" />
@@ -175,10 +176,10 @@ export default function OrderChat({ orderId }) {
               <div className={`relative max-w-[78%] px-3 py-2 border group ${
                 mine ? "bg-accent/15 border-accent/40" : isTech ? "bg-amber-950/30 border-amber-800/50" : "bg-card border-border"
               }`}>
-                {/* زر الحذف (يظهر عند التمرير أو بشكل مباشر) */}
+                {/* زر الحذف - يفتح نافذة التأكيد بدلاً من الحذف المباشر */}
                 {mine && (
                   <button
-                    onClick={() => handleDeleteMessage(m.id)}
+                    onClick={() => setDeleteMessageId(m.id)}
                     className="absolute top-1 right-1 text-muted-foreground hover:text-red-500 text-xs px-1 opacity-60 hover:opacity-100 transition-opacity"
                     title="Nachricht löschen"
                   >
@@ -214,6 +215,35 @@ export default function OrderChat({ orderId }) {
           );
         })}
       </div>
+
+      {/* نافذة تأكيد الحذف المنبثقة (Confirmation Modal) */}
+      {deleteMessageId && (
+        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-card border border-red-900/60 rounded-xl max-w-sm w-full p-5 space-y-4 shadow-xl">
+            <h3 className="font-head font-semibold text-base text-red-300">Nachricht löschen?</h3>
+            <p className="text-xs text-muted-foreground">
+              Möchten Sie diese Nachricht wirklich unwiderruflich löschen?
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => {
+                  handleDeleteMessage(deleteMessageId);
+                  setDeleteMessageId(null);
+                }}
+                className="flex-1 bg-red-700 text-white font-head font-semibold text-xs uppercase tracking-wider py-2 rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Löschen
+              </button>
+              <button
+                onClick={() => setDeleteMessageId(null)}
+                className="px-4 border border-border rounded-lg text-xs font-mono uppercase tracking-wider text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* شريط الإدخال وأزرار الصوت */}
       <form onSubmit={send} className="flex flex-col gap-2 p-3 border-t border-border bg-card/40">

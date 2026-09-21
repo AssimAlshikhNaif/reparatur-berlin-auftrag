@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI
-# 1. استيراد StaticFiles هنا لخدمة المجلدات مباشرة
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+# تم الاستغناء عن StaticFiles التقليدي واستبداله بمسار ذكي للبحث العميق
 from starlette.middleware.cors import CORSMiddleware
 from db import client, db  
 from routes import router as api_router, push_notification  
@@ -28,12 +28,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== 2. إضافة StaticFiles Mount هنا ====================
-# التأكد من إنشاء مجلد uploads محلياً إن لم يكن موجوداً
+# ==================== 2. إدارة ملفات الوسائط والرفع (Smart File Serving) ====================
 os.makedirs("uploads", exist_ok=True)
-# ربط مسار الـ /uploads بالقرص الصلب مباشرة ليعمل الرابط الثابت
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-# =========================================================================
+
+@app.get("/uploads/{file_path:path}")
+async def serve_upload_file(file_path: str):
+    """
+    مسار ذكي يبحث عن الملف بالمسار المباشر أو داخل أي مجلد فرعي عميق 
+    (يتوافق تماماً مع بنية المجلدات الفرعية مثل repair-berlin/orders وغيرها)
+    """
+    # 1. محاولة البحث المباشر
+    target_path = os.path.join("uploads", file_path)
+    if os.path.exists(target_path) and os.path.isfile(target_path):
+        return FileResponse(target_path)
+    
+    # 2. محاولة البحث العميق (Recursive Search) عن اسم الملف في جميع المجلدات الفرعية
+    filename = os.path.basename(file_path)
+    for root, dirs, files in os.walk("uploads"):
+        if filename in files:
+            found_path = os.path.join(root, filename)
+            return FileResponse(found_path)
+            
+    raise HTTPException(status_code=404, detail="File not found")
+# =========================================================================================
 
 # إعداد CORS للتعامل مع الطلبات الآتية من React
 origins = [
@@ -73,8 +90,7 @@ async def check_sla_background_worker(db_instance):
                 "status": {"$nin": ["FERTIG", "ABGEHOLT", "STORNIERT"]},
                 "$or": [
                     {"updated_at": {"$lt": threshold.isoformat()}},
-                    # تم تصحيح الرموز وإزالة الأخطاء المطبعية هنا
-                    {"created_at": {"\(lt": threshold.isoformat()}, "updated_at": {"\)exists": False}}
+                    {"created_at": {"$lt": threshold.isoformat()}, "updated_at": {"$exists": False}}
                 ],
                 "sla_notified": {"$ne": True}
             }
@@ -85,7 +101,6 @@ async def check_sla_background_worker(db_instance):
                 order_id = str(order["_id"])
                 auftragsnummer = order.get("auftragsnummer", "")
                 
-                # إرسال إشعار تلقائي عبر دالة الإشعارات
                 try:
                     await push_notification(
                         kind="SLA_WARNING",
@@ -99,7 +114,6 @@ async def check_sla_background_worker(db_instance):
                 except Exception as ex:
                     logger.error(f"Failed to push SLA notification: {ex}")
                 
-                # تعليم الطلب بأنه تم تنبيهه لتجنب التكرار
                 await db_instance.orders.update_one(
                     {"_id": order["_id"]},
                     {"$set": {"sla_notified": True}}
@@ -107,7 +121,6 @@ async def check_sla_background_worker(db_instance):
         except Exception as e:
             logger.error(f"Error in SLA worker: {e}")
             
-        # فحص مرة كل ساعة (3600 ثانية)
         await asyncio.sleep(3600)
 
 
@@ -116,14 +129,10 @@ async def startup():
     try:
         await ensure_indexes()
         await seed_all()
-        
-        # إضافة الفهرس الخاص بالـ branch_id والـ created_at هنا لضمان السرعة الخارقة
         await db.orders.create_index([("branch_id", 1), ("created_at", -1)])
         logger.info("Database indexes and seeding initialized successfully.")
-        
     except Exception as e:
         logger.error(f"Seeding failed: {e}")
-        logger.error("Please check if MongoDB is running and MONGO_DETAILS in .env is correct.")
 
     try:
         init_storage()
@@ -131,7 +140,6 @@ async def startup():
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
 
-    # --- تشغيل مراقبة الـ SLA في الخلفية عند بدء التشغيل ---
     asyncio.create_task(check_sla_background_worker(db))
     logger.info("SLA background worker started.")
 

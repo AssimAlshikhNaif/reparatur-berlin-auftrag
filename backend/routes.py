@@ -163,6 +163,33 @@ def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
             for p in o.get("used_parts", [])
         ]
         o["cost_hidden"] = True
+
+        # معالجة مسارات الوسائط (الصور) لتظهر بشكل دائم وصحيح محلياً وعبر السيرفر
+    formatted_media = []
+    for m in o.get("media", []):
+        raw_path = ""
+        if isinstance(m, dict):
+            raw_path = m.get("file_path") or m.get("storage_path") or m.get("filename") or m.get("url", "")
+        elif isinstance(m, str):
+            raw_path = m
+            
+        if raw_path:
+            filename = os.path.basename(raw_path)
+            # استخدام الرابط المطلق للسيرفر الأساسي لضمان عمل الصور في كل مكان
+            full_url = f"https://handysync.de/uploads/{filename}"
+            
+            if isinstance(m, dict):
+                m["file_path"] = full_url
+                m["storage_path"] = full_url
+                m["url"] = full_url
+                formatted_media.append(m)
+            else:
+                formatted_media.append(full_url)
+        else:
+            formatted_media.append(m)
+            
+    o["media"] = formatted_media
+
     return o
 
 
@@ -354,6 +381,8 @@ class OrderEditInput(BaseModel):
     issue_description: Optional[str] = None
     assigned_techniker_id: Optional[str] = None
     defect_description: Optional[str] = None
+    pickup_date: Optional[str] = None
+    customer_notified: Optional[bool] = None
 
 class UserCreate(BaseModel):
     name: str
@@ -408,6 +437,12 @@ async def list_branches(current=Depends(get_current_user)):
     for b in branches:
         name = b.get("name", "")
         defaults = BRANCH_CONFIG.get(name, {"city": "", "address": "", "phone": "", "email": ""})
+        
+        logo = b.get("logo_url", "")
+        if logo and not logo.startswith("http"):
+            filename = os.path.basename(logo)
+            logo = f"https://handysync.de/uploads/{filename}"
+
         out.append({
             "id": str(b["_id"]),
             "name": name,
@@ -415,7 +450,7 @@ async def list_branches(current=Depends(get_current_user)):
             "address": b.get("address") or defaults["address"],
             "phone": b.get("phone") or defaults["phone"],
             "email": b.get("email") or defaults["email"],
-            "logo_url": b.get("logo_url") or "",
+            "logo_url": logo,
         })
     return out
 
@@ -768,7 +803,6 @@ async def list_orders(
         else:
             query["branch_id"] = {"$in": []}
     elif user_role == "techniker":
-        # ترك استعلام التقني كما هو وعدم تعديله بأي شروط فرع إضافية
         pass
     elif user_role not in ["admin", "super_admin"]:
         query["branch_id"] = {"$in": []}
@@ -798,7 +832,8 @@ async def list_orders(
                 "auftragsnummer": 1, "customer_name": 1, "device_model": 1, 
                 "status": 1, "created_at": 1, "branch_id": 1, 
                 "is_reclamation": 1, "warranty_until": 1, 
-                "user_id": 1, "created_by": 1, "created_by_name": 1, "mitarbeiter_id": 1, "assigned_techniker_id": 1
+                "user_id": 1, "created_by": 1, "created_by_name": 1, "mitarbeiter_id": 1, "assigned_techniker_id": 1,
+                "customer_notified": 1, "pickup_date": 1
             }
         ).sort("created_at", -1).skip(skip).to_list(length=limit)
     except Exception as e:
@@ -816,7 +851,6 @@ async def list_orders(
             serialized = serialize_order(o, current, light=True)
             res_item = attach_names(serialized, bmap, umap)
             
-            # ===== ضع هذا الكود هنا تماماً بدلاً من الكود القديم للعداد =====
             order_id_str = str(o["_id"])
             auftragsnummer = o.get("auftragsnummer")
             user_id_str = str(current.get("_id"))
@@ -835,7 +869,6 @@ async def list_orders(
                 "is_read": False
             })
             res_item["unread_messages_count"] = unread_count
-            # ===============================================================
             
             if sla:
                 if res_item.get("sla_breached"):
@@ -846,8 +879,7 @@ async def list_orders(
             continue
             
     return result
-
-
+    
 @router.post("/orders/{order_id}/mark-read")
 async def mark_order_messages_as_read(
     order_id: str,
@@ -1363,24 +1395,35 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
 
     # 1. البحث بالطريقة الذكية مع دعم الأشكال المختلفة (نصوص أو كائنات)
     for i, m in enumerate(media_list):
+        m_id = ""
+        m_oid = ""
+        m_file = ""
+        m_storage = ""
+        m_filename = ""
+        
         if isinstance(m, str):
             m_id = m
-            m_oid = m
             m_file = m
-            m_storage = m
-            m_filename = m
-        else:
+            m_filename = os.path.basename(m)
+        elif isinstance(m, dict):
             m_id = str(m.get("id", ""))
             m_oid = str(m.get("_id", ""))
             m_file = str(m.get("file_path", ""))
             m_storage = str(m.get("storage_path", ""))
             m_filename = str(m.get("filename", ""))
         
+        # استخراج اسم الملف الصافي لكل من العنصر والمطلوب حذفه للمقارنة المطلقة
+        target_filename_only = os.path.basename(decoded_id)
+        current_filename_only = os.path.basename(m_file)
+        current_storage_only = os.path.basename(m_storage)
+        
         if (decoded_id == m_id or 
             decoded_id == m_oid or 
             decoded_id == m_filename or 
             decoded_id in m_file or 
             decoded_id in m_storage or
+            target_filename_only == current_filename_only or
+            target_filename_only == current_storage_only or
             m_file.endswith(decoded_id) or
             m_storage.endswith(decoded_id)):
             target_media = m
@@ -1400,17 +1443,20 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     # 3. حذف الملف الفعلي من السيرفر بأمان تام (سواء كان الكائن دكشنري أو نص)
     file_path = None
     if isinstance(target_media, dict):
-        file_path = target_media.get("file_path") or target_media.get("storage_path")
+        file_path = target_media.get("file_path") or target_media.get("storage_path") or target_media.get("filename")
     elif isinstance(target_media, str):
         file_path = target_media
 
     if file_path:
-        full_path = os.path.join("/app", file_path) if not file_path.startswith("/") else file_path
+        # استخراج اسم الملف فقط لضمان البحث عنه في مجلد الرفع الصحيح داخل الحاوية
+        filename_only = os.path.basename(file_path)
+        full_path = os.path.join("/app/uploads", filename_only)
+        
         if os.path.exists(full_path):
             try:
                 os.remove(full_path)
-            except Exception:
-                pass
+            except Exception as e:
+                print("Error removing file:", e)
 
     # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
     media_list.pop(target_index)
@@ -1924,7 +1970,10 @@ async def stats(current=Depends(get_current_user)):
     total_revenue = 0.0
     
     for o in orders:
-        status = o.get("status", "UNKNOWN")
+        # تحويل الحالة إلى أحرف كبيرة لضمان توحيدها وتطابقها تماماً
+        raw_status = o.get("status", "UNKNOWN")
+        status = str(raw_status).strip().upper()
+        
         by_status[status] = by_status.get(status, 0) + 1
         
         if is_sla_breached(o):
