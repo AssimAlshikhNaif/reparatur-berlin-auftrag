@@ -34,7 +34,8 @@
   "roles": {
     "admin": "Administrator",
     "mitarbeiter": "Mitarbeiter",
-    "techniker": "Techniker"
+    "techniker": "Techniker",
+    "branch_admin": "Branch Admin"
   },
   "status": {
     "ANGENOMMEN": "Diagnose",

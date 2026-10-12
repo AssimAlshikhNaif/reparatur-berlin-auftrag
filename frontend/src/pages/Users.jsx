@@ -8,7 +8,13 @@ import { UserPlus, Trash, ShieldCheck, Wrench, User, Copy } from "@phosphor-icon
 const inputCls = "bg-background border border-border px-3 py-2.5 text-sm rounded-lg outline-none focus:border-accent transition-colors w-full";
 const labelCls = "block text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-2";
 
-const ROLE_ICON = { admin: ShieldCheck, techniker: Wrench, mitarbeiter: User };
+const ROLE_ICON = { 
+  admin: ShieldCheck, 
+  super_admin: ShieldCheck,
+  branch_admin: ShieldCheck, // أو أي أيقونة تفضلها
+  techniker: Wrench, 
+  mitarbeiter: User 
+};
 
 export default function Users() {
   const { t } = useTranslation();
@@ -83,9 +89,9 @@ export default function Users() {
                     <div className="flex items-center justify-end gap-2">
                       <button data-testid={`copy-user-${u.email}`} onClick={() => { navigator.clipboard?.writeText(u.email); toast.success(t("usr.copied", { email: u.email })); }}
                         className="p-1.5 border border-border rounded-lg hover:bg-muted text-muted-foreground" title={t("usr.copyEmail")}><Copy size={14} /></button>
-                      {u.role !== "admin" && (
-                        <button data-testid={`del-user-${u.email}`} onClick={() => remove(u)} className="p-1.5 border border-border rounded-lg hover:bg-red-950 text-red-400"><Trash size={14} /></button>
-                      )}
+                      {u.role !== "admin" && u.role !== "super_admin" && u.role !== "branch_admin" && (
+  <button data-testid={`del-user-${u.email}`} onClick={() => remove(u)} className="p-1.5 border border-border rounded-lg hover:bg-red-950 text-red-400"><Trash size={14} /></button>
+)}
                     </div>
                   </td>
                 </tr>
@@ -117,6 +123,9 @@ export default function Users() {
                 <select data-testid="user-role" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className={inputCls}>
                   <option value="mitarbeiter">{t("roles.mitarbeiter")}</option>
                   <option value="techniker">{t("roles.techniker")}</option>
+                  <option value="branch_admin">
+  {t("roles.branch_admin") !== "roles.branch_admin" ? t("roles.branch_admin") : "Branch Admin"}
+</option>
                   <option value="admin">{t("roles.admin")}</option>
                 </select>
               </div>

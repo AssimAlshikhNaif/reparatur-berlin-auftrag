@@ -10,7 +10,7 @@ from bson import ObjectId
 from pathlib import Path
 
 from fastapi import (APIRouter, HTTPException, Depends, UploadFile, File,
-                     Query, Header, WebSocket, WebSocketDisconnect, Response, Form)
+                     Query, Header, WebSocket, WebSocketDisconnect, Response, Form, Request,)
 from pydantic import BaseModel
 from fastapi.responses import Response, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -45,7 +45,7 @@ PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_add
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 EDITABLE_ORDER_FIELDS = [
-    "device_brand", "device_model", "imei", "issue_description",
+    "device_brand", "device_model","with-cable", "imei", "issue_description",
     "defect_description",
     "customer_name", "customer_phone", "customer_email", "customer_address",
     "assigned_techniker_id", "device_passcode", "device_lock_type",
@@ -141,6 +141,9 @@ def serialize_order(order: dict, user: dict, light: bool = False) -> dict:
     o["is_diagnosis_paid_at_intake"] = bool(order.get("is_diagnosis_paid_at_intake", False))
     o["imei_reminder"] = bool(order.get("imei_unreadable", False)) and not (order.get("imei") or "").strip()
     o.update(compute_warranty(order))
+    # ضمان إرسال حقل جاهزية الورشة للواجهة دائماً
+    o["workshop_ready"] = bool(order.get("workshop_ready", False))
+    o["workshop_ready_by"] = order.get("workshop_ready_by", "")
     # Signature presence flags (avoid shipping heavy base64 in list views)
     o["has_intake_signature"] = bool(order.get("intake_signature"))
     o["has_pickup_signature"] = bool(order.get("pickup_signature"))
@@ -530,7 +533,7 @@ async def list_technicians(current=Depends(get_current_user)):
 @router.post("/users")
 async def create_user(input: UserCreate, current=Depends(require_roles("admin"))):
     from auth import hash_password
-    if input.role not in ("admin", "mitarbeiter", "techniker"):
+    if input.role not in ("admin", "mitarbeiter", "techniker", "branch_admin"):
         raise HTTPException(status_code=400, detail="Ungültige Rolle")
     email = input.email.lower()
     if await db.users.find_one({"email": email}):
@@ -773,12 +776,13 @@ async def list_orders(
     status: Optional[str] = None, 
     sla: Optional[bool] = None,
     branch_id: Optional[str] = None, 
-    limit: int = 20000, 
+    limit: int = 200, 
     skip: int = 0, 
     current=Depends(get_current_user)
 ):
     print(">>> ENTERED /orders ENDPOINT <<<")
-    
+    print("DEBUG CURRENT USER DATA:", current)
+
     try:
         query = await _order_query_for_user(current)
     except Exception:
@@ -787,7 +791,16 @@ async def list_orders(
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    if user_role in ["admin", "super_admin"] and allowed_branches:
+    # 👈 بناء الـ query بحرية تامة للأدمن والـ branch_admin
+    if user_role in ["admin", "super_admin", "branch_admin"]:
+        query = {}  # ابدأ بـ query فارغ تماماً لضمان عدم وجود أي قيود
+    else:
+        try:
+            query = await _order_query_for_user(current)
+        except Exception:
+            query = {}
+    
+    if user_role in ["admin", "super_admin", "branch_admin"] and allowed_branches:
         branch_match_list = []
         for b in allowed_branches:
             branch_match_list.append(b)
@@ -796,6 +809,9 @@ async def list_orders(
             except Exception:
                 pass
         query["branch_id"] = {"$in": branch_match_list}
+    elif user_role in ["admin", "super_admin", "branch_admin"]:
+        # لا توجد قيود على الفروع، يرى كافة الطلبات عالمياً
+        pass
     elif user_role == "mitarbeiter":
         user_branch = current.get("branch_id")
         if user_branch:
@@ -804,15 +820,18 @@ async def list_orders(
             query["branch_id"] = {"$in": []}
     elif user_role == "techniker":
         pass
-    elif user_role not in ["admin", "super_admin"]:
+    elif user_role not in ["admin", "super_admin", "branch_admin"]:
         query["branch_id"] = {"$in": []}
     
     if status:
         query["status"] = status
+    else:
+        query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled"]}
         
     if branch_id:
         try:
-            if user_role not in ["admin", "super_admin"] and allowed_branches:
+            # السماح للأدمن و branch_admin بالمرور بحرية
+            if user_role not in ["admin", "super_admin", "branch_admin"] and allowed_branches:
                 if branch_id not in [str(b) for b in allowed_branches]:
                     raise HTTPException(status_code=403, detail="ليس لديك صلاحية لعرض هذا الفرع")
             
@@ -824,7 +843,10 @@ async def list_orders(
             if isinstance(e, HTTPException):
                 raise e
             query["branch_id"] = branch_id
-    
+
+# ضع هذه الطباعة مباشرة قبل db.orders.find(...)
+    print(">>> DEBUG QUERY FOR ORDERS:", query)
+
     try:
         orders = await db.orders.find(
             query,  
@@ -833,7 +855,8 @@ async def list_orders(
                 "status": 1, "created_at": 1, "branch_id": 1, 
                 "is_reclamation": 1, "warranty_until": 1, 
                 "user_id": 1, "created_by": 1, "created_by_name": 1, "mitarbeiter_id": 1, "assigned_techniker_id": 1,
-                "customer_notified": 1, "pickup_date": 1
+                "customer_notified": 1, "pickup_date": 1,
+                "workshop_ready": 1, "workshop_ready_by": 1
             }
         ).sort("created_at", -1).skip(skip).to_list(length=limit)
     except Exception as e:
@@ -970,20 +993,28 @@ async def get_order(order_id: str, current=Depends(get_current_user)):
     return attach_names(serialize_order(order, current), bmap, umap)
 
 @router.delete("/orders/{order_id}")
-async def delete_order(order_id: str, current=Depends(require_roles("admin"))):
-    """Admin-only. Permanently deletes a single order plus its related
-    operational records (procurement, chat, communications, notifications, files)."""
+async def delete_order(order_id: str, current=Depends(get_current_user)):
+    """Deletes a single order. Allowed for admins, strictly blocked for branch_admin and others."""
+    # التحقق من الصلاحية: السماح فقط للأدمن وحظر الـ branch_admin وأي أدوار أخرى
+    role = current.get("role", "")
+    if role not in ["admin", "super_admin"]:
+        raise HTTPException(
+            status_code=403, 
+            detail="Sie haben keine Berechtigung, Aufträge zu löschen."
+        )
+
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+        
     await db.orders.delete_one({"_id": ObjectId(order_id)})
     for coll in ("purchases", "chat_messages", "communications", "notifications", "audit_log", "files"):
         try:
             await db[coll].delete_many({"order_id": order_id})
         except Exception:
             pass
+            
     return {"message": "Auftrag gelöscht", "auftragsnummer": order.get("auftragsnummer")}
-
 
 @router.post("/orders")
 async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter" , "techniker" ))):
@@ -1227,6 +1258,31 @@ async def cancel_order(order_id: str, input: CancelInput,
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(order, current)
 
+@router.post("/orders/{order_id}/reject")
+async def reject_order(order_id: str, payload: dict = None, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    reason = payload.get("reason", "Kein Grund angegeben") if payload else "Kein Grund angegeben"
+    
+    # تحويل الحالة إلى ABGELEHNT وتسجيل سبب الرفض للتقني
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"status": "ABGELEHNT", "reject_reason": reason}}
+    )
+    
+    # إرسال إشعار فوري وتنبيه
+    await push_notification(
+        kind="STATUS",
+        title="❌ Auftrag abgelehnt",
+        message=f"Der Techniker {current['name']} hat den Auftrag {order.get('auftragsnummer','')} abgelehnt. Grund: {reason}",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
+    )
+    
+    updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(updated_order, current)
 
 @router.post("/orders/{order_id}/assign")
 async def assign_order(order_id: str, input: AssignInput,
@@ -1326,28 +1382,29 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         )
         
    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة
-    if role == "techniker":
-        pass
-    elif role == "mitarbeiter":
-        if input.status not in ("ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEاربيتيغ", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
-            raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")
-            
-    # تم إلغاء قيود الصور وفحص النهاية عند التحويل إلى FERTIG بناءً على طلبك
-    # if input.status == "FERTIG":
-    #     ... (تم التعطيل بالكامل)
-                                
+    if role in ("techniker", "mitarbeiter"):
+        if input.status not in ("ANGENOMMEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
+            raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")      
+    
     extra = {"reject_reason": input.reason} if input.reason else None
     
     # Start warranty period when the device is handed back (delivered)
     if input.status == "ABGEHOLT":
         months = int(order.get("warranty_months") or WARRANTY_DEFAULT_MONTHS)
         start = datetime.now(timezone.utc)
-        until = start + timedelta(days=30 * months)
+        until = start + timedelta(days=30 * months) # تم تصحيح ضرب الأيام هنا بـ 30
         extra = {**(extra or {}),
                  "warranty_start": start.isoformat(),
                  "warranty_until": until.isoformat()}
                  
     await _touch_order(order_id, input.status, current["name"], extra)
+    
+    # 💡 أضف هذا التحديث هنا: إذا أصبحت الحالة FERTIG، قم بإلغاء تفعيل حالة الورشة تلقائياً لتختفي العلامة الصفراء
+    if input.status == "FERTIG":
+        await db.orders.update_one(
+            {"_id": ObjectId(order_id)},
+            {"$set": {"workshop_ready": False}}
+        )
     
     # Automated customer status notification
     await auto_status_communication(order, input.status, current["name"])
@@ -1363,7 +1420,32 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
     )
     
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
-    return serialize_order(order, current)        
+    return serialize_order(order, current)
+
+@router.patch("/orders/{order_id}/workshop-ready")
+async def mark_workshop_ready(order_id: str, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+    
+    # تحديث حقل خاص بالورشة لتمييزه وتفعيل التنبيه واللون الأصفر الفاقع
+    await db.orders.update_one(
+        {"_id": ObjectId(order_id)},
+        {"$set": {"workshop_ready": True, "workshop_ready_by": current["name"]}}
+    )
+    
+    # إرسال إشعار فوري وتنبيه للموظفين
+    await push_notification(
+        kind="WORKSHOP_READY",
+        title="⚠️ جاهز للاستلام من الورشة",
+        message=f"التقني {current['name']} أعلن أن الجهاز {order.get('auftragsnummer','')} جاهز للاستلام من الورشة.",
+        by=current["name"], by_role=current["role"],
+        order_id=order_id, auftragsnummer=order.get("auftragsnummer")
+    )
+    
+    updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
+    return serialize_order(updated_order, current)
+
 @router.delete("/orders/{order_id}/notes/{note_id}")
 async def delete_order_note(order_id: str, note_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
@@ -1837,7 +1919,7 @@ async def upload_media(
 
 # ==================== CHAT ====================
 @router.get("/orders/{order_id}/messages")
-async def get_messages(order_id: str, current=Depends(get_current_user)):
+async def get_messages(order_id: str, request: Request,  current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1845,15 +1927,30 @@ async def get_messages(order_id: str, current=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Nicht zugewiesen")
     
     msgs = await db.chat_messages.find({"order_id": order_id}).sort("created_at", 1).to_list(1000)
-    return [{
-        "id": str(m["_id"]), 
-        "sender_id": m["sender_id"], 
-        "sender_name": m["sender_name"],
-        "sender_role": m["sender_role"], 
-        "message": m["message"],
-        "audio_url": m.get("audio_url"),
-        "created_at": m["created_at"]
-    } for m in msgs]
+    base_url = "https://handysync.de"
+
+    result_messages = []
+    for m in msgs:
+        raw_audio = m.get("audio_url")
+        if raw_audio:
+           if "127.0.0.1" in raw_audio or "localhost" in raw_audio:
+             final_audio = raw_audio.replace("http://127.0.0.1:8001", "https://handysync.de").replace("http://localhost:8001", "https://handysync.de")
+           elif raw_audio.startswith("http"):
+             final_audio = raw_audio
+           else:
+             final_audio = f"{base_url}/{raw_audio.lstrip('/')}"
+        else:
+            final_audio = ""
+        result_messages.append({
+         "id": str(m["_id"]),
+         "sender_id": m["sender_id"],
+         "sender_name": m["sender_name"],
+         "sender_role": m["sender_role"],
+         "message": m["message"],
+         "audio_url": final_audio,
+         "created_at": m["created_at"]
+       }) 
+    return result_messages
 
 
 @router.delete("/orders/{order_id}/messages/{message_id}")
@@ -1877,6 +1974,7 @@ async def delete_message(order_id: str, message_id: str, current=Depends(get_cur
 @router.post("/orders/{order_id}/messages")
 async def post_message(
     order_id: str, 
+    request: Request,
     message: Optional[str] = Form(None), 
     audio_file: Optional[UploadFile] = File(None),
     current=Depends(get_current_user)
@@ -1899,11 +1997,13 @@ async def post_message(
         file_extension = Path(audio_file.filename).suffix or ".webm"
         file_name = f"audio_{order_id}_{int(datetime.now().timestamp())}{file_extension}"
         file_path = upload_dir / file_name
-        
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(audio_file.file, buffer)
-        
-        audio_path = f"/uploads/repair-berlin/orders/{file_name}"
+        contents = await audio_file.read()
+        print(f"DEBUG AUDIO: Received filename={audio_file.filename}, size={len(contents)} bytes")
+
+        if contents:
+           with open(file_path, "wb") as buffer:
+              buffer.write(contents)
+           audio_path = f"/uploads/repair-berlin/orders/{file_name}"
 
     # التحقق من أن الرسالة تحتوي على نص أو صوت على الأقل
     if not text and not audio_path:
@@ -1921,21 +2021,31 @@ async def post_message(
         "is_read": False,  # <--- أضف هذه السطر هنا لكي تبدأ الرسالة غير مقروءة
     }
     res = await db.chat_messages.insert_one(doc)
-    
     await push_notification(
         kind="CHAT", title="Neue Chat-Nachricht",
         message=f"{current['name']} ({current['role']}) im Auftrag {order.get('auftragsnummer','')}: {text[:80] or 'ملاحظة صوتية'}",
         by=current["name"], by_role=current["role"],
         order_id=order_id, auftragsnummer=order.get("auftragsnummer"),
     )
-    
+    base_url = "https://handysync.de"
+    raw_audio = doc.get("audio_url")
+    if raw_audio:
+        if "127.0.0.1" in raw_audio or "localhost" in raw_audio:
+            final_audio_url = raw_audio.replace("http://127.0.0.1:8001", "https://handysync.de").replace("http://localhost:8001", "https://handysync.de")
+        elif raw_audio.startswith("http"):
+            final_audio_url = raw_audio
+        else:
+            final_audio_url = f"{base_url}/{raw_audio.lstrip('/')}"
+    else:
+        final_audio_url = ""
+
     return {
         "id": str(res.inserted_id), 
         "sender_id": doc["sender_id"], 
         "sender_name": doc["sender_name"],
         "sender_role": doc["sender_role"], 
         "message": doc["message"], 
-        "audio_url": doc.get("audio_url"),
+        "audio_url": final_audio_url,
         "created_at": doc["created_at"]
     }
 
@@ -1992,15 +2102,19 @@ async def stats(current=Depends(get_current_user)):
     
     if current.get("role") == "admin":
         try:
-            result["total_users"] = await db.users.count_documents({})
-        except Exception:
-            result["total_users"] = 0
-
-        try:
-            result["total_branches"] = await db.branches.count_documents({})
+            branch_query = {}
+            if user_role in ["admin", "super_admin"] and allowed_branches:
+                branch_ids_query = []
+                for b in allowed_branches:
+                    branch_ids_query.append(b)
+                    try:
+                        branch_ids_query.append(ObjectId(b))
+                    except Exception:
+                         pass
+                branch_query["_id"] = {"$in": branch_ids_query}
+            result["total_branches"] = await db.branches.count_documents(branch_query)
         except Exception:
             result["total_branches"] = 0
-            
         try:
             low_stock = await db.inventory.find(
                 {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
@@ -2024,7 +2138,7 @@ async def stats(current=Depends(get_current_user)):
         
         # تجميع إحصائيات الفروع
         try:
-            branches = await db.branches.find({}, {"name": 1}).to_list(100)
+            branches = await db.branches.find(branch_query, {"name": 1}).to_list(100)
             bmap = {str(b["_id"]): b["name"] for b in branches if "_id" in b and "name" in b}
             
             by_branch = {name: {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0} for name in bmap.values()}
@@ -2323,7 +2437,12 @@ async def create_reclamation_order(order_id: str, current = Depends(require_role
     
     # توليد رقم أوفراغ مميز للريكلاماسيون منعاً لتكرار الأرقام
     old_nr = old_order.get('auftragsnummer', '')
-    new_auftragsnummer = f"REK-{old_nr}" if not old_nr.startswith("REK-") else old_nr
+    clean_nr = old_nr if not old_nr.startswith("REK-") else old_nr[4:]
+    existing_recs_count = await db.orders.count_documents({
+        "original_order_id": str(old_order["_id"]),
+        "is_reclamation": True
+    })
+    new_auftragsnummer = f"REK-{clean_nr}-{existing_recs_count + 1}"
     
     reklamation_data = {
         "auftragsnummer": new_auftragsnummer,

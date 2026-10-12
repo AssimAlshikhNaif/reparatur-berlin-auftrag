@@ -15,22 +15,24 @@ function playBeep() {
     if (!Ctx) return;
     const ctx = new Ctx();
     const now = ctx.currentTime;
-    const tones = [880, 1320];
+    
+    // تكرار النغمات لتصبح أطول وأكثر تنبيهاً للموظف
+    const tones = [800, 1200, 800, 1200, 1000, 1500];
     tones.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sine";
+      osc.type = "sawtooth"; // نغمة حادة وقوية جداً
       osc.frequency.value = freq;
-      const t = now + i * 0.14;
+      const t = now + i * 0.15;
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.6, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(t);
-      osc.stop(t + 0.18);
+      osc.stop(t + 0.16);
     });
-    setTimeout(() => ctx.close(), 800);
+    setTimeout(() => ctx.close(), 1500);
   } catch (e) {}
 }
 

@@ -30,6 +30,13 @@ BRANCHES = [
         "logo_url": ""
     },
     {
+    "name": "Reparatur Großhandel ",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "logo_url": ""
+    },
+    {
         "name": "Handy & Laptop Krankenhaus",
         "address": " Pablo-Neruda-Str.2-4, 12559 Berlin ",
         "phone": " +49 1792087786 ",

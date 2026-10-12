@@ -160,6 +160,16 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ total_orders: 0 });
   const [slaOrders, setSlaOrders] = useState([]);
 
+  // 👈 تحويل تلقائي فوري لحساب branch_admin لصفحة الطلبات
+  useEffect(() => {
+    if (user?.role === "branch_admin") {
+      navigate("/auftraege", { replace: true });
+    }
+  }, [user, navigate]);
+
+  // إيقاف عرض أي محتوى إذا كان المستخدم branch_admin
+  if (user?.role === "branch_admin") return null;
+
   if (user?.role === "mitarbeiter") return <MitarbeiterDashboard />;
 
   return (

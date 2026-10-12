@@ -37,6 +37,7 @@ export default function OrderCreate() {
     branch_id: reclamationSource?.branch_id || "", device_brand: reclamationSource?.device_brand || "Apple",
     device_model: reclamationSource?.device_model || "", imei: reclamationSource?.imei || "",
     imei_unreadable: false,
+    with_cable: "without_cable",
     device_passcode: "",
     device_lock_type: "none",
     issue_description: reclamationSource ? t("oc.reclamationPrefix", { nr: reclamationSource.auftragsnummer }) : "",
@@ -285,6 +286,18 @@ const submit = async (e) => {
               <label className={labelCls}>{t("oc.model")}</label>
               <input data-testid="order-model" required value={form.device_model} onChange={set("device_model")} placeholder={t("oc.modelPlaceholder")} className={inputCls} />
               {errors.device_model && <p className="text-[10px] font-mono text-red-400 mt-1">{errors.device_model}</p>}
+            </div>
+            <div>
+            <label className={labelCls}>Zubehr / Kabel</label>
+            <select
+                data-testid="order-cable-status"
+                value={form.with_cable}
+                onChange={(e) => setForm({ ...form, with_cable: e.target.value })}
+                className={inputCls} 
+              >
+                <option value="true">Mit Kabel</option>   
+                <option value="fals">Ohne Kabel</option> 
+            </select>
             </div>
             <div>
               <label className={labelCls}>{t("oc.imei")} <span className="text-red-400">*</span></label>

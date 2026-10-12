@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, Printer, CheckCircle, XCircle, Wrench, Package,
   UploadSimple, ShieldCheck, DeviceMobile, User, ClockCounterClockwise, Camera,
-  Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart,
+  Receipt, Trash, Plus, VideoCamera, ListChecks, ShoppingCart, Bell ,
   Warning, Signature, ArrowsClockwise, ChatCircleDots, ClipboardText, Barcode, ShieldWarning, SpinnerGap, PencilSimple,
 } from "@phosphor-icons/react";
 
@@ -63,7 +63,10 @@ export default function OrderDetail() {
   const getMediaUrl = (url) => {
     if (!url) return "";
     if (url.startsWith("http://") || url.startsWith("https://")) return url;
-    return `http://${window.location.hostname}:8001${url}`;
+    if (url.startsWith("/")) {
+      return `${window.location.origin}${url}`;
+    }
+    return `${window.location.origim}/uploads/${url}`;
   };
   const { id } = useParams();
   const { user } = useAuth();
@@ -132,6 +135,8 @@ useEffect(() => {
   const isAdmin = user.role === "admin";
   const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
 
+
+
   const deleteOrder = async () => {
     try {
       setDeleting(true);
@@ -184,6 +189,40 @@ useEffect(() => {
       toast.error(e.response?.data?.detail || t("toast.updateError"));
     }
   };
+
+  const handleWorkshopReady = async () => {
+  try {
+    // 1. استدعاء الـ Endpoint الجديد الذي أنشأناه في الباك إند
+    const response = await api.patch(`/orders/${order.id}/workshop-ready`);
+    
+    // 2. تحديث الحالة المحلية للطلب
+    if (typeof setOrder === "function") {
+      setOrder(response.data);
+    } else {
+      order.workshop_ready = true;
+    }
+
+    // 3. تشغيل صوت تنبيه عالي (صوت تنبيه بسيط عبر Web Audio API)
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // تردد عالي لفت الانتباه
+      gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.4); // مدة التنبيه 400 ميلي ثانية
+    } catch (e) {
+      console.log("Audio play failed", e);
+    }
+
+    toast.success("Bereit in Werkstatt");
+  } catch (err) {
+    toast.error("فشل في إرسال التنبيه");
+  }
+};
 
   const handleAddNote = async (e) => {
     e.preventDefault();
@@ -381,7 +420,13 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
           {/* ========================================== */}
           {/* 1. واجهة التقني (أزرار تفاعلية شاملة للحالات) */}
           {/* ========================================== */}
-          {isTech && !["STORNIERT"].includes(order?.status) && (
+          {isTech && !["STORNIERT"].includes(order?.status) && (() => {
+             if (order?.status !== "FERTIG") return true;
+             const updatedTime = new Date(order.updated_at || order.created_at).getTime();
+             const hoursPassed = (Date.now() - updatedTime) / (1000 * 60 * 60);
+             return hoursPassed < 24;
+             })() &&(
+
             <>
               {order.status === "ZUGEWIESEN" && (
                 <>
@@ -395,7 +440,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                   </button>
                 </>
               )}
-              {["ANGENOMMEN", "AKZEPTIERT", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "WARTEN_FREIGABE", "FERTIG", "ABGEHOLT"].includes(order.status) && (
+              {["ANGENOMMEN", "AKZEPTIERT", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "WARTEN_FREIGABE", "FERTIG" ].includes(order.status) && (
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => setStatus("ANGENOMMEN")}
                     className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
@@ -429,6 +474,19 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                     }`}>
                     <Package size={14} /> Warten Ersatzteil
                   </button>
+
+                  {/* زر جاهز للاستلام من الورشة للتقني */}
+<button 
+  onClick={handleWorkshopReady}
+  className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
+    order.workshop_ready 
+      ? "bg-yellow-400 text-black font-bold shadow-[0_0_20px_rgba(250,204,21,0.6)] animate-pulse" 
+      : "bg-yellow-500/20 border border-yellow-500/60 text-yellow-500 hover:bg-yellow-500/30"
+  }`}
+>
+  <Bell size={14} /> 
+  {order.workshop_ready ? "⚠️ Bereit in Werkstatt " : "جاهز للاستلام من الورشة"}
+</button>
                   <button onClick={() => setStatus("FERTIG")}
                     className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
                       order.status === "FERTIG"
@@ -436,14 +494,6 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                         : "border border-border hover:bg-muted/80 text-emerald-400"
                     }`}>
                     <CheckCircle size={14} /> Fertig
-                  </button>
-                  <button onClick={() => setStatus("ABGEHOLT")}
-                    className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
-                      order.status === "ABGEHOLT"
-                        ? "bg-purple-600 text-white shadow-[0_0_15px_rgba(147,51,234,0.4)]"
-                        : "border border-border hover:bg-muted/80 text-purple-400"
-                    }`}>
-                    <CheckCircle size={14} /> Abgeholt
                   </button>
                 </div>
               )}
@@ -730,6 +780,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
           <div className="lg:col-span-2 space-y-4">
             <Section title={t("detail.deviceError")} icon={DeviceMobile}>
               <Field label={t("detail.brandModel")} value={`${order.device_brand} ${order.device_model}`} />
+              <Field label="zubehor / kabel" value={order.with_cable === "with_cable" ? "Mit kABEL" : "Ohne Kabel"} />
               <Field label={t("detail.imei")} value={order.imei || (order.imei_unreadable ? t("detail.imeiNotReadable") : "—")} />
               {order.imei_reminder && (
                 <div data-testid="imei-fillin" className="my-2 border border-amber-800/60 bg-amber-950/20 rounded-lg p-3">
@@ -1732,7 +1783,7 @@ function MediaThumb({ m, onDelete }) {
   const fileName = rawPath.split('/').pop();
   
   // إذا كنت تعمل محلياً يشير للبورت 8001، وعلى السيرفر يشير للدومين الأساسي
-  const API_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:8001"; 
+  const API_URL = process.env.REACT_APP_BACKEND_URL || ""; 
   const exactUrl = `${API_URL}/uploads/${fileName}`;
   console.log("Fixed Image URL:", exactUrl);
 

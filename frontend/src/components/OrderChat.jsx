@@ -80,11 +80,12 @@ export default function OrderChat({ orderId }) {
     audioChunksRef.current = [];
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+     const options = { mimeType: 'audio/webm;codecs=opus' };
+      const mediaRecorder = new MediaRecorder(stream, MediaRecorder.isTypeSupported(options.mimeType) ? options : {});
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
@@ -92,10 +93,14 @@ export default function OrderChat({ orderId }) {
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         setAudioBlob(audioBlob);
+
+        if (typeof setAudioUrl === "function") {
+        setAudioUrl(URL.createObjectURL(audioBlob));
+      }
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(100);
       setIsRecording(true);
     } catch (err) {
       console.error("Mikrofon-Zugriff verweigert oder Fehler:", err);
@@ -114,6 +119,7 @@ export default function OrderChat({ orderId }) {
   // إلغاء التسجيل الصوتي المسجل
   const cancelRecording = () => {
     setAudioBlob(null);
+    if (typeof setAudioUrl === "function") setAudioUrl(null);
     setIsRecording(false);
   };
 
@@ -201,7 +207,7 @@ export default function OrderChat({ orderId }) {
                 {m.audio_url && (
                   <div className="mt-2">
                     <audio controls className="w-full max-w-[240px] h-8">
-                      <source src={`http://127.0.0.1:8001${m.audio_url}`} type="audio/webm" />
+                      <source src={m.audio_url} type="audio/webm" />
                       Ihr Browser unterstützt kein Audio-Element.
                     </audio>
                   </div>

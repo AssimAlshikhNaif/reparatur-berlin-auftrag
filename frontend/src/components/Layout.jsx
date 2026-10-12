@@ -15,10 +15,10 @@ import {
 
 const NAV = [
   { to: "/", key: "dashboard", icon: Gauge, roles: ["admin", "mitarbeiter", "techniker"], end: true },
-  { to: "/auftraege", key: "orders", icon: Wrench, roles: ["admin", "mitarbeiter", "techniker"] },
-  { to: "/auftrag/neu", key: "newOrder", icon: PlusCircle, roles: ["admin", "mitarbeiter"] },
-  { to: "/scannen", key: "scan", icon: QrCode, roles: ["admin", "mitarbeiter", "techniker"] },
-  { to: "/ersatzteile", key: "parts", icon: Package, roles: ["admin", "mitarbeiter", "techniker"] },
+  { to: "/auftraege", key: "orders", icon: Wrench, roles: ["admin", "mitarbeiter", "techniker", "branch_admin"] }, // 👈 إضافة branch_admin
+  { to: "/auftrag/neu", key: "newOrder", icon: PlusCircle, roles: ["admin", "mitarbeiter" , "branch_admin"] },
+  { to: "/scannen", key: "scan", icon: QrCode, roles: ["admin", "mitarbeiter", "techniker", "branch_admin"] }, // 👈 إتاحة المسح الضوئي إذا أردت
+  { to: "/ersatzteile", key: "parts", icon: Package, roles: ["admin", "mitarbeiter", "techniker", "branch_admin"] }, // 👈 إتاحة قطع الغيار للاطلاع
   { to: "/beschaffung", key: "procurement", icon: ShoppingCart, roles: ["admin", "mitarbeiter"] },
   { to: "/analyse", key: "analytics", icon: ChartBar, roles: ["admin"] },
   { to: "/aktivitaet", key: "activity", icon: ListChecks, roles: ["admin"] },
@@ -124,7 +124,7 @@ export default function Layout({ children }) {
           
           {/* قسم الفروع والبحث */}
           <div className="flex items-center gap-2 w-full md:w-auto">
-            {user.role === "admin" && <div className="shrink-0"><BranchDropdown /></div>}
+            {(user.role === "admin" || user.role === "branch_admin") && <div className="shrink-0"><BranchDropdown /></div>}
             <div className="flex-1 md:w-80">
               <GlobalSearch compact={true} />
             </div>
