@@ -9,12 +9,22 @@ export default function BranchDropdown() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [branches, setBranches] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [open, setOpen] = useState(false);
   const buttonRef = useRef(null);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 
   useEffect(() => {
-    api.get("/branches").then((r) => setBranches(r.data)).catch(() => {});
+    // جلب الأفرع وبيانات المستخدم الحالي بالتوازي لضمان الصلاحيات
+    Promise.all([
+      api.get("/branches"),
+      api.get("/auth/me").catch(() => ({ data: null }))
+    ]).then(([branchesRes, userRes]) => {
+      setBranches(branchesRes.data || []);
+      if (userRes && userRes.data) {
+        setCurrentUser(userRes.data);
+      }
+    }).catch(() => {});
   }, []);
 
   const handleToggle = (e) => {
@@ -33,9 +43,24 @@ export default function BranchDropdown() {
 
   const goToBranch = (b) => {
     setOpen(false);
-    const branchId = b._id || b.id; // التحقق من الحقلين لضمان عدم إرسال undefined
+    const branchId = b._id || b.id;
     navigate(`/auftraege?branch_id=${branchId}&branch_name=${encodeURIComponent(b.name)}`);
   };
+
+  // فلترة الأفرع بناءً على allowed_branches للمستخدم إذا وجت
+  const filteredBranches = (() => {
+    if (!currentUser) return branches;
+    const allowed = currentUser.allowed_branches;
+    // إذا كان الأدمن عاماً وليس لديه قيود أفرع محددة
+    if (!allowed || !Array.isArray(allowed) || allowed.length === 0) {
+      return branches;
+    }
+    // تصفية الأفرع لتظهر فقط المسموحة ضمن القائمة
+    return branches.filter((b) => {
+      const bId = String(b._id || b.id);
+      return allowed.map(String).includes(bId);
+    });
+  })();
 
   return (
     <div className="relative shrink-0">
@@ -54,17 +79,14 @@ export default function BranchDropdown() {
       {open &&
         createPortal(
           <div className="fixed inset-0 z-[999999] flex items-center justify-center sm:block">
-            {/* خلفية معتمة تغطي الشاشة لإغلاق القائمة عند النقر خارجها */}
             <div
               className="fixed inset-0 bg-black/60 sm:bg-transparent"
               onClick={() => setOpen(false)}
             />
 
-            {/* صندوق القائمة */}
             <div
               data-testid="branch-dropdown-list"
               style={{
-                /* على الموبايل تظهر بالمنتصف، على اللابتوب تظهر تحت الزر تماماً */
                 ...(window.innerWidth >= 640
                   ? {
                       position: "absolute",
@@ -83,22 +105,25 @@ export default function BranchDropdown() {
                 </button>
               </div>
 
-              {branches.length === 0 ? (
+              {filteredBranches.length === 0 ? (
                 <div className="px-4 py-3 text-xs font-mono text-muted-foreground/70">
                   {t("common.noResults", "Keine Ergebnisse")}
                 </div>
               ) : (
-                branches.map((b) => (
-                  <button
-                    type="button"
-                    key={b._id}
-                    data-testid={`branch-item-${b._id}`}
-                    onClick={() => goToBranch(b)}
-                    className="w-full text-start px-4 py-3 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate rounded-lg sm:rounded-none cursor-pointer"
-                  >
-                    {b.name}
-                  </button>
-                ))
+                filteredBranches.map((b) => {
+                  const bId = b._id || b.id;
+                  return (
+                    <button
+                      type="button"
+                      key={bId}
+                      data-testid={`branch-item-${bId}`}
+                      onClick={() => goToBranch(b)}
+                      className="w-full text-start px-4 py-3 text-sm hover:bg-muted/50 border-b border-border/50 last:border-b-0 transition-colors truncate rounded-lg sm:rounded-none cursor-pointer"
+                    >
+                      {b.name}
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>,

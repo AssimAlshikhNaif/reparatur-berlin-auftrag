@@ -19,7 +19,7 @@ const NAV = [
   { to: "/auftrag/neu", key: "newOrder", icon: PlusCircle, roles: ["admin", "mitarbeiter" , "branch_admin"] },
   { to: "/scannen", key: "scan", icon: QrCode, roles: ["admin", "mitarbeiter", "techniker", "branch_admin"] }, // 👈 إتاحة المسح الضوئي إذا أردت
   { to: "/ersatzteile", key: "parts", icon: Package, roles: ["admin", "mitarbeiter", "techniker", "branch_admin"] }, // 👈 إتاحة قطع الغيار للاطلاع
-  { to: "/beschaffung", key: "procurement", icon: ShoppingCart, roles: ["admin", "mitarbeiter"] },
+  { to: "/beschaffung", key: "procurement", icon: ShoppingCart, roles: ["admin", "mitarbeiter", "branch_admin"] },
   { to: "/analyse", key: "analytics", icon: ChartBar, roles: ["admin"] },
   { to: "/aktivitaet", key: "activity", icon: ListChecks, roles: ["admin"] },
   { to: "/benutzer", key: "users", icon: Users, roles: ["admin"] },

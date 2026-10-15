@@ -97,7 +97,7 @@ async def _log_audit(order_id: str, action: str, detail: str, by: str):
 async def get_arrival_alerts(current_user=Depends(get_current_user)):
     """Procurement items that are due TODAY or OVERDUE and not yet arrived.
     Admin: all; Mitarbeiter: own branch; Techniker: 403."""
-    if current_user["role"] not in ("admin", "mitarbeiter"):
+    if current_user["role"] not in ("admin", "mitarbeiter" , "branch_admin"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     from datetime import date as _date
     today = datetime.now(timezone.utc).date()
@@ -130,7 +130,7 @@ async def get_arrival_alerts(current_user=Depends(get_current_user)):
         if exp_date > today:
             continue  # not due yet
         order = omap.get(p.get("order_id"))
-        if current_user["role"] == "mitarbeiter":
+        if current_user["role"] in ("mitarbeiter", "branch_admin"): 
             if not order or order.get("branch_id") != user_branch:
                 continue
         item = _serialize(p, current_user)
@@ -160,10 +160,12 @@ async def get_purchases_by_order(order_id: str, current_user=Depends(get_current
 
 @router.get("/all")
 async def get_all_purchases(current_user=Depends(get_current_user)):
-    """Centralized procurement list across ALL orders (Admin: all; Mitarbeiter: own
+    """Centralized procurement list across ALL orders (Admin: all; Mitarbeiter & Branch Admin: own
     branch). Technicians are not allowed here."""
-    if current_user["role"] not in ("admin", "mitarbeiter"):
+    # 1. أضف الفاصلة هنا
+    if current_user["role"] not in ("admin", "mitarbeiter", "branch_admin"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
+        
     purchases = await db.purchases.find().sort("created_at", -1).to_list(2000)
     order_ids = []
     for p in purchases:
@@ -180,9 +182,12 @@ async def get_all_purchases(current_user=Depends(get_current_user)):
     out = []
     for p in purchases:
         order = omap.get(p.get("order_id"))
-        if current_user["role"] == "mitarbeiter":
+        
+        # 2. أضف branch_admin هنا أيضاً لكي تتم فلترة الفرع بشكل صحيح
+        if current_user["role"] in ("mitarbeiter", "branch_admin"):
             if not order or order.get("branch_id") != user_branch:
                 continue
+                
         item = _serialize(p, current_user)
         if order:
             item["auftragsnummer"] = order.get("auftragsnummer")
@@ -197,11 +202,10 @@ async def get_all_purchases(current_user=Depends(get_current_user)):
         out.append(item)
     return out
 
-
 @router.post("")
 @router.post("/")
 async def create_purchase(data: PurchaseCreate, current_user=Depends(get_current_user)):
-    if current_user["role"] not in ("admin", "mitarbeiter", "techniker"):
+    if current_user["role"] not in ("admin", "mitarbeiter", "techniker" , "branch_admin"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     status = data.status if data.status in PURCHASE_STATES else "ANGEFRAGT"
     now = datetime.now(timezone.utc).isoformat()
@@ -241,7 +245,7 @@ async def create_purchase(data: PurchaseCreate, current_user=Depends(get_current
 
 @router.patch("/{purchase_id}")
 async def update_purchase(purchase_id: str, data: PurchaseUpdate, current_user=Depends(get_current_user)):
-    if current_user["role"] not in ("admin", "mitarbeiter", "techniker"):
+    if current_user["role"] not in ("admin", "mitarbeiter", "techniker" , "branch_admin"):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
     try:
         existing = await db.purchases.find_one({"_id": ObjectId(purchase_id)})
@@ -304,7 +308,7 @@ async def update_purchase(purchase_id: str, data: PurchaseUpdate, current_user=D
 
 @router.delete("/{purchase_id}")
 async def delete_purchase(purchase_id: str, current_user=Depends(get_current_user)):
-    if current_user["role"] not in ("admin", "mitarbeiter"):
+    if current_user["role"] not in ("admin", "mitarbeiter" , "branch_admin"):
         raise HTTPException(status_code=403, detail="Nur Admin und Mitarbeiter dürfen löschen")
     try:
         existing = await db.purchases.find_one({"_id": ObjectId(purchase_id)})

@@ -513,8 +513,25 @@ async def delete_branch(branch_id: str, current=Depends(require_roles("admin")))
 
 # ==================== USERS (Admin only) ====================
 @router.get("/users")
-async def list_users(current=Depends(require_roles("admin"))):
-    users = await db.users.find().to_list(200)
+async def list_users(current=Depends(get_current_user)):
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", [])
+    
+    if user_role not in ["admin", "super_admin", "branch_admin"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+        
+    query = {}
+    if allowed_branches and user_role not in ["admin", "super_admin"]:
+        branch_match_list = []
+        for b in allowed_branches:
+            branch_match_list.append(b)
+            try:
+                branch_match_list.append(ObjectId(b))
+            except Exception:
+                pass
+        query["branch_id"] = {"$in": branch_match_list}
+
+    users = await db.users.find(query).to_list(200)
     out = []
     for u in users:
         out.append({
@@ -526,18 +543,50 @@ async def list_users(current=Depends(require_roles("admin"))):
 
 @router.get("/technicians")
 async def list_technicians(current=Depends(get_current_user)):
-    users = await db.users.find({"role": "techniker"}).to_list(200)
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", [])
+    
+    query = {"role": "techniker"}
+    if allowed_branches and user_role not in ["admin", "super_admin"]:
+        branch_match_list = []
+        for b in allowed_branches:
+            branch_match_list.append(b)
+            try:
+                branch_match_list.append(ObjectId(b))
+            except Exception:
+                pass
+        query["branch_id"] = {"$in": branch_match_list}
+    elif user_role == "mitarbeiter":
+        user_branch = current.get("branch_id")
+        if user_branch:
+            query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
+        else:
+            query["branch_id"] = {"$in": []}
+
+    users = await db.users.find(query).to_list(200)
     return [{"id": str(u["_id"]), "name": u["name"]} for u in users]
 
 
 @router.post("/users")
-async def create_user(input: UserCreate, current=Depends(require_roles("admin"))):
+async def create_user(input: UserCreate, current=Depends(get_current_user)):
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", [])
+    
+    if user_role not in ["admin", "super_admin", "branch_admin"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+        
+    # إذا كان المشرف محدد بأفرع معينة، نتأكد أنه لا ينشئ مستخدماً لفرع خارج صلاحياته
+    if allowed_branches and user_role not in ["admin", "super_admin"]:
+        if input.branch_id and str(input.branch_id) not in [str(b) for b in allowed_branches]:
+            raise HTTPException(status_code=403, detail="Nicht berechtigt, Benutzer für diesen Standort zu erstellen")
+
     from auth import hash_password
     if input.role not in ("admin", "mitarbeiter", "techniker", "branch_admin"):
         raise HTTPException(status_code=400, detail="Ungültige Rolle")
     email = input.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="E-Mail bereits vergeben")
+        
     doc = {
         "name": input.name, "email": email, "role": input.role,
         "branch_id": input.branch_id, "password_hash": hash_password(input.password),
@@ -549,9 +598,14 @@ async def create_user(input: UserCreate, current=Depends(require_roles("admin"))
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, current=Depends(require_roles("admin"))):
+async def delete_user(user_id: str, current=Depends(get_current_user)):
+    user_role = current.get("role", "")
+    if user_role not in ["admin", "super_admin", "branch_admin"]:
+        raise HTTPException(status_code=403, detail="Keine Berechtigung")
+        
     if user_id == str(current["_id"]):
         raise HTTPException(status_code=400, detail="Sie können sich nicht selbst löschen")
+        
     await db.users.delete_one({"_id": ObjectId(user_id)})
     return {"message": "Benutzer gelöscht"}
 
@@ -559,7 +613,27 @@ async def delete_user(user_id: str, current=Depends(require_roles("admin"))):
 # ==================== INVENTORY (Fully Updated) ====================
 @router.get("/inventory")
 async def list_inventory(current=Depends(get_current_user)):
-    items = await db.inventory.find().to_list(2000)
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", [])
+    
+    query = {}
+    if allowed_branches and user_role not in ["admin", "super_admin"]:
+        branch_match_list = []
+        for b in allowed_branches:
+            branch_match_list.append(b)
+            try:
+                branch_match_list.append(ObjectId(b))
+            except Exception:
+                pass
+        query["branch_id"] = {"$in": branch_match_list}
+    elif user_role == "mitarbeiter":
+        user_branch = current.get("branch_id")
+        if user_branch:
+            query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
+        else:
+            query["branch_id"] = {"$in": []}
+
+    items = await db.inventory.find(query).to_list(2000)
     out = []
     for it in items:
         out.append({
@@ -570,7 +644,6 @@ async def list_inventory(current=Depends(get_current_user)):
             "low_stock": int(it.get("quantity", 0)) <= int(it.get("min_stock", 3)),
         })
     return out
-
 
 @router.post("/inventory")
 async def create_inventory(input: InventoryCreate, current=Depends(get_current_user)):
@@ -668,8 +741,23 @@ async def delete_inventory(item_id: str, current=Depends(require_roles("admin"))
 
 # ==================== ORDERS ====================
 async def _order_query_for_user(user: dict) -> dict:
+    allowed_branches = user.get("allowed_branches", [])
+    
+    # 👈 الأولوية القصوى: إذا تم تحديد أفرع مسموحة لهذا المستخدم، نقيد الاستعلام بها فوراً
+    if allowed_branches and isinstance(allowed_branches, list) and len(allowed_branches) > 0:
+        branch_match_list = []
+        for b in allowed_branches:
+            branch_match_list.append(b)
+            try:
+                branch_match_list.append(ObjectId(b))
+            except Exception:
+                pass
+        return {"branch_id": {"$in": branch_match_list}}
+
+    # بقية الأدوار إذا لم يكن لديه أفرع محددة
     if user["role"] in ["admin", "super_admin"]:
         return {}
+        
     if user["role"] == "techniker":
         tech_id_str = str(user["_id"])
         try:
@@ -677,7 +765,6 @@ async def _order_query_for_user(user: dict) -> dict:
         except Exception:
             tech_id_obj = tech_id_str
             
-        # البحث الشامل بجميع الاحتمالات الممكنة (نص أو ObjectId أو تسميات بديلة)
         return {
             "$or": [
                 {"assigned_techniker_id": tech_id_str},
@@ -686,6 +773,7 @@ async def _order_query_for_user(user: dict) -> dict:
                 {"techniker_id": tech_id_obj}
             ]
         }
+        
     return {"branch_id": user.get("branch_id")}
 
 @router.post("/orders/{order_id}/notes")
@@ -783,56 +871,47 @@ async def list_orders(
     print(">>> ENTERED /orders ENDPOINT <<<")
     print("DEBUG CURRENT USER DATA:", current)
 
-    try:
-        query = await _order_query_for_user(current)
-    except Exception:
-        query = {}
-    
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # 👈 بناء الـ query بحرية تامة للأدمن والـ branch_admin
+    # 1. تحديد نطاق الأفرع الأساسي حسب الصلاحيات
     if user_role in ["admin", "super_admin", "branch_admin"]:
-        query = {}  # ابدأ بـ query فارغ تماماً لضمان عدم وجود أي قيود
-    else:
-        try:
-            query = await _order_query_for_user(current)
-        except Exception:
-            query = {}
-    
-    if user_role in ["admin", "super_admin", "branch_admin"] and allowed_branches:
-        branch_match_list = []
-        for b in allowed_branches:
-            branch_match_list.append(b)
-            try:
-                branch_match_list.append(ObjectId(b))
-            except Exception:
-                pass
-        query["branch_id"] = {"$in": branch_match_list}
-    elif user_role in ["admin", "super_admin", "branch_admin"]:
-        # لا توجد قيود على الفروع، يرى كافة الطلبات عالمياً
-        pass
+        if allowed_branches:
+            # إذا كان أدمن ولديه أفرع مخصصة (Area Manager)
+            branch_match_list = []
+            for b in allowed_branches:
+                branch_match_list.append(b)
+                try:
+                    branch_match_list.append(ObjectId(b))
+                except Exception:
+                    pass
+            query = {"branch_id": {"$in": branch_match_list}}
+        else:
+            # أدمن عام يرى كل الأفرع
+            query = {} 
     elif user_role == "mitarbeiter":
         user_branch = current.get("branch_id")
+        query = {}
         if user_branch:
             query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
         else:
             query["branch_id"] = {"$in": []}
-    elif user_role == "techniker":
-        pass
-    elif user_role not in ["admin", "super_admin", "branch_admin"]:
-        query["branch_id"] = {"$in": []}
+    else:
+        query = {"branch_id": {"$in": []}}
     
+    # 2. فلترة الحالة (Status)
     if status:
         query["status"] = status
     else:
         query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled"]}
         
+    # 3. إذا قام المستخدم بتحديد فرع معين من القائمة المنسدلة في الواجهة
     if branch_id:
         try:
-            # السماح للأدمن و branch_admin بالمرور بحرية
-            if user_role not in ["admin", "super_admin", "branch_admin"] and allowed_branches:
-                if branch_id not in [str(b) for b in allowed_branches]:
+            # التحقق مما إذا كان الفرع المختار يقع ضمن الأفرع المسموحة لهذا المشرف
+            if allowed_branches and user_role not in ["admin", "super_admin"]:
+                branch_str_list = [str(b) for b in allowed_branches]
+                if branch_id not in branch_str_list:
                     raise HTTPException(status_code=403, detail="ليس لديك صلاحية لعرض هذا الفرع")
             
             query["$or"] = [
@@ -844,7 +923,6 @@ async def list_orders(
                 raise e
             query["branch_id"] = branch_id
 
-# ضع هذه الطباعة مباشرة قبل db.orders.find(...)
     print(">>> DEBUG QUERY FOR ORDERS:", query)
 
     try:
@@ -1017,7 +1095,7 @@ async def delete_order(order_id: str, current=Depends(get_current_user)):
     return {"message": "Auftrag gelöscht", "auftragsnummer": order.get("auftragsnummer")}
 
 @router.post("/orders")
-async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter" , "techniker" ))):
+async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter" , "techniker" , "branch_admin"))):
     # 1. التحقق من اسم العميل
     if not (input.customer_name or "").strip():
         raise HTTPException(status_code=400, detail="Kundenname ist erforderlich.")
@@ -1176,7 +1254,7 @@ async def _touch_order(order_id, new_status, by_name, extra=None):
 
 @router.patch("/orders/{order_id}")
 async def edit_order(order_id: str, input: OrderEditInput,
-                     current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+                     current=Depends(require_roles("admin", "mitarbeiter", "techniker", "branch_admin"))): # 👈 أضفنا هنا branch_admin
     """Korrigiert Stammdaten eines Auftrags (z. B. Tippfehler im Kundennamen).
     Zulässig nur, solange der Auftrag noch nicht final ist (kein ABGEHOLT/
     ABGELEHNT/STORNIERT), und für Mitarbeiter nur bei selbst angelegten Aufträgen."""
@@ -1185,17 +1263,30 @@ async def edit_order(order_id: str, input: OrderEditInput,
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     if order.get("status") in FINAL_STATES:
         raise HTTPException(status_code=400, detail="Abgeschlossene/stornierte Aufträge können nicht mehr bearbeitet werden")
-    if current["role"] == "mitarbeiter" and order.get("branch_id") != current.get("branch_id"):
-        raise HTTPException(
-            status_code=403, 
-            detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
-        )
+    
+    # 👈 تعديل شرط التحقق من الفرع ليشمل branch_admin أيضاً
+    user_role = current.get("role")
+    # 👈 الفحص الصارم للفرع يطبق حصراً على الموظف العادي (mitarbeiter) فقط
+    if current["role"] == "mitarbeiter":
+        order_branch = str(order.get("branch_id", ""))
+        user_branch = str(current.get("branch_id", ""))
+        if user_branch and order_branch != user_branch:
+            raise HTTPException(
+                status_code=403, 
+                detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
+            )
+        elif user_branch and order_branch != user_branch:
+            raise HTTPException(
+                status_code=403, 
+                detail="Sie können nur Aufträge Ihrer eigenen Filiale bearbeiten"
+            )
 
-    if current["role"] == "techniker" and order.get("assigned_techniker_id") != str(current["_id"]):
+    if current["role"] == "techniker" and str(order.get("assigned_techniker_id")) != str(current["_id"]):
         raise HTTPException(
             status_code=403, 
             detail="Keine Berechtigung für diesen Auftrag"
         )
+        
     updates = {}
     changes_desc = []
     for field in EDITABLE_ORDER_FIELDS:
@@ -1207,7 +1298,6 @@ async def edit_order(order_id: str, input: OrderEditInput,
                 if v != old_val:
                     updates[field] = v
                     
-                    # التحقق من تغيير التقني وجلب اسمه الحقيقي من جدول users على السيرفر الحقيقي
                     if field == "assigned_techniker_id":
                         tech_name = "Kein Techniker"
                         if v:
@@ -1232,7 +1322,7 @@ async def edit_order(order_id: str, input: OrderEditInput,
 
 @router.post("/orders/{order_id}/cancel")
 async def cancel_order(order_id: str, input: CancelInput,
-                       current=Depends(require_roles("admin", "mitarbeiter"))):
+                       current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     """Storniert einen Auftrag (z. B. weil der Kunde die Reparatur nicht mehr
     wünscht) mit Pflicht-Angabe eines Grundes. Endgültig — keine weitere
     Bearbeitung des Auftrags danach möglich."""
@@ -1286,7 +1376,7 @@ async def reject_order(order_id: str, payload: dict = None, current=Depends(get_
 
 @router.post("/orders/{order_id}/assign")
 async def assign_order(order_id: str, input: AssignInput,
-                       current=Depends(require_roles("admin", "mitarbeiter"))):
+                       current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1321,7 +1411,7 @@ async def assign_order(order_id: str, input: AssignInput,
 
 @router.post("/orders/{order_id}/assign")
 async def assign_order(order_id: str, input: AssignInput,
-                        current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+                        current=Depends(require_roles("admin", "mitarbeiter", "techniker" , "branch_admin"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1554,7 +1644,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
 # ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
-                       current=Depends(require_roles("admin", "mitarbeiter"))):
+                       current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1629,7 +1719,7 @@ async def update_costs(order_id: str, input: CostUpdate,
 
 # ==================== AUDIT LOG ====================
 @router.get("/orders/{order_id}/audit")
-async def get_audit(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):
+async def get_audit(order_id: str, current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     entries = await db.audit_log.find({"order_id": order_id}).sort("at", -1).to_list(500)
     return [{"id": str(e["_id"]), "action": e["action"], "detail": e["detail"],
              "by": e["by"], "at": e["at"]} for e in entries]
@@ -1642,7 +1732,7 @@ class WhatsAppLog(BaseModel):
 
 @router.post("/orders/{order_id}/whatsapp")
 async def log_whatsapp(order_id: str, input: WhatsAppLog,
-                       current=Depends(require_roles("admin", "mitarbeiter"))):
+                       current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -1668,7 +1758,7 @@ async def log_whatsapp(order_id: str, input: WhatsAppLog,
 
 
 @router.get("/orders/{order_id}/communications")
-async def get_communications(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):
+async def get_communications(order_id: str, current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     items = await db.communications.find({"order_id": order_id}).sort("at", -1).to_list(500)
     return [{"id": str(i["_id"]), "channel": i["channel"], "to": i.get("to", ""),
              "message": i["message"], "by": i["by"], "at": i["at"],
@@ -1683,14 +1773,14 @@ class NotifyInput(BaseModel):
 
 
 @router.get("/communication/status")
-async def communication_status(current=Depends(require_roles("admin", "mitarbeiter"))):
+async def communication_status(current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     """Which channels have credentials configured (drives the UI 'not configured' hints)."""
     return messaging.channel_status()
 
 
 @router.post("/orders/{order_id}/notify")
 async def notify_customer(order_id: str, input: NotifyInput,
-                          current=Depends(require_roles("admin", "mitarbeiter"))):
+                          current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     if input.channel not in ("sms", "whatsapp", "email"):
         raise HTTPException(status_code=400, detail="Ungültiger Kanal")
     text = (input.message or "").strip()
@@ -2052,9 +2142,12 @@ async def post_message(
 # ==================== STATS ====================
 @router.get("/stats")
 async def stats(current=Depends(get_current_user)):
+    user_role = current.get("role", "")
+    allowed_branches = current.get("allowed_branches", [])
+    
     query = await _order_query_for_user(current)
     
-    # 1. العدد الإجمالي للطلبات حسب الصلاحية والفرع
+    # العدد الإجمالي للطلبات حسب الصلاحية والفرع
     total_orders_count = await db.orders.count_documents(query)
 
     # 2. الطلبات النشطة (حساب مباشر ودقيق من قاعدة البيانات لكل الفرع)
@@ -2069,7 +2162,7 @@ async def stats(current=Depends(get_current_user)):
         "status": "ABGEHOLT"
     })
     
-    # جلب الطلبات للرسوم البيانية والحسابات المالية (نرفع الحد أو نتركه كافياً)
+    # جلب الطلبات للرسوم البيانية والحسابات المالية
     orders = await db.orders.find(
         query, 
         {"status": 1, "branch_id": 1, "created_at": 1, "diagnosis_fee": 1, "labor_cost": 1, "parts_cost": 1}
@@ -2080,7 +2173,6 @@ async def stats(current=Depends(get_current_user)):
     total_revenue = 0.0
     
     for o in orders:
-        # تحويل الحالة إلى أحرف كبيرة لضمان توحيدها وتطابقها تماماً
         raw_status = o.get("status", "UNKNOWN")
         status = str(raw_status).strip().upper()
         
@@ -2097,10 +2189,10 @@ async def stats(current=Depends(get_current_user)):
         "total_orders": total_orders_count,  
         "by_status": by_status,
         "sla_breached": sla_count,
-        "active_orders": active_orders_count, # استخدام العدد الدقيق المحسوب من قاعدة البيانات
+        "active_orders": active_orders_count,
     }
     
-    if current.get("role") == "admin":
+    if current.get("role") in ["admin", "super_admin", "branch_admin"]:
         try:
             branch_query = {}
             if user_role in ["admin", "super_admin"] and allowed_branches:
@@ -2110,15 +2202,27 @@ async def stats(current=Depends(get_current_user)):
                     try:
                         branch_ids_query.append(ObjectId(b))
                     except Exception:
-                         pass
+                        pass
                 branch_query["_id"] = {"$in": branch_ids_query}
+            
             result["total_branches"] = await db.branches.count_documents(branch_query)
         except Exception:
             result["total_branches"] = 0
+            
         try:
-            low_stock = await db.inventory.find(
-                {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
-            ).to_list(500)
+            # تقييد جلب المخزون بالأفرع المسموحة إن وجدت
+            inv_query = {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
+            if allowed_branches:
+                branch_ids_query = []
+                for b in allowed_branches:
+                    branch_ids_query.append(b)
+                    try:
+                        branch_ids_query.append(ObjectId(b))
+                    except Exception:
+                        pass
+                inv_query["branch_id"] = {"$in": branch_ids_query}
+                
+            low_stock = await db.inventory.find(inv_query).to_list(500)
         except Exception:
             low_stock = []
         
@@ -2136,7 +2240,7 @@ async def stats(current=Depends(get_current_user)):
         result["completed_repairs"] = completed_repairs_count
         result["revenue"] = round(total_revenue, 2)
         
-        # تجميع إحصائيات الفروع
+        # تجميع إحصائيات الفروع المسموحة فقط
         try:
             branches = await db.branches.find(branch_query, {"name": 1}).to_list(100)
             bmap = {str(b["_id"]): b["name"] for b in branches if "_id" in b and "name" in b}
@@ -2158,7 +2262,7 @@ async def stats(current=Depends(get_current_user)):
             result["by_branch"] = []
         
     return result
-    # ==================== IMEI (late fill-in) ====================
+        # ==================== IMEI (late fill-in) ====================
 @router.patch("/orders/{order_id}/imei")
 async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
@@ -2190,7 +2294,7 @@ async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_curr
 # ==================== DIGITAL SIGNATURES ====================
 @router.post("/orders/{order_id}/signature")
 async def add_signature(order_id: str, input: SignatureInput,
-                        current=Depends(require_roles("admin", "mitarbeiter"))):
+                        current=Depends(require_roles("admin", "mitarbeiter", "branch_admin"))):
     if input.type not in ("intake", "pickup"):
         raise HTTPException(status_code=400, detail="Ungültiger Signaturtyp")
     if not input.signature or not input.signature.startswith("data:image"):
@@ -2294,7 +2398,7 @@ async def _notif_query(user: dict, branch_id_param: str = None):
     }
 
 @router.get("/notifications")
-async def list_notifications(limit: int = 50, branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+async def list_notifications(limit: int = 50, branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker" , "branch_admin" ))):
     q = await _notif_query(current, branch_id)
     # جلب العدد المطلوب فقط لتخفيف الحمل
     items = await db.notifications.find(q).sort("at", -1).limit(limit).to_list(limit)
@@ -2317,21 +2421,21 @@ async def list_notifications(limit: int = 50, branch_id: str = None, current=Dep
 
 
 @router.post("/notifications/read")
-async def mark_notifications_read(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+async def mark_notifications_read(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker" , "branch_admin"))):
     q = await _notif_query(current, branch_id)
     await db.notifications.update_many({**q, "read": False}, {"$set": {"read": True}})
     return {"message": "Alle Benachrichtigungen als gelesen markiert"}
 
 
 @router.delete("/notifications")
-async def clear_notifications(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker"))):
+async def clear_notifications(branch_id: str = None, current=Depends(require_roles("admin", "mitarbeiter", "techniker" , "branch_admin"))):
     q = await _notif_query(current, branch_id)
     await db.notifications.delete_many(q)
     return {"message": "Benachrichtigungen gelöscht"}
 
 # ==================== INVOICE (Rechnung, GoBD per-branch) ====================
 @router.post("/orders/{order_id}/invoice")
-async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "mitarbeiter"))):
+async def issue_invoice(order_id: str, current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
@@ -2415,7 +2519,7 @@ async def global_activity(limit: int = 200, current=Depends(require_roles("admin
 # ==================== REKLAMATION / GARANTIE OVERVIEW & CREATION ====================
 
 @router.get("/reklamationen")
-async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter"))):
+async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     base = await _order_query_for_user(current)
     # اجعل البحث يقتصر على طلبات الركلاماسيون الحقيقية فقط لكي لا تتداخل مع Abgeholt
     cond = {"is_reclamation": True}
@@ -2430,7 +2534,7 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
 
 
 @router.post("/orders/{order_id}/create-reclamation")
-async def create_reclamation_order(order_id: str, current = Depends(require_roles("admin", "mitarbeiter"))):
+async def create_reclamation_order(order_id: str, current = Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     old_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not old_order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")

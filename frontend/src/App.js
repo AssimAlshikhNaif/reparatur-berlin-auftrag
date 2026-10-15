@@ -33,14 +33,14 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Protected><Dashboard /></Protected>} />
       <Route path="/auftraege" element={<Protected><Orders /></Protected>} />
-      <Route path="/auftrag/neu" element={<Protected roles={["admin", "mitarbeiter"]}><OrderCreate /></Protected>} />
+      <Route path="/auftrag/neu" element={<Protected roles={["admin", "mitarbeiter" , "branch_admin"]}><OrderCreate /></Protected>} />
       <Route path="/auftrag/:id" element={<Protected><OrderDetail /></Protected>} />
       <Route path="/scannen" element={<Protected><Scan /></Protected>} />
       
       {/* تم السماح للجميع (أدمن، تقني، موظف) بالدخول لصفحة قطع الغيار والصلاحيات تُدار داخل الصفحة نفسها */}
       <Route path="/ersatzteile" element={<Protected><Inventory /></Protected>} />
 
-      <Route path="/beschaffung" element={<Protected roles={["admin", "mitarbeiter"]}><Procurement /></Protected>} />
+      <Route path="/beschaffung" element={<Protected roles={["admin", "mitarbeiter" , "branch_admin" ]}><Procurement /></Protected>} />
 
       <Route path="/benutzer" element={<Protected roles={["admin"]}><Users /></Protected>} />
       <Route path="/analyse" element={<Protected roles={["admin"]}><Analytics /></Protected>} />

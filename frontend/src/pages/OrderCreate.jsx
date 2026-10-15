@@ -20,7 +20,7 @@ export default function OrderCreate() {
   const { t } = useTranslation();
   const reclamationSource = location.state?.reclamationOf || null;
   const { user } = useAuth();
-  const isMitarbeiter = user.role === "mitarbeiter";
+  const isMitarbeiter = user.role === "mitarbeiter" || user.role === "branch_admin";
   const [branches, setBranches] = useState([]);
   const [technicians, setTechnicians] = useState([]);
   const [files, setFiles] = useState([]);
@@ -268,13 +268,20 @@ const submit = async (e) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className={labelCls}>{t("oc.branch")}</label>
-              <select data-testid="order-branch" required value={form.branch_id} onChange={set("branch_id")} disabled={isMitarbeiter}
-                className={`${inputCls} ${isMitarbeiter ? "opacity-70 cursor-not-allowed" : ""}`}>
-                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              </select>
-              {isMitarbeiter && (
-                <p className="text-[10px] font-mono text-muted-foreground mt-1">{t("oc.branchReadonly")}</p>
-              )}
+              <select
+  data-testid="order-branch"
+  required
+  value={form.branch_id}
+  onChange={set("branch_id")}
+  disabled={user?.role === 'mitarbeiter'}
+  className={`${inputCls} ${user?.role === 'mitarbeiter' ? "opacity-70 cursor-not-allowed" : ""}`}
+>
+  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+</select>
+{user?.role === 'mitarbeiter' && (
+  <p className="text-[10px] font-mono text-muted-foreground mt-1">{t("oc.branchReadonly")}</p>
+)}
+
             </div>
             <div>
               <label className={labelCls}>{t("oc.brand")}</label>

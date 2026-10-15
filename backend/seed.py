@@ -65,22 +65,22 @@ BRANCHES = [
         "logo_url": "/logos/logo-icon.png"
     },
      {
-        "name": "M.T Postplatz",
-        "address": "",
+        "name": "Media Technik Postplatz",
+        "address": " Wallstr 13, 01067 Dresden ",
         "phone": "+49 ",
         "email": "",
         "logo_url": ""
     },
      {
-        "name": "M.T Pragerst 12",
-       "address": "",
+        "name": "Media Technik Pragerst ",
+       "address": " Ferdinandstr 12, 01067 Dersden ",
         "phone": "+49 ",
         "email": "",
         "logo_url": ""
     },
      {
-        "name": "M.T Hauptbahnof 4",
-        "address": "",
+        "name": "Media Technik Hauptbahnof ",
+        "address": " Wienerplatz 4, 01069 Dersden",
         "phone": "+49 ",
         "email": "",
         "logo_url": ""

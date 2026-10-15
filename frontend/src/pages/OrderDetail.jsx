@@ -131,9 +131,9 @@ useEffect(() => {
   prevNotesLengthRef.current = order?.notes?.length;
 }, [order?.notes]);
 
-  const canManageRef = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker";
-  const isAdmin = user.role === "admin";
-  const isMitarbeiter = user.role === "mitarbeiter" || user.role === "techniker";
+  const canManageRef = ["admin", "mitarbeiter", "techniker", "branch_admin"].includes(user.role);
+const isAdmin = user.role === "admin";
+const isMitarbeiter = ["mitarbeiter", "techniker", "branch_admin"].includes(user.role);
 
 
 
@@ -377,7 +377,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
   const intakeMedia = (order.media || []).filter((m) => m.media_type === "intake");
   const repairMedia = (order.media || []).filter((m) => m.media_type === "repair");
 
-  const canManage = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker" || user.role === "TECHNIKER";
+  const canManage = user.role === "admin" || user.role === "mitarbeiter" || user.role === "techniker" || user.role === "TECHNIKER" || user.role === "branch_admin";
 
   // الحسابات اللحظية حسب نوع الفوترة
   const feeD = parseFloat(costForm.diagnosis_fee) || 0;
@@ -503,7 +503,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
           {/* ========================================== */}
           {/* 2. واجهة الإدارة والموظفين (تتضمن القوائم والطباعة) */}
           {/* ========================================== */}
-          {canManage && !isTech && (
+          {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "branch_admin" || canManage) && !isTech) && (
             <>
               <select
                 key={order?.status || "default"}

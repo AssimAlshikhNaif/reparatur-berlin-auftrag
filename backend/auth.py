@@ -75,6 +75,12 @@ def clean_user(user: dict) -> dict:
     user["id"] = str(user["_id"])
     user.pop("_id", None)
     user.pop("password_hash", None)
+    
+    # التأكد من تمرير allowed_branches إن وجدت للمستخدم
+    if "allowed_branches" in user:
+        # تحويل عناصر الـ ObjectId داخل المصفوفة إلى نصوص (Strings) لتفادي مشاكل الـ Frontend
+        user["allowed_branches"] = [str(b) for b in user["allowed_branches"]]
+        
     return user
 
 
