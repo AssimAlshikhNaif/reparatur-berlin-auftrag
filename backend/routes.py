@@ -543,25 +543,8 @@ async def list_users(current=Depends(get_current_user)):
 
 @router.get("/technicians")
 async def list_technicians(current=Depends(get_current_user)):
-    user_role = current.get("role", "")
-    allowed_branches = current.get("allowed_branches", [])
-    
+    # جلب جميع المستخدمين الذين دورهم تقني دون أي تصفية حسب الفرع أو الصلاحيات
     query = {"role": "techniker"}
-    if allowed_branches and user_role not in ["admin", "super_admin"]:
-        branch_match_list = []
-        for b in allowed_branches:
-            branch_match_list.append(b)
-            try:
-                branch_match_list.append(ObjectId(b))
-            except Exception:
-                pass
-        query["branch_id"] = {"$in": branch_match_list}
-    elif user_role == "mitarbeiter":
-        user_branch = current.get("branch_id")
-        if user_branch:
-            query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
-        else:
-            query["branch_id"] = {"$in": []}
 
     users = await db.users.find(query).to_list(200)
     return [{"id": str(u["_id"]), "name": u["name"]} for u in users]
