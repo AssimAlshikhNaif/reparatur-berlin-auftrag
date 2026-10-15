@@ -857,10 +857,11 @@ async def list_orders(
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # 1. تحديد نطاق الأفرع الأساسي حسب الصلاحيات
+    # 1. تحديد نطاق الأفرع الأساسي حسب الص# 1. تحديد نطاق الأفرع والصلاحيات الأساسي
+    user_id_str = str(current.get("_id"))
+    
     if user_role in ["admin", "super_admin", "branch_admin"]:
         if allowed_branches:
-            # إذا كان أدمن ولديه أفرع مخصصة (Area Manager)
             branch_match_list = []
             for b in allowed_branches:
                 branch_match_list.append(b)
@@ -870,7 +871,6 @@ async def list_orders(
                     pass
             query = {"branch_id": {"$in": branch_match_list}}
         else:
-            # أدمن عام يرى كل الأفرع
             query = {} 
     elif user_role == "mitarbeiter":
         user_branch = current.get("branch_id")
@@ -879,6 +879,20 @@ async def list_orders(
             query["branch_id"] = {"$in": [user_branch, ObjectId(user_branch)]}
         else:
             query["branch_id"] = {"$in": []}
+    elif user_role == "techniker":
+        # التقني يرى الطلبات المسندة إليه شخصياً أو طلبات فرعه
+        user_branch = current.get("branch_id")
+        tech_conditions = [
+            {"assigned_techniker_id": user_id_str},
+            {"assigned_techniker_id": ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else user_id_str}
+        ]
+        if user_branch:
+            tech_conditions.append({"branch_id": user_branch})
+            try:
+                tech_conditions.append({"branch_id": ObjectId(user_branch)})
+            except Exception:
+                pass
+        query = {"$or": tech_conditions}
     else:
         query = {"branch_id": {"$in": []}}
     
