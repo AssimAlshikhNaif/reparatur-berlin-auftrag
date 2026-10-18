@@ -46,7 +46,7 @@ PII_FIELDS = ["customer_name", "customer_phone", "customer_email", "customer_add
 # Felder, die über den Bearbeiten-Dialog nachträglich korrigiert werden dürfen.
 EDITABLE_ORDER_FIELDS = [
     "device_brand", "device_model","with-cable", "imei", "issue_description",
-    "defect_description",
+    "defect_description","with_cable",
     "customer_name", "customer_phone", "customer_email", "customer_address",
     "assigned_techniker_id", "device_passcode", "device_lock_type",
     "customer_notified", "pickup_date"
@@ -378,6 +378,7 @@ class OrderEditInput(BaseModel):
     customer_address: Optional[str] = None
     device_brand: Optional[str] = None
     device_model: Optional[str] = None
+    with_cable: Optional[str] = None
     imei: Optional[str] = None
     device_passcode: Optional[str] = None
     device_lock_type: Optional[str] = None
@@ -897,8 +898,15 @@ async def list_orders(
         query = {"branch_id": {"$in": []}}
     
     # 2. فلترة الحالة (Status)
+    # 2. فلترة الحالة (Status)
     if status:
-        query["status"] = status
+        status_upper = status.upper()
+        if status_upper == "DIAGNOSE":
+            query["status"] = {"$in": ["DIAGNOSE", "ANGENOMMEN", "WARTEN_FREIGABE"]}
+        elif status_upper == "IN_BEARBEITUNG":
+            query["status"] = {"$in": ["IN_BEARBEITUNG", "REPARATUR", "WARTEN_ERSATZTEIL"]}
+        else:
+            query["status"] = status
     else:
         query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled"]}
         
@@ -1617,15 +1625,27 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
         file_path = target_media
 
     if file_path:
-        # استخراج اسم الملف فقط لضمان البحث عنه في مجلد الرفع الصحيح داخل الحاوية
         filename_only = os.path.basename(file_path)
-        full_path = os.path.join("/app/uploads", filename_only)
         
-        if os.path.exists(full_path):
-            try:
-                os.remove(full_path)
-            except Exception as e:
-                print("Error removing file:", e)
+        # الاحتمال الأول: البحث في الجذر المباشر
+        path_in_root = os.path.join("/app/uploads", filename_only)
+        
+        # الاحتمال الثاني: البحث في المجلد الفرعي (repair-berlin/orders)
+        # سنجد المسار الكامل بالبحث الفعلي لتجنب فقدان أي ملف فرعي
+        possible_paths = [
+            path_in_root,
+            os.path.join("/app/uploads/repair-berlin/orders", filename_only),
+            file_path if file_path.startswith("/") else os.path.join("/app/uploads", file_path)
+        ]
+        
+        # محطة الحذف الآمن لأي مسار يتم العثور عليه
+        for target_p in possible_paths:
+            if os.path.exists(target_p) and os.path.isfile(target_p):
+                try:
+                    os.remove(target_p)
+                    print(f"Successfully deleted file at: {target_p}")
+                except Exception as e:
+                    print("Error removing file:", e)
 
     # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
     media_list.pop(target_index)

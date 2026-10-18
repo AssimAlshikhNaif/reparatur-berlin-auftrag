@@ -65,9 +65,12 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   
   const isDiagPaid = order?.is_diagnosis_paid_at_intake === true;
   const diagLabel = billingMode === "PAID" || billingMode === "repair_only" ? "ERLASSEN" : isDiagPaid ? "BEZAHLT" : "NICHT BEZAHLT";
-  const payStatus = grossVal > 0 && restVal <= 0 ? "Bezahlt" : anzahlungVal > 0 ? "Teilweise" : "Nicht bezahlt";
+  
+  // تحسين منطق حالة الدفع ليدعم الحالة القادمة من السيستم أو الحسابات الرقمية
+  const isExplicitlyPaid = order?.is_paid === true || order?.payment_status === "PAID" || order?.payment_status === "bezahlt";
+  const payStatus = isExplicitlyPaid || (grossVal > 0 && restVal <= 0) ? "Bezahlt" : anzahlungVal > 0 ? "Teilweise" : "Nicht bezahlt";
 
-  // طباعة المعاينة عبر نافذة منبثقة
+  // طباعة المعاينة عبر نافذة منبثقة (معدلة خصيصاً لتكون واضحة وحادة على طابعات الـ POS الحرارية)
   const handlePrint = () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrDataUrl = canvas ? canvas.toDataURL("image/png") : null;
@@ -82,7 +85,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
     const qrContainer = tempContainer.querySelector("canvas")?.parentElement;
     if (qrContainer && qrDataUrl) {
-      qrContainer.innerHTML = `<img src="${qrDataUrl}" alt="QR Code" style="width: 120px; height: 120px; display: block; margin: 0 auto;" />`;
+      qrContainer.innerHTML = `<img src="${qrDataUrl}" alt="QR Code" style="width: 120px; height: 120px; display: block; margin: 0 auto; filter: contrast(200%);" />`;
     }
 
     const receiptHTML = tempContainer.innerHTML;
@@ -93,14 +96,19 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     <head>
       <title>Abholschein - ${order?.auftragsnummer || ""}</title>
       <style>
-        * { box-sizing: border-box; }
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body {
           font-family: 'Courier New', Courier, monospace;
           width: 80mm;
           margin: 0;
-          padding: 0;
+          padding: 2mm;
           background: #fff;
           color: #000;
+          font-weight: bold; /* زيادة سماكة الخطوط لتكون واضحة على الطابعة الحرارية */
+        }
+        /* إجبار كافة النصوص والحدود على أن تكون سوداء غامقة جداً للطباعة الحرارية */
+        div, span, p, td, th, li {
+          color: #000 !important;
         }
         @page {
           size: 80mm auto;
@@ -109,7 +117,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
       </style>
     </head>
     <body>
-      <div style="width: 80mm; margin: 0; padding: 0;">
+      <div style="width: 76mm; margin: 0 auto; padding: 0;">
         ${receiptHTML}
       </div>
       <script>
@@ -123,7 +131,6 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   `);
     printWindow.document.close();
   };
-
   // توليد وتحميل PDF
   const downloadPdf = async () => {
     const canvas = document.querySelector("#abholschein canvas");

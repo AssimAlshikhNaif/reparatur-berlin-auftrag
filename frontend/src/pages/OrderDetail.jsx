@@ -286,6 +286,7 @@ const isMitarbeiter = ["mitarbeiter", "techniker", "branch_admin"].includes(user
       customer_email: order.customer_email || "", customer_address: order.customer_address || "",
       device_brand: order.device_brand || "", device_model: order.device_model || "",
       imei: order.imei || "", device_passcode: order.device_passcode || "",
+      with_cable: order.with_cable || "no_cable",
       issue_description: order.issue_description || "",
       assigned_techniker_id: order.assigned_techniker_id || "",
     });
@@ -506,41 +507,42 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
           {((user?.role === "admin" || user?.role === "super_admin" || user?.role === "branch_admin" || canManage) && !isTech) && (
             <>
               <select
-                key={order?.status || "default"}
-                data-testid="manual-status-select"
-                value={["ANGENOMMEN", "DIAGNOSE", "WARTEN_FREIGABE", "NACH DIAGNOSE / FREIGABE"].includes(order?.status) ? "DIAGNOSE" : (order?.status || "DIAGNOSE")}
-                onChange={(e) => {
-                  let newStatus = e.target.value;
-                  if (newStatus === "DIAGNOSE") newStatus = "ANGENOMMEN";
-                  if (!newStatus) return;
-                  if (newStatus === "ABGEHOLT" && !order?.pickup_signature && !order?.signature) {
-                    toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
-                    return;
-                  }
-                  setStatus(newStatus);
-                }}
-                className={`border px-3.5 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none transition-all shadow-xs shrink-0 font-semibold ${
-                  ["ANGENOMMEN", "DIAGNOSE", "WARTEN_FREIGABE", "NACH DIAGNOSE / FREIGABE"].includes(order?.status)
-                    ? "bg-blue-600/90 text-white border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]" :
-                  ["IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "ZUGEWIESEN"].includes(order?.status)
-                    ? "bg-amber-600/90 text-white border-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.4)]" :
-                  order?.status === "FERTIG"
-                    ? "bg-emerald-600/90 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" :
-                  order?.status === "ABGEHOLT"
-                    ? "bg-purple-600/90 text-white border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.4)]" :
-                  ["STORNIERT", "ABGELEHNT"].includes(order?.status)
-                    ? "bg-red-600/90 text-white border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]" :
-                    "bg-background text-foreground border-border"
-                }`}
-              >
-                <option value="DIAGNOSE" className="bg-background text-foreground">Diagnose</option>
-                <option value="IN_BEARBEITUNG" className="bg-background text-foreground">In Bearbeitung</option>
-                <option value="WARTEN_ERSATZTEIL" className="bg-background text-foreground">Warten Ersatzteil</option>
-                <option value="FERTIG" className="bg-background text-foreground">Fertig</option>
-                <option value="ABGEHOLT" className="bg-background text-foreground">Abgeholt</option>
-                <option value="STORNIERT" className="bg-background text-foreground">Storniert</option>
-              </select>
-
+  key={order?.status || "default"}
+  data-testid="manual-status-select"
+  value={order?.status || "DIAGNOSE"}
+  onChange={(e) => {
+    let newStatus = e.target.value;
+    if (!newStatus) return;
+    if (newStatus === "ABGEHOLT" && !order?.pickup_signature && !order?.signature) {
+      toast.error("Kundenunterschrift bei Abholung ist obligatorisch!");
+      return;
+    }
+    setStatus(newStatus);
+  }}
+  className={`border px-3.5 py-2 text-xs font-mono uppercase tracking-wider rounded-lg outline-none transition-all shadow-xs shrink-0 font-semibold ${
+    ["ANGENOMMEN", "DIAGNOSE"].includes(order?.status)
+      ? "bg-blue-600/90 text-white border-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.4)]" :
+    ["WARTEN_FREIGABE", "NACH DIAGNOSE / FREIGABE"].includes(order?.status)
+      ? "bg-sky-600/90 text-white border-sky-500 shadow-[0_0_15px_rgba(2,132,199,0.4)]" :
+    ["IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "ZUGEWIESEN"].includes(order?.status)
+      ? "bg-amber-600/90 text-white border-amber-500 shadow-[0_0_15px_rgba(217,119,6,0.4)]" :
+    order?.status === "FERTIG"
+      ? "bg-emerald-600/90 text-white border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]" :
+    order?.status === "ABGEHOLT"
+      ? "bg-purple-600/90 text-white border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.4)]" :
+    ["STORNIERT", "ABGELEHNT"].includes(order?.status)
+      ? "bg-red-600/90 text-white border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]" :
+      "bg-background text-foreground border-border"
+  }`}
+>
+  <option value="DIAGNOSE" className="bg-background text-foreground">Diagnose</option>
+  <option value="WARTEN_FREIGABE" className="bg-background text-foreground">Warten Freigabe</option>
+  <option value="IN_BEARBEITUNG" className="bg-background text-foreground">In Bearbeitung</option>
+  <option value="WARTEN_ERSATZTEIL" className="bg-background text-foreground">Warten Ersatzteil</option>
+  <option value="FERTIG" className="bg-background text-foreground">Fertig</option>
+  <option value="ABGEHOLT" className="bg-background text-foreground">Abgeholt</option>
+  
+</select>
               {order.status !== "STORNIERT" && (
                 <>
                   <button data-testid="open-edit" onClick={openEdit}
@@ -1650,6 +1652,21 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
                       className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
                     />
                   </div>
+
+<div className="space-y-1">
+  <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+    Zubehör / Kabel
+  </label>
+  <select
+    data-testid="edit-with_cable"
+    value={editForm?.with_cable || "no_cable"}
+    onChange={(e) => setEditForm({ ...editForm, with_cable: e.target.value })}
+    className="w-full bg-background/50 border border-border/80 px-3.5 py-2.5 text-sm rounded-xl outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all text-foreground"
+  >
+    <option value="no_cable" className="bg-background text-foreground">Ohne Kabel</option>
+    <option value="with_cable" className="bg-background text-foreground">Mit Kabel</option>
+  </select>
+</div>
 
                   <div className="space-y-1">
                     <label className="block text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{t("oc.model") || "Modell"}</label>
