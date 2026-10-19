@@ -488,14 +488,11 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
   <Bell size={14} /> 
   {order.workshop_ready ? "⚠️ Bereit in Werkstatt " : "جاهز للاستلام من الورشة"}
 </button>
-                  <button onClick={() => setStatus("FERTIG")}
-                    className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking-wider px-3.5 py-2 rounded-lg transition-all shadow-xs shrink-0 ${
-                      order.status === "FERTIG"
-                        ? "bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.4)]"
-                        : "border border-border hover:bg-muted/80 text-emerald-400"
-                    }`}>
-                    <CheckCircle size={14} /> Fertig
-                  </button>
+                 {user && user.role !== "techniker" && (
+  <button onClick={() => setStatus("FERTIG")} className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking...`}>
+    <CheckCircle size={14} /> Fertig
+  </button>
+)}
                 </div>
               )}
             </>

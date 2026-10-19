@@ -22,12 +22,13 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState("");
   const [printOrder, setPrintOrder] = useState(null);
   
-  // حالة لتخزين أعداد الطلبات لكل تبويب لعرضها بشكل دقيق
+  // 1. تحديث الحالة الابتدائية لتشمل كافة الأزرار بدقة
   const [statusCounts, setStatusCounts] = useState({
     all: 0,
-    ANGENOMMEN: 0,
     DIAGNOSE: 0,
+    WARTEN_FREIGABE: 0,
     IN_BEARBEITUNG: 0,
+    WARTEN_ERSATZTEIL: 0,
     FERTIG: 0,
     ABGEHOLT: 0,
     REKLAMATION: 0,
@@ -39,14 +40,10 @@ export default function Orders() {
   const load = async () => {
     try {
       setLoading(true);
-
       if (statusFilter === "REKLAMATION") {
         try {
           const { data } = await api.get("/reklamationen");
-          const filteredData = Array.isArray(data) 
-            ? data.filter((o) => (!branchId || o.branch_id === branchId) && o.status !== "ABGEHOLT") 
-            : [];
-          setOrders(filteredData);
+          setOrders(Array.isArray(data) ? data : []);
         } catch (err) {
           console.error("Reklamationen load error:", err);
           setOrders([]);
@@ -55,9 +52,14 @@ export default function Orders() {
         const params = {};
         if (statusFilter) params.status = statusFilter;
         if (branchId) params.branch_id = branchId;
-        
+
+        // فلترة الطلبات للتقني بناءً على معرّفه الخاص
+        if (user && user.role === "techniker") {
+          params.assigned_techniker_id = user.id || user._id;
+        }
+
         if (!statusFilter) {
-          params.limit = 10000;
+          params.limit = 1000;
         }
 
         const { data } = await api.get("/orders", { params });
@@ -71,60 +73,85 @@ export default function Orders() {
     }
   };
 
+  // 2. تحديث دالة الجلب والحساب لتكون مستقلة لكل زر تماماً
   const fetchCounts = async () => {
     try {
-      const params = {};
-      if (branchId) params.branch_id = branchId;
+      const params = branchId ? { branch_id: branchId } : {};
       params.limit = 10000;
 
-      const [ordersRes, rekRes] = await Promise.all([
+      // جلب الطلبات النشطة، المستلمة، والملغاة بشكل منفصل لضمان تجاوز قيود الـ Backend
+      const [activeRes, abgeholtRes, storniertRes, rekRes] = await Promise.all([
         api.get("/orders", { params }),
+        api.get("/orders", { params: { ...params, status: "ABGEHOLT" } }).catch(() => ({ data: [] })),
+        api.get("/orders", { params: { ...params, status: "STORNIERT" } }).catch(() => ({ data: [] })),
         api.get("/reklamationen").catch(() => ({ data: [] }))
       ]);
 
-      const rawData = ordersRes.data;
-      const allOrders = Array.isArray(rawData) 
-        ? rawData 
-        : (Array.isArray(rawData?.orders) ? rawData.orders : (Array.isArray(rawData?.items) ? rawData.items : []));
-        
-      const allRek = Array.isArray(rekRes.data) ? (branchId ? rekRes.data.filter(o => o.branch_id === branchId) : rekRes.data) : [];
+      // دمج جميع الطلبات التي تم جلبها في مصفوفة واحدة ليقوم الكود الخاص بك بفرزها وعدّها بدقة
+      const activeData = Array.isArray(activeRes.data) ? activeRes.data : (activeRes.data?.orders || activeRes.data?.items || []);
+      const abgeholtData = Array.isArray(abgeholtRes.data) ? abgeholtRes.data : (abgeholtRes.data?.orders || abgeholtRes.data?.items || []);
+      const storniertData = Array.isArray(storniertRes.data) ? storniertRes.data : (storniertRes.data?.orders || storniertRes.data?.items || []);
 
-      // شروط شاملة لكل مسميات حالة التشخيص / الواردة
+      const allOrders = [...activeData, ...abgeholtData, ...storniertData];
+      
+      const allRek = Array.isArray(rekRes.data) ? (branchId ? rekRes.data.filter(o => o.branch_id === branchId) : rekRes.data) : [];
+      // حساب دقيق لكل حالة من مصفوفة الطلبات مباشرة
       const diagnoseCount = allOrders.filter(o => {
-        const status = String(o.status || "").trim().toUpperCase();
-        return status === "DIAGNOSE" || status === "ANGENOMMEN" || status === "AKZEPTIERT" || status === "WARTEN FREIGABE" || status === "NACH DIAGNOSE / FREIGABE";
+        const status = String(o.status || "").trim().toUpperCase().replace(" ", "_");
+        return status === "DIAGNOSE" || status === "ANGENOMMEN" || status === "AKZEPTIERT";
+      }).length;
+
+      const wartenFreigabeCount = allOrders.filter(o => {
+        const status = String(o.status || "").trim().toUpperCase().replace(" ", "_");
+        return status === "WARTEN_FREIGABE" || status === "WARTEN_AUF_FREIGABE" || status === "NACH_DIAGNOSE_/_FREIGABE";
       }).length;
       
       const inBearbeitungCount = allOrders.filter(o => {
-        const status = String(o.status || "").trim().toUpperCase();
-        return status === "IN_BEARBEITUNG" || status === "WARTEN ERSATZTEIL" || status === "ZUGEWIESEN";
+        const status = String(o.status || "").trim().toUpperCase().replace(" ", "_");
+        return status === "IN_BEARBEITUNG" || status === "REPARATUR" || status === "ZUGEWIESEN";
+      }).length;
+
+      const wartenErsatzteilCount = allOrders.filter(o => {
+        const status = String(o.status || "").trim().toUpperCase().replace(" ", "_");
+        return status === "WARTEN_ERSATZTEIL" || status === "WARTEN_AUF_ERSATZTEIL";
       }).length;
       
-      const fertigCount = allOrders.filter(o => String(o.status || "").trim().toUpperCase() === "FERTIG").length;
-      const abgeholtCount = allOrders.filter(o => String(o.status || "").trim().toUpperCase() === "ABGEHOLT").length;
+      const fertigCount = allOrders.filter(o => {
+        const status = String(o.status || "").trim().toUpperCase();
+        return status === "FERTIG";
+      }).length;
+
+      // عداد الأجهزة المستلمة (ABGEHOLT)
+      const abgeholtCount = allOrders.filter(o => {
+        const status = String(o.status || "").trim().toUpperCase();
+        return status === "ABGEHOLT" || status === "ABGESCHLOSSEN" || status === "ERLEDIGT";
+      }).length;
       
       const activeRek = allRek.filter(o => String(o.status || "").trim().toUpperCase() !== "ABGEHOLT");
       const reklamationCount = activeRek.length;
       
+      // عداد الأجهزة الملغاة (STORNIERT)
       const storniertCount = allOrders.filter(o => {
         const status = String(o.status || "").trim().toUpperCase();
-        return status === "STORNIERT" || status === "ABGELEHNT";
+        return status === "STORNIERT" || status === "ABGELEHNT" || status === "CANCELLED";
       }).length;
 
-      const allActiveCount = diagnoseCount + inBearbeitungCount + fertigCount + reklamationCount + storniertCount;
+      // زر ALLE يحسب الطلبات النشطة فقط (بدون Abgeholt و Storniert)
+      const allActiveCount = diagnoseCount + wartenFreigabeCount + inBearbeitungCount + wartenErsatzteilCount + fertigCount + reklamationCount;
 
       setStatusCounts({
         all: allActiveCount,
-        ANGENOMMEN: diagnoseCount,
         DIAGNOSE: diagnoseCount,
+        WARTEN_FREIGABE: wartenFreigabeCount,
         IN_BEARBEITUNG: inBearbeitungCount,
+        WARTEN_ERSATZTEIL: wartenErsatzteilCount,
         FERTIG: fertigCount,
         ABGEHOLT: abgeholtCount,
         REKLAMATION: reklamationCount,
         STORNIERT: storniertCount
       });
     } catch (err) {
-      console.error("Error fetching status counts:", err);
+      console.error("Error calculating status counts locally:", err);
     }
   };
 
@@ -207,39 +234,49 @@ export default function Orders() {
         </div>
       )}
 
-      {/* Quick filter tabs with Counts */}
+      {/* Quick filter tabs */}
       <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
         {[
-          { key: "", label: "Alle", countKey: "all" },
-          { key: "ANGENOMMEN", label: "Diagnose", countKey: "ANGENOMMEN" },
-          { key: "IN_BEARBEITUNG", label: "In Bearbeitung", countKey: "IN_BEARBEITUNG" },
-          { key: "FERTIG", label: "Fertig", countKey: "FERTIG" },
-          { key: "ABGEHOLT", label: "Abgeholt", countKey: "ABGEHOLT" },
-          { key: "REKLAMATION", label: "Reklamation", countKey: "REKLAMATION" },
-          { key: "STORNIERT", label: "Storniert", countKey: "STORNIERT" },
+          { key: "ALLE", label: "ALLE" },
+          { key: "DIAGNOSE", label: "DIAGNOSE" },
+          { key: "WARTEN_FREIGABE", label: "WARTEN FREIGABE" },
+          { key: "IN_BEARBEITUNG", label: "IN BEARBEITUNG" },
+          { key: "WARTEN_ERSATZTEIL", label: "WARTEN ERSATZTEIL" },
+          { key: "FERTIG", label: "FERTIG" },
+          { key: "ABGEHOLT", label: "ABGEHOLT" },
+          { key: "REKLAMATION", label: "REKLAMATION" },
+          { key: "STORNIERT", label: "STORNIERT" },
         ].map((tab) => {
-          const count = statusCounts[tab.countKey] || 0;
+          
+          // جلب العدد بشكل مباشر ومضمون من كائن statusCounts
+          let count = 0;
+          if (tab.key === "ALLE") {
+            count = statusCounts?.all || 0;
+          } else {
+            count = statusCounts?.[tab.key] || statusCounts?.by_status?.[tab.key] || 0;
+          }
+
+          const isActive = statusFilter === tab.key || (tab.key === "ALLE" && !statusFilter);
+
           return (
             <button
-              key={tab.key || "all"}
-              data-testid={`filter-tab-${tab.key ? tab.key.toLowerCase() : "all"}`}
-              onClick={() => setStatusFilter(tab.key)}
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key === "ALLE" ? "" : tab.key)}
               className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors flex items-center gap-1.5 ${
-                statusFilter === tab.key
-                  ? (tab.key === "REKLAMATION" ? "border-amber-500 bg-amber-950/40 text-amber-200" : tab.key === "STORNIERT" ? "border-red-500 bg-red-950/60 text-red-200" : "border-accent bg-accent/10 text-foreground")
-                  : (tab.key === "REKLAMATION" ? "border-amber-700/60 text-amber-300 hover:text-amber-200" : tab.key === "STORNIERT" ? "border-red-700/60 text-red-400 hover:text-red-200" : "border-border text-muted-foreground hover:text-foreground")
+                isActive
+                  ? "border-accent bg-accent/20 text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
             >
-              <span>{tab.key === "REKLAMATION" ? t("reklamation.badgeReclamation") : tab.key === "STORNIERT" ? "Storniert" : (tab.key === "" ? t("orders.all") : t(`status.${tab.key}`, tab.label))}</span>
-              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono ${statusFilter === tab.key ? "bg-accent/20 text-foreground" : "bg-muted text-muted-foreground"}`}>
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono ${isActive ? "bg-accent/30 text-foreground" : "bg-muted text-muted-foreground"}`}>
                 {count}
               </span>
             </button>
           );
         })}
       </div>
-
-      {/* Toolbar */}
+      {/* Toolbar - مربع البحث فقط بدون القائمة المنسدلة القديمة */}
       <div className="flex flex-col sm:flex-row gap-3 px-6 md:px-8 py-4 border-b border-border/60">
         <div className="relative flex-1 max-w-md">
           <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -250,22 +287,6 @@ export default function Orders() {
             placeholder={t("orders.searchPlaceholder")}
             className="w-full bg-background border border-border pl-9 pr-3 py-2 text-sm rounded-lg outline-none focus:border-accent transition-colors font-mono"
           />
-        </div>
-        <div className="relative">
-          <Funnel size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          <select
-            data-testid="orders-status-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-background border border-border pl-9 pr-8 py-2 text-sm rounded-lg outline-none focus:border-accent font-mono appearance-none"
-          >
-            <option value="">{t("orders.allStatus")}</option>
-            {Object.keys(STATUS_LABELS).map((k) => (
-              <option key={k} value={k}>{t(`status.${k}`, STATUS_LABELS[k])}</option>
-            ))}
-            <option value="REKLAMATION">{t("reklamation.badgeReclamation")}</option>
-            <option value="STORNIERT">Storniert</option>
-          </select>
         </div>
       </div>
 
@@ -410,24 +431,37 @@ const getRowBgClass = (order, userRole) => {
                         {/* Status Badge مع ألوان احترافية ومميزة */}
                         {(() => {
                           const status = String(o.status || "").toUpperCase();
-                          switch (status) {
-                            case "DIAGNOSE":
-                            case "ANGENOMMEN":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-blue-500/20 text-blue-400 border border-blue-500/40">Diagnose</span>;
-                            case "IN_BEARBEITUNG":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-amber-500/20 text-amber-400 border border-amber-500/40">In Bearbeitung</span>;
-                            case "FERTIG":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Fertig</span>;
-                            case "ABGEHOLT":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-purple-500/20 text-purple-400 border border-purple-500/40">Abgeholt</span>;
-                            case "REKLAMATION":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-orange-500/20 text-orange-400 border border-orange-500/40">Reklamation</span>;
-                            case "STORNIERT":
-                            case "ABGELEHNT":
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-red-500/20 text-red-400 border border-red-500/40">Storniert</span>;
-                            default:
-                              return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-muted text-muted-foreground border border-border">{o.status}</span>;
-                          }
+switch (status) {
+    case "DIAGNOSE":
+    case "ANGENOMMEN":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-blue-500/20 text-blue-400 border border-blue-500/40">Diagnose</span>;
+    
+    case "WARTEN_FREIGABE":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/40">Warten Freigabe</span>;
+        
+    case "IN_BEARBEITUNG":
+    case "REPARATUR":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-amber-500/20 text-amber-400 border border-amber-500/40">In Bearbeitung</span>;
+        
+    case "WARTEN_ERSATZTEIL":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/40">Warten Ersatzteil</span>;
+        
+    case "FERTIG":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">Fertig</span>;
+        
+    case "ABGEHOLT":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-purple-500/20 text-purple-400 border border-purple-500/40">Abgeholt</span>;
+        
+    case "REKLAMATION":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-orange-500/20 text-orange-400 border border-orange-500/40">Reklamation</span>;
+        
+    case "STORNIERT":
+    case "ABGELEHNT":
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-red-500/20 text-red-400 border border-red-500/40">Storniert</span>;
+        
+    default:
+        return <span className="px-2.5 py-1 text-xs font-mono font-bold uppercase rounded bg-muted text-muted-foreground border border-border">{o.status}</span>;
+}
                         })()}
                       </div>
                     </td>

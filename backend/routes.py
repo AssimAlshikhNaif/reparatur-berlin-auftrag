@@ -33,11 +33,11 @@ WARRANTY_DEFAULT_MONTHS = 6
 
 # ---- Status constants ----
 STATUS_FLOW = [
-    "ANGENOMMEN", "ZUGEWIESEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG",
+    "DIAGNOSE", "ANGENOMMEN", "ZUGEWIESEN",  "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG",
     "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT", "ABGELEHNT", "STORNIERT",
 ]
 # Technical phases a technician may set (never administrative/final states like ABGEHOLT)
-TECH_ALLOWED_STATUS = {"ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG"}
+TECH_ALLOWED_STATUS = { "DIAGNOSE", "ANGENOMMEN", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG"}
 COST_STATES = {"WARTET", "BESTAETIGT", "ABGELEHNT"}
 TAX_RATE = 0.19
 FINAL_STATES = {"ABGEHOLT", "ABGELEHNT" , "STORNIERT"}
@@ -858,7 +858,7 @@ async def list_orders(
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # 1. تحديد نطاق الأفرع الأساسي حسب الص# 1. تحديد نطاق الأفرع والصلاحيات الأساسي
+    # 1. تحديد نطاق الأفرع والصلاحيات الأساسي
     user_id_str = str(current.get("_id"))
     
     if user_role in ["admin", "super_admin", "branch_admin"]:
@@ -881,37 +881,30 @@ async def list_orders(
         else:
             query["branch_id"] = {"$in": []}
     elif user_role == "techniker":
-        # التقني يرى الطلبات المسندة إليه شخصياً أو طلبات فرعه
-        user_branch = current.get("branch_id")
-        tech_conditions = [
-            {"assigned_techniker_id": user_id_str},
-            {"assigned_techniker_id": ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else user_id_str}
-        ]
-        if user_branch:
-            tech_conditions.append({"branch_id": user_branch})
-            try:
-                tech_conditions.append({"branch_id": ObjectId(user_branch)})
-            except Exception:
-                pass
-        query = {"$or": tech_conditions}
+        # 🔒 التقني يرى فقط الطلبات المسندة إليه شخصياً حصراً بغض النظر عن الفرع
+        query = {
+            "$or": [
+                {"assigned_techniker_id": user_id_str},
+                {"assigned_techniker_id": ObjectId(user_id_str) if ObjectId.is_valid(user_id_str) else user_id_str}
+            ]
+        }
     else:
         query = {"branch_id": {"$in": []}}
     
-    # 2. فلترة الحالة (Status)
-    # 2. فلترة الحالة (Status)
-    if status:
-        status_upper = status.upper()
-        if status_upper == "DIAGNOSE":
-            query["status"] = {"$in": ["DIAGNOSE", "ANGENOMMEN", "WARTEN_FREIGABE"]}
-        elif status_upper == "IN_BEARBEITUNG":
-            query["status"] = {"$in": ["IN_BEARBEITUNG", "REPARATUR", "WARTEN_ERSATZTEIL"]}
+    # 2. فلترة الحالة (Status) بشكل مباشر ودقيق مع دعم المرادفات القديمة
+    if status and status.upper() != "ALLE":
+        st_upper = status.upper()
+        if st_upper == "DIAGNOSE":
+            query["status"] = {"$in": ["DIAGNOSE", "ANGENOMMEN"]}
+        elif st_upper == "IN_BEARBEITUNG":
+            query["status"] = {"$in": ["IN_BEARBEITUNG", "REPARATUR"]}
         else:
-            query["status"] = status
+            query["status"] = st_upper
     else:
-        query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled"]}
+        query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled", "ABGEHOLT", "STORNIERT"]}
         
-    # 3. إذا قام المستخدم بتحديد فرع معين من القائمة المنسدلة في الواجهة
-    if branch_id:
+    # 3. إذا قام المستخدم بتحديد فرع معين (مع استثناء التقني نهائياً)
+    if branch_id and user_role != "techniker":
         try:
             # التحقق مما إذا كان الفرع المختار يقع ضمن الأفرع المسموحة لهذا المشرف
             if allowed_branches and user_role not in ["admin", "super_admin"]:
@@ -919,15 +912,21 @@ async def list_orders(
                 if branch_id not in branch_str_list:
                     raise HTTPException(status_code=403, detail="ليس لديك صلاحية لعرض هذا الفرع")
             
-            query["$or"] = [
-                {"branch_id": branch_id},
-                {"branch_id": ObjectId(branch_id)}
-            ]
+            branch_query = {
+                "$or": [
+                    {"branch_id": branch_id},
+                    {"branch_id": ObjectId(branch_id)}
+                ]
+            }
+            if query:
+                query = {"$and": [query, branch_query]}
+            else:
+                query = branch_query
         except Exception as e:
             if isinstance(e, HTTPException):
                 raise e
             query["branch_id"] = branch_id
-
+            
     print(">>> DEBUG QUERY FOR ORDERS:", query)
 
     try:
@@ -985,7 +984,7 @@ async def list_orders(
             continue
             
     return result
-    
+        
 @router.post("/orders/{order_id}/mark-read")
 async def mark_order_messages_as_read(
     order_id: str,
@@ -1478,7 +1477,7 @@ async def update_status(order_id: str, input: StatusUpdate, current=Depends(get_
         
    # السماح للموظف والتقني بتغيير الحالة بحرية دون قيود التعيين الصارمة
     if role in ("techniker", "mitarbeiter"):
-        if input.status not in ("ANGENOMMEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
+        if input.status not in ("DIAGNOSE" , "ANGENOMMEN", "AKZEPTIERT", "WARTEN_FREIGABE", "IN_BEARBEITUNG", "WARTEN_ERSATZTEIL", "FERTIG", "ABGEHOLT"):
             raise HTTPException(status_code=403, detail="Mitarbeiter dürfen diesen Status nicht setzen")      
     
     extra = {"reject_reason": input.reason} if input.reason else None
@@ -2158,128 +2157,97 @@ async def post_message(
 
 # ==================== STATS ====================
 @router.get("/stats")
-async def stats(current=Depends(get_current_user)):
-    user_role = current.get("role", "")
-    allowed_branches = current.get("allowed_branches", [])
+async def stats(branch_id: Optional[str] = None, current=Depends(get_current_user)):
+    # 1. جلب استعلام المستخدم الأساسي لضمان صلاحيات الموظف/الفرع
+    user_query = await _order_query_for_user(current)
     
-    query = await _order_query_for_user(current)
+    # إزالة تقييد الحالة (Status) لكي يتسنى لنا حساب كافة الطلبات (بما فيها ABGEHOLT و STORNIERT)
+    base_query = {k: v for k, v in user_query.items() if k != "status"}
     
-    # العدد الإجمالي للطلبات حسب الصلاحية والفرع
-    total_orders_count = await db.orders.count_documents(query)
+    # إذا تم تمرير branch_id محدد في الـ Request
+    if branch_id:
+        try:
+            base_query["branch_id"] = ObjectId(branch_id)
+        except Exception:
+            base_query["branch_id"] = branch_id
 
-    # 2. الطلبات النشطة (حساب مباشر ودقيق من قاعدة البيانات لكل الفرع)
-    active_orders_count = await db.orders.count_documents({
-        **query,
-        "status": {"$nin": list(FINAL_STATES) if 'FINAL_STATES' in globals() else ["ABGEHOLT", "STORNIERT"]}
-    })
-
-    # 3. الطلبات المكتملة / المسلمة (ABGEHOLT) مباشرة من قاعدة البيانات
-    completed_repairs_count = await db.orders.count_documents({
-        **query,
-        "status": "ABGEHOLT"
-    })
-    
-    # جلب الطلبات للرسوم البيانية والحسابات المالية
-    orders = await db.orders.find(
-        query, 
-        {"status": 1, "branch_id": 1, "created_at": 1, "diagnosis_fee": 1, "labor_cost": 1, "parts_cost": 1}
-    ).to_list(5000) 
-    
-    by_status = {}
-    sla_count = 0
-    total_revenue = 0.0
-    
-    for o in orders:
-        raw_status = o.get("status", "UNKNOWN")
-        status = str(raw_status).strip().upper()
-        
-        by_status[status] = by_status.get(status, 0) + 1
-        
-        if is_sla_breached(o):
-            sla_count += 1
-            
-        if status == "ABGEHOLT":
-            costs = compute_costs(o)
-            total_revenue += costs.get("gross", 0.0)
-
-    result = {
-        "total_orders": total_orders_count,  
-        "by_status": by_status,
-        "sla_breached": sla_count,
-        "active_orders": active_orders_count,
+    # 2. حساب العدادات مع دعم الحروف الكبيرة والصغيرة (Regex Case-Insensitive)
+    by_status = {
+        "DIAGNOSE": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["DIAGNOSE", "ANGENOMMEN", "diagnose", "angenommen"]}
+        }),
+        "WARTEN_FREIGABE": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["WARTEN_FREIGABE", "WARTEN FREIGABE", "WARTEN AUF FREIGABE", "warten_freigabe"]}
+        }),
+        "IN_BEARBEITUNG": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["IN_BEARBEITUNG", "REPARATUR", "ZUGEWIESEN", "in_bearbeitung", "reparatur"]}
+        }),
+        "WARTEN_ERSATZTEIL": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["WARTEN_ERSATZTEIL", "WARTEN ERSATZTEIL", "WARTEN AUF ERSATZTEIL", "warten_ersatzteil"]}
+        }),
+        "FERTIG": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["FERTIG", "fertig"]}
+        }),
+        "ABGEHOLT": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
+        }),
+        "REKLAMATION": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["REKLAMATION", "reklamation"]}
+        }),
+        "STORNIERT": await db.orders.count_documents({
+            **base_query,
+            "status": {"$in": ["STORNIERT", "ABGELEHNT", "CANCELLED", "storniert", "abgelehnt", "cancelled"]}
+        }),
     }
-    
-    if current.get("role") in ["admin", "super_admin", "branch_admin"]:
-        try:
-            branch_query = {}
-            if user_role in ["admin", "super_admin"] and allowed_branches:
-                branch_ids_query = []
-                for b in allowed_branches:
-                    branch_ids_query.append(b)
-                    try:
-                        branch_ids_query.append(ObjectId(b))
-                    except Exception:
-                        pass
-                branch_query["_id"] = {"$in": branch_ids_query}
-            
-            result["total_branches"] = await db.branches.count_documents(branch_query)
-        except Exception:
-            result["total_branches"] = 0
-            
-        try:
-            # تقييد جلب المخزون بالأفرع المسموحة إن وجدت
-            inv_query = {"$expr": {"$lte": ["$quantity", "$min_stock"]}}
-            if allowed_branches:
-                branch_ids_query = []
-                for b in allowed_branches:
-                    branch_ids_query.append(b)
-                    try:
-                        branch_ids_query.append(ObjectId(b))
-                    except Exception:
-                        pass
-                inv_query["branch_id"] = {"$in": branch_ids_query}
-                
-            low_stock = await db.inventory.find(inv_query).to_list(500)
-        except Exception:
-            low_stock = []
-        
-        result["low_stock_count"] = len(low_stock) if isinstance(low_stock, list) else 0
-        result["low_stock_items"] = [
-            {
-                "sku": i.get("sku"), 
-                "device_model": i.get("device_model"), 
-                "part_type": i.get("part_type"),
-                "quantity": i.get("quantity"), 
-                "min_stock": i.get("min_stock")
-            } for i in low_stock if isinstance(i, dict)
-        ]
-        
-        result["completed_repairs"] = completed_repairs_count
-        result["revenue"] = round(total_revenue, 2)
-        
-        # تجميع إحصائيات الفروع المسموحة فقط
-        try:
-            branches = await db.branches.find(branch_query, {"name": 1}).to_list(100)
-            bmap = {str(b["_id"]): b["name"] for b in branches if "_id" in b and "name" in b}
-            
-            by_branch = {name: {"branch": name, "revenue": 0.0, "orders": 0, "completed": 0} for name in bmap.values()}
-            
-            for o in orders:
-                name = bmap.get(str(o.get("branch_id")))
-                if not name or name not in by_branch:
-                    continue
-                by_branch[name]["orders"] += 1
-                if o.get("status") == "ABGEHOLT":
-                    by_branch[name]["completed"] += 1
-                    costs = compute_costs(o)
-                    by_branch[name]["revenue"] = round(by_branch[name]["revenue"] + costs.get("gross", 0.0), 2)
-                    
-            result["by_branch"] = list(by_branch.values())
-        except Exception:
-            result["by_branch"] = []
-        
-    return result
-        # ==================== IMEI (late fill-in) ====================
+
+    # 3. حساب الطلبات النشطة لزر ALLE (استثناء المنتهية والملغاة)
+    active_orders_count = await db.orders.count_documents({
+        **base_query,
+        "status": {
+            "$nin": [
+                "ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt",
+                "STORNIERT", "ABGELEHNT", "CANCELLED", "storniert", "abgelehnt", "cancelled"
+            ]
+        }
+    })
+
+    # حساب الأرباح
+    completed_orders = await db.orders.find({
+        **base_query,
+        "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
+    }).to_list(2000)
+
+    total_revenue = 0.0
+    for o in completed_orders:
+        costs = compute_costs(o)
+        total_revenue += costs.get("gross", 0.0)
+
+    abgeholt_count = by_status["ABGEHOLT"]
+    storniert_count = by_status["STORNIERT"]
+
+    return {
+        "total_orders": active_orders_count + abgeholt_count + storniert_count,
+        "active_orders": active_orders_count,
+        "all": active_orders_count,
+        "by_status": by_status,
+        "statusCounts": {
+            "all": active_orders_count,
+            "active_orders": active_orders_count,
+            "by_status": by_status,
+            **by_status
+        },
+        "completed_repairs": abgeholt_count,
+        "revenue": round(total_revenue, 2)
+    }
+
+                # ==================== IMEI (late fill-in) ====================
 @router.patch("/orders/{order_id}/imei")
 async def update_imei(order_id: str, input: ImeiUpdate, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
