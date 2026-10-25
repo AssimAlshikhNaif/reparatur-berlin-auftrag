@@ -984,7 +984,7 @@ async def list_orders(
             continue
             
     return result
-        
+
 @router.post("/orders/{order_id}/mark-read")
 async def mark_order_messages_as_read(
     order_id: str,
@@ -2155,13 +2155,13 @@ async def post_message(
         "created_at": doc["created_at"]
     }
 
-# ==================== STATS ====================
+# ==================== STATS  ====================
 @router.get("/stats")
 async def stats(branch_id: Optional[str] = None, current=Depends(get_current_user)):
     # 1. جلب استعلام المستخدم الأساسي لضمان صلاحيات الموظف/الفرع
     user_query = await _order_query_for_user(current)
     
-    # إزالة تقييد الحالة (Status) لكي يتسنى لنا حساب كافة الطلبات (بما فيها ABGEHOLT و STORNIERT)
+    # إزالة تقييد الحالة (Status) لكي يتسنى لنا حساب كافة الطلبات
     base_query = {k: v for k, v in user_query.items() if k != "status"}
     
     # إذا تم تمرير branch_id محدد في الـ Request
@@ -2171,71 +2171,99 @@ async def stats(branch_id: Optional[str] = None, current=Depends(get_current_use
         except Exception:
             base_query["branch_id"] = branch_id
 
-    # 2. حساب العدادات مع دعم الحروف الكبيرة والصغيرة (Regex Case-Insensitive)
-    by_status = {
-        "DIAGNOSE": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["DIAGNOSE", "ANGENOMMEN", "diagnose", "angenommen"]}
-        }),
-        "WARTEN_FREIGABE": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["WARTEN_FREIGABE", "WARTEN FREIGABE", "WARTEN AUF FREIGABE", "warten_freigabe"]}
-        }),
-        "IN_BEARBEITUNG": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["IN_BEARBEITUNG", "REPARATUR", "ZUGEWIESEN", "in_bearbeitung", "reparatur"]}
-        }),
-        "WARTEN_ERSATZTEIL": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["WARTEN_ERSATZTEIL", "WARTEN ERSATZTEIL", "WARTEN AUF ERSATZTEIL", "warten_ersatzteil"]}
-        }),
-        "FERTIG": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["FERTIG", "fertig"]}
-        }),
-        "ABGEHOLT": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
-        }),
-        "REKLAMATION": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["REKLAMATION", "reklamation"]}
-        }),
-        "STORNIERT": await db.orders.count_documents({
-            **base_query,
-            "status": {"$in": ["STORNIERT", "ABGELEHNT", "CANCELLED", "storniert", "abgelehnt", "cancelled"]}
-        }),
-    }
-
-    # 3. حساب الطلبات النشطة لزر ALLE (استثناء المنتهية والملغاة)
-    active_orders_count = await db.orders.count_documents({
-        **base_query,
-        "status": {
-            "$nin": [
-                "ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt",
-                "STORNIERT", "ABGELEHNT", "CANCELLED", "storniert", "abgelehnt", "cancelled"
-            ]
+    # استخدام التجميع (Aggregation) لحساب جميع الحالات بطلب واحد سريع لعدم حدوث Timeout (504)
+    pipeline = [
+        {"$match": base_query},
+        {
+            "$group": {
+                "_id": {"$toLower": {"$ifNull": ["$status", "unknown"]}},
+                "count": {"$sum": 1}
+            }
         }
-    })
+    ]
+    
+    status_counts_cursor = db.orders.aggregate(pipeline)
+    status_counts_map = {doc["_id"]: doc["count"] async for doc in status_counts_cursor}
 
-    # حساب الأرباح
-    completed_orders = await db.orders.find({
-        **base_query,
-        "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
-    }).to_list(2000)
+    def get_count(keys):
+        return sum(status_counts_map.get(k.lower(), 0) for k in keys)
 
-    total_revenue = 0.0
-    for o in completed_orders:
-        costs = compute_costs(o)
-        total_revenue += costs.get("gross", 0.0)
+    by_status = {
+        "DIAGNOSE": get_count(["DIAGNOSE", "ANGENOMMEN"]),
+        "WARTEN_FREIGABE": get_count(["WARTEN_FREIGABE", "WARTEN FREIGABE", "WARTEN AUF FREIGABE"]),
+        "IN_BEARBEITUNG": get_count(["IN_BEARBEITUNG", "REPARATUR", "ZUGEWIESEN"]),
+        "WARTEN_ERSATZTEIL": get_count(["WARTEN_ERSATZTEIL", "WARTEN ERSATZTEIL", "WARTEN AUF ERSATZTEIL"]),
+        "FERTIG": get_count(["FERTIG"]),
+        "ABGEHOLT": get_count(["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT"]),
+        "REKLAMATION": get_count(["REKLAMATION"]),
+        "STORNIERT": get_count(["STORNIERT", "ABGELEHNT", "CANCELLED"]),
+    }
 
     abgeholt_count = by_status["ABGEHOLT"]
     storniert_count = by_status["STORNIERT"]
+    
+    total_all_status = sum(status_counts_map.values())
+    inactive_count = abgeholt_count + storniert_count
+    active_orders_count = max(0, total_all_status - inactive_count)
+
+    # حساب الأرباح السريع
+    completed_query = {
+        **base_query,
+        "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
+    }
+    completed_orders = await db.orders.find(completed_query, {"costs": 1, "total_price": 1, "price": 1, "branch_id": 1}).to_list(1000)
+
+    total_revenue = 0.0
+    for o in completed_orders:
+        costs = compute_costs(o) if "compute_costs" in globals() else {"gross": o.get("total_price", 0.0)}
+        total_revenue += costs.get("gross", 0.0)
+
+    # حساب طلبات متجاوزة الـ SLA (مثال مبسط بناءً على الأيام المفتوحة)
+    # يمكنك ربطها بالاستعلام الخاص بك إذا كان جاهزاً
+    sla_breached_count = 0 
+    try:
+        sla_breached_count = await db.orders.count_documents({**base_query, "sla_breached": True})
+    except Exception:
+        pass
+
+    # تجهيز إيرادات الفروع للرسم البياني (Revenue by branch) لكي لا يتوقف الـ BarChart
+    revenue_by_branch = []
+    try:
+        # تجميع مبسط للإيرادات حسب الفرع
+        branch_pipeline = [
+            {"$match": completed_query},
+            {"$group": {"_id": "$branch_id", "revenue": {"$sum": "$total_price"}, "orders": {"$sum": 1}}},
+            {"$limit": 10}
+        ]
+        async for doc in db.orders.aggregate(branch_pipeline):
+            branch_name = str(doc["_id"]) if doc["_id"] else "Hauptfiliale"
+            revenue_by_branch.append({
+                "branch": branch_name,
+                "revenue": doc.get("revenue", 0.0),
+                "orders": doc.get("orders", 0)
+            })
+    except Exception:
+        pass
+
+    # القطع التي اقتربت من النفاد (Low stock items) لوحة التحكم الأدمن
+    low_stock_items = []
+    try:
+        async for item in db.inventory.find({"quantity": {"$lte": 3}}).limit(6):
+            low_stock_items.append({
+                "sku": item.get("sku", str(item.get("_id"))),
+                "device_model": item.get("device_model", item.get("name", "Part")),
+                "part_type": item.get("part_type", "Component"),
+                "quantity": item.get("quantity", 0),
+                "min_stock": item.get("min_stock", 3)
+            })
+    except Exception:
+        pass
 
     return {
-        "total_orders": active_orders_count + abgeholt_count + storniert_count,
+        "total_orders": total_all_status,
         "active_orders": active_orders_count,
         "all": active_orders_count,
+        "sla_breached": sla_breached_count,
         "by_status": by_status,
         "statusCounts": {
             "all": active_orders_count,
@@ -2244,7 +2272,9 @@ async def stats(branch_id: Optional[str] = None, current=Depends(get_current_use
             **by_status
         },
         "completed_repairs": abgeholt_count,
-        "revenue": round(total_revenue, 2)
+        "revenue": round(total_revenue, 2),
+        "revenue_by_branch": revenue_by_branch,
+        "low_stock_items": low_stock_items
     }
 
                 # ==================== IMEI (late fill-in) ====================
@@ -2506,17 +2536,29 @@ async def global_activity(limit: int = 200, current=Depends(require_roles("admin
 @router.get("/reklamationen")
 async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
     base = await _order_query_for_user(current)
-    # اجعل البحث يقتصر على طلبات الركلاماسيون الحقيقية فقط لكي لا تتداخل مع Abgeholt
-    cond = {"is_reclamation": True}
+    
+    # فلترة طلبات الركلامسيون النشطة فقط واستبعاد المنتهية أو المسلمة
+    cond = {
+        "is_reclamation": True,
+        "status": {
+            "$nin": [
+                "ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", 
+                "abgeholt", "abgeschlossen", "erledigt",
+                "STORNIERT", "ABGELEHNT", "CANCELLED", 
+                "storniert", "abgelehnt", "cancelled"
+            ]
+        }
+    }
+    
     query = {"$and": [base, cond]} if base else cond
     orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
+    
     bmap, umap = await _name_maps()
     out = []
     for o in orders:
         s = attach_names(serialize_order(o, current, light=True), bmap, umap)
         out.append(s)
     return out
-
 
 @router.post("/orders/{order_id}/create-reclamation")
 async def create_reclamation_order(order_id: str, current = Depends(require_roles("admin", "mitarbeiter" , "branch_admin"))):
