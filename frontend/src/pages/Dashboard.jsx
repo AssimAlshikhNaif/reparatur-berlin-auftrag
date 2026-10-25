@@ -247,7 +247,7 @@ function AdminTechDashboard({ user, navigate, stats, setStats, slaOrders, setSla
       <div className="px-6 md:px-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Metric testid="metric-total" label={t("dashboard.metricTotal")} value={stats.total_orders ?? 0} icon={Wrench} />
         <Metric testid="metric-active" label={t("dashboard.metricActive")} value={stats.active_orders ?? 0} icon={ClockCountdown} accent="text-accent" />
-        <Metric testid="metric-sla" label={t("dashboard.metricSla")} value={stats.sla_breached ?? 0} icon={Warning} accent={stats.sla_breached > 0 ? "text-red-500" : "text-muted-foreground/70"} />
+        <Metric testid="metric-sla" label={t("dashboard.metricSla")} value={slaOrders?.length ?? stats.sla_breached ?? 0} icon={Warning} accent={(slaOrders?.length || stats.sla_breached) > 0 ? "text-red-500" : "text-muted-foreground/70"} />
         {user?.role === "admin" ? (
           <Metric testid="metric-revenue" label={t("dashboard.metricRevenue")} value={`${Number(stats.revenue ?? 0).toFixed(0)} €`} icon={Receipt} accent="text-emerald-500" />
         ) : (

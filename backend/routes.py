@@ -2211,13 +2211,17 @@ async def stats(branch_id: Optional[str] = None, current=Depends(get_current_use
         **base_query,
         "status": {"$in": ["ABGEHOLT", "ABGESCHLOSSEN", "ERLEDIGT", "abgeholt", "abgeschlossen", "erledigt"]}
     }
-    completed_orders = await db.orders.find(completed_query, {"costs": 1, "total_price": 1, "price": 1, "branch_id": 1}).to_list(1000)
+    completed_orders = await db.orders.find(completed_query, {"costs": 1, "total_price": 1, "price": 1, "branch_id": 1, "labor_cost": 1, "parts_cost": 1}).to_list(1000)
 
     total_revenue = 0.0
     for o in completed_orders:
-        costs = compute_costs(o) if "compute_costs" in globals() else {"gross": o.get("total_price", 0.0)}
-        total_revenue += costs.get("gross", 0.0)
-
+        labor = float(o.get("labor_cost", 0.0) or 0.0)
+        parts = float(o.get("parts_cost", 0.0) or 0.0)
+        total_price = o.get("total_price")
+        if total_price is not None:
+            total_revenue += float(total_price)
+        else:
+            total_revenue += (labor + parts)
     # حساب طلبات متجاوزة الـ SLA (مثال مبسط بناءً على الأيام المفتوحة)
     # يمكنك ربطها بالاستعلام الخاص بك إذا كان جاهزاً
     sla_breached_count = 0 
