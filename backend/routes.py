@@ -725,9 +725,26 @@ async def delete_inventory(item_id: str, current=Depends(require_roles("admin"))
 
 # ==================== ORDERS ====================
 async def _order_query_for_user(user: dict) -> dict:
+    role = user.get("role")
+    
+    # 1. إذا كان المستخدم أدمن أو سوبر أدمن
+    if role in ["admin", "super_admin"]:
+        allowed_branches = user.get("allowed_branches", [])
+        if allowed_branches and isinstance(allowed_branches, list) and len(allowed_branches) > 0:
+            branch_match_list = []
+            for b in allowed_branches:
+                branch_match_list.append(b)
+                try:
+                    branch_match_list.append(ObjectId(b))
+                except Exception:
+                    pass
+            return {"branch_id": {"$in": branch_match_list}}
+        return {}
+
+    # 2. للأدوار الأخرى (مثل الفني Techniker)
+    query = {}
     allowed_branches = user.get("allowed_branches", [])
     
-    # 👈 الأولوية القصوى: إذا تم تحديد أفرع مسموحة لهذا المستخدم، نقيد الاستعلام بها فوراً
     if allowed_branches and isinstance(allowed_branches, list) and len(allowed_branches) > 0:
         branch_match_list = []
         for b in allowed_branches:
@@ -736,20 +753,17 @@ async def _order_query_for_user(user: dict) -> dict:
                 branch_match_list.append(ObjectId(b))
             except Exception:
                 pass
-        return {"branch_id": {"$in": branch_match_list}}
+        query["branch_id"] = {"$in": branch_match_list}
 
-    # بقية الأدوار إذا لم يكن لديه أفرع محددة
-    if user["role"] in ["admin", "super_admin"]:
-        return {}
-        
-    if user["role"] == "techniker":
+    if role == "techniker":
         tech_id_str = str(user["_id"])
         try:
             tech_id_obj = ObjectId(tech_id_str)
         except Exception:
             tech_id_obj = tech_id_str
             
-        return {
+        # شرط المعرفات الخاصة بالفني
+        tech_query = {
             "$or": [
                 {"assigned_techniker_id": tech_id_str},
                 {"assigned_techniker_id": tech_id_obj},
@@ -758,7 +772,25 @@ async def _order_query_for_user(user: dict) -> dict:
             ]
         }
         
-    return {"branch_id": user.get("branch_id")}
+        # شرط استبعاد الطلبات المنتهية والجاهزة والملغاة تماماً من حساب الفني
+        status_query = {
+            "status": {
+                "$nin": [
+                    "FERTIG", "ABGEHOLT", "STORNIERT", 
+                    "fertig", "abgeholt", "storniert", 
+                    "ABGESCHLOSSEN", "abgeschlossen"
+                ]
+            }
+        }
+        
+        # دمج شروط الفروع (إن وجدت) مع شروط الفني والحالات النشطة
+        conditions = [tech_query, status_query]
+        if query:
+            conditions.append(query)
+            
+        return {"$and": conditions}
+
+    return query
 
 @router.post("/orders/{order_id}/notes")
 async def add_order_note(
@@ -858,7 +890,7 @@ async def list_orders(
     user_role = current.get("role", "")
     allowed_branches = current.get("allowed_branches", []) 
     
-    # 1. تحديد نطاق الأفرع والصلاحيات الأساسي
+    # تحديد نطاق الأفرع والصلاحيات الأساسي
     user_id_str = str(current.get("_id"))
     
     if user_role in ["admin", "super_admin", "branch_admin"]:
@@ -901,7 +933,8 @@ async def list_orders(
         else:
             query["status"] = st_upper
     else:
-        query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled", "ABGEHOLT", "STORNIERT"]}
+        # 👈 تم إضافة FERTIG و fertig لقائمة الاستبعاد هنا أيضاً
+        query["status"] = {"$nin": ["erledigt", "abgeschlossen", "abgeholt", "cancelled", "ABGEHOLT", "STORNIERT", "storniert", "FERTIG", "fertig"]}
         
     # 3. إذا قام المستخدم بتحديد فرع معين (مع استثناء التقني نهائياً)
     if branch_id and user_role != "techniker":
@@ -926,6 +959,22 @@ async def list_orders(
             if isinstance(e, HTTPException):
                 raise e
             query["branch_id"] = branch_id
+
+    # 🔒 4. قيد أمني إضافي وحاسم للتقني: منع ظهور الطلبات المنتهية والجاهزة والملغاة نهائياً حتى لو حاول فلترتها
+    if user_role == "techniker":
+        tech_restrictions = {
+            "status": {
+                "$nin": [
+                    "FERTIG", "ABGEHOLT", "STORNIERT", 
+                    "fertig", "abgeholt", "storniert", 
+                    "ABGESCHLOSSEN", "abgeschlossen", "erledigt"
+                ]
+            }
+        }
+        if query:
+            query = {"$and": [query, tech_restrictions]}
+        else:
+            query = tech_restrictions
             
     print(">>> DEBUG QUERY FOR ORDERS:", query)
 
@@ -984,7 +1033,7 @@ async def list_orders(
             continue
             
     return result
-
+    
 @router.post("/orders/{order_id}/mark-read")
 async def mark_order_messages_as_read(
     order_id: str,

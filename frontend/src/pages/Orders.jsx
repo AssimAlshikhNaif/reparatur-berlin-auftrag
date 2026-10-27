@@ -234,48 +234,58 @@ export default function Orders() {
         </div>
       )}
 
-      {/* Quick filter tabs */}
-      <div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
-        {[
-          { key: "ALLE", label: "ALLE" },
-          { key: "DIAGNOSE", label: "DIAGNOSE" },
-          { key: "WARTEN_FREIGABE", label: "WARTEN FREIGABE" },
-          { key: "IN_BEARBEITUNG", label: "IN BEARBEITUNG" },
-          { key: "WARTEN_ERSATZTEIL", label: "WARTEN ERSATZTEIL" },
-          { key: "FERTIG", label: "FERTIG" },
-          { key: "ABGEHOLT", label: "ABGEHOLT" },
-          { key: "REKLAMATION", label: "REKLAMATION" },
-          { key: "STORNIERT", label: "STORNIERT" },
-        ].map((tab) => {
-          
-          // جلب العدد بشكل مباشر ومضمون من كائن statusCounts
-          let count = 0;
-          if (tab.key === "ALLE") {
-            count = statusCounts?.all || 0;
-          } else {
-            count = statusCounts?.[tab.key] || statusCounts?.by_status?.[tab.key] || 0;
-          }
+    {/* Quick filter tabs */}
+<div className="flex flex-wrap items-center gap-2 px-6 md:px-8 pt-4">
+  {[
+    { key: "ALLE", label: "ALLE" },
+    { key: "DIAGNOSE", label: "DIAGNOSE" },
+    { key: "WARTEN_FREIGABE", label: "WARTEN FREIGABE" },
+    { key: "IN_BEARBEITUNG", label: "IN BEARBEITUNG" },
+    { key: "WARTEN_ERSATZTEIL", label: "WARTEN ERSATZTEIL" },
+    { key: "FERTIG", label: "FERTIG" },
+    { key: "ABGEHOLT", label: "ABGEHOLT" },
+    { key: "REKLAMATION", label: "REKLAMATION" },
+    { key: "STORNIERT", label: "STORNIERT" },
+  ]
+  .filter((tab) => {
+    // إذا كان المستخدم فنياً، يتم إخفاء أزرار FERTIG و ABGEHOLT و STORNIERT تماماً
+    if (user?.role === "techniker") {
+      return !["FERTIG", "ABGEHOLT", "STORNIERT"].includes(tab.key);
+    }
+    return true; // للأدمن والموظفين تظهر كافة الأزرار بشكل طبيعي
+  })
+  .map((tab) => {
+    
+    // حساب العدد مباشرة من قائمة الطلبات الموجودة (مع دعم الاحتياط لكائن statusCounts)
+    let count = 0;
+    if (tab.key === "ALLE") {
+      count = orders?.length || statusCounts?.all || 0;
+    } else {
+      count = orders?.filter(o => o.status?.toUpperCase() === tab.key).length || 
+              statusCounts?.[tab.key] || 
+              statusCounts?.by_status?.[tab.key] || 0;
+    }
 
-          const isActive = statusFilter === tab.key || (tab.key === "ALLE" && !statusFilter);
+    const isActive = statusFilter === tab.key || (tab.key === "ALLE" && !statusFilter);
 
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setStatusFilter(tab.key === "ALLE" ? "" : tab.key)}
-              className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors flex items-center gap-1.5 ${
-                isActive
-                  ? "border-accent bg-accent/20 text-foreground"
-                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono ${isActive ? "bg-accent/30 text-foreground" : "bg-muted text-muted-foreground"}`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+    return (
+      <button
+        key={tab.key}
+        onClick={() => setStatusFilter(tab.key === "ALLE" ? "" : tab.key)}
+        className={`px-3 py-1.5 text-xs font-head font-semibold uppercase tracking-wider rounded-full border transition-colors flex items-center gap-1.5 ${
+          isActive
+            ? "border-accent bg-accent/20 text-foreground"
+            : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        }`}
+      >
+        <span>{tab.label}</span>
+        <span className={`px-1.5 py-0.5 text-[10px] rounded-full font-mono ${isActive ? "bg-accent/30 text-foreground" : "bg-muted text-muted-foreground"}`}>
+          {count}
+        </span>
+      </button>
+    );
+  })}
+</div>
       {/* Toolbar - مربع البحث فقط بدون القائمة المنسدلة القديمة */}
       <div className="flex flex-col sm:flex-row gap-3 px-6 md:px-8 py-4 border-b border-border/60">
         <div className="relative flex-1 max-w-md">
