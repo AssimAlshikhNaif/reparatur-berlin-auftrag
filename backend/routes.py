@@ -2401,12 +2401,21 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     safe = re.escape(term)
     rx = {"$regex": safe, "$options": "i"}
     
-    # إذا كان النص المدخل عبارة عن أرقام قصيرة (مثل آخر أرقام من الأوفراغ)، نبحث عن مطابقة في النهاية أيضاً
+    # إذا كان النص المدخل عبارة عن أرقام قصيرة، نبحث عن مطابقة في النهاية أيضاً
     auftrag_regex = rx
     if term.isdigit() and len(term) <= 4:
         auftrag_regex = {"$regex": f"({safe})$", "$options": "i"}
 
     base = await _order_query_for_user(current)
+    
+    # 🔒 حماية إضافية صارمة: إذا كان المستخدم موظفاً (mitarbeiter)، نضمن تقييد البحث بفرعه حصرياً
+    if current.get("role") == "mitarbeiter" and current.get("branch_id"):
+        branch_restriction = {"branch_id": current.get("branch_id")}
+        if base:
+            base = {"$and": [base, branch_restriction]}
+        else:
+            base = branch_restriction
+
     or_clauses = [
         {"auftragsnummer": auftrag_regex},
         {"imei": rx},
@@ -2423,7 +2432,7 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     orders = await db.orders.find(query).sort("created_at", -1).to_list(50)
     bmap, umap = await _name_maps()
     return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
-
+    
 # ==================== NOTIFICATIONS (Admin + Reception + targeted Technicians) ====================
 async def _notif_query(user: dict, branch_id_param: str = None):
     """Build the Mongo filter for the notifications a user may see."""
