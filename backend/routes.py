@@ -2039,9 +2039,15 @@ async def upload_media(
     path = f"{APP_NAME}/orders/{order_id}/{uuid.uuid4()}.{ext}"
     result = put_object(path, data, ct)
     
+    # بناء الرابط المطلق الكامل لتخزينه مباشرة في قاعدة البيانات
+    clean_sub_path = result["path"].lstrip("/\\")
+    full_url = f"https://handysync.de/uploads/{clean_sub_path}"
+
     media_item = {
         "id": str(uuid.uuid4()),
-        "storage_path": result["path"],
+        "storage_path": full_url,          # تخزين الرابط الكامل مباشرة
+        "file_path": full_url,             # تخزين الرابط الكامل مباشرة
+        "url": full_url,                   # تخزين الرابط الكامل مباشرة
         "original_filename": file.filename or "recording.webm",
         "content_type": ct,
         "media_type": media_type,
@@ -2432,7 +2438,7 @@ async def global_search(q: str = Query(..., min_length=1), current=Depends(get_c
     orders = await db.orders.find(query).sort("created_at", -1).to_list(50)
     bmap, umap = await _name_maps()
     return [attach_names(serialize_order(o, current, light=True), bmap, umap) for o in orders]
-    
+
 # ==================== NOTIFICATIONS (Admin + Reception + targeted Technicians) ====================
 async def _notif_query(user: dict, branch_id_param: str = None):
     """Build the Mongo filter for the notifications a user may see."""

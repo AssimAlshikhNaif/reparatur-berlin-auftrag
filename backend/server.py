@@ -13,7 +13,8 @@ from fastapi.responses import FileResponse
 # تم الاستغناء عن StaticFiles التقليدي واستبداله بمسار ذكي للبحث العميق
 from starlette.middleware.cors import CORSMiddleware
 from db import client, db  
-from routes import router as api_router, push_notification  
+from routes import router as api_router
+from notify import push_notification  
 from seed import seed_all, ensure_indexes
 from storage import init_storage
 from auth import auth_router
