@@ -754,7 +754,16 @@ async def _order_query_for_user(user: dict) -> dict:
             except Exception:
                 pass
         query["branch_id"] = {"$in": branch_match_list}
-
+    else:
+        single_branch = user.get("branch_id")
+        if single_branch:
+            branch_match_list = [single_branch]
+            try:
+                branch_match_list.append(ObjectId(single_branch))
+            except Exception:
+                pass
+            query["branch_id"] = {"$in": branch_match_list}
+            
     if role == "techniker":
         tech_id_str = str(user["_id"])
         try:
@@ -2618,7 +2627,10 @@ async def list_reklamationen(current=Depends(require_roles("admin", "mitarbeiter
         }
     }
     
-    query = {"$and": [base, cond]} if base else cond
+    if base:
+        query = {"$and": [base, cond]}
+    else:
+        query = cond
     orders = await db.orders.find(query).sort("created_at", -1).to_list(1000)
     
     bmap, umap = await _name_maps()
