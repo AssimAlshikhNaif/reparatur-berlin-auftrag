@@ -1690,10 +1690,15 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
         # الاحتمال الثاني: البحث في المجلد الفرعي (repair-berlin/orders)
         # سنجد المسار الكامل بالبحث الفعلي لتجنب فقدان أي ملف فرعي
         possible_paths = [
-            path_in_root,
-            os.path.join("/app/uploads/repair-berlin/orders", filename_only),
-            file_path if file_path.startswith("/") else os.path.join("/app/uploads", file_path)
-        ]
+        path_in_root,
+        os.path.join("/app/uploads/repair-berlin/orders", filename_only),
+        os.path.join("/app/backend/uploads", filename_only),
+        os.path.join("./uploads", filename_only),
+        os.path.join("/uploads", filename_only),
+        file_path if file_path.startswith("/") else os.path.join("/app/uploads", file_path),
+        # إضافة احتمال البحث المباشر إذا كان المسار المخزن نسبياً أو كاملاً
+        file_path if file_path and os.path.isabs(file_path) else ""
+    ]
         
         # محطة الحذف الآمن لأي مسار يتم العثور عليه
         for target_p in possible_paths:
@@ -1916,6 +1921,76 @@ async def notify_customer(order_id: str, input: NotifyInput,
         order_id=order_id, auftragsnummer=auftrag,
     )
     return {"id": str(res.inserted_id), **entry, "result": result}
+
+    # ==================== TECHNICIAN PERFORMANCE & ACTIVITY ====================
+
+@router.get("/admin/technicians-activity")
+async def get_technicians_activity(branch_id: str = None, current=Depends(require_roles("admin", "super_admin"))):
+    # 1. جلب جميع الفنيين (Techniker)
+    tech_query = {"role": "techniker"}
+    technicians = await db.users.find(tech_query).to_list(200)
+    
+    result = []
+    
+    for tech in technicians:
+        tech_id_str = str(tech["_id"])
+        try:
+            tech_id_obj = ObjectId(tech_id_str)
+        except Exception:
+            tech_id_obj = tech_id_str
+            
+        # 2. بناء شروط البحث الخاصة بالطلبات المسندة لهذا الفني
+        order_query = {
+            "$or": [
+                {"assigned_techniker_id": tech_id_str},
+                {"assigned_techniker_id": tech_id_obj},
+                {"techniker_id": tech_id_str},
+                {"techniker_id": tech_id_obj}
+            ]
+        }
+        
+        # إذا حدد الأدمن فرعاً معيناً من القائمة العلوية
+        if branch_id:
+            try:
+                order_query["branch_id"] = {"$in": [branch_id, ObjectId(branch_id)]}
+            except Exception:
+                order_query["branch_id"] = branch_id
+        elif tech.get("branch_id"):
+            # إذا لم يتم تحديد فرع عام، نأخذ فرع الفني الأساسي أو نتركها شاملة حسب رغبتك
+            pass
+
+        # 3. جلب طلبات الفني النشطة والريكلامسيون
+        orders = await db.orders.find(order_query).to_list(1000)
+        
+        total_orders = len(orders)
+        active_orders = 0
+        reclamation_count = 0
+        status_breakdown = {}
+        
+        for o in orders:
+            status = o.get("status", "Unknown")
+            status_breakdown[status] = status_breakdown.get(status, 0) + 1
+            
+            # عدّ الريكلامسيون
+            if o.get("is_reclamation", False):
+                reclamation_count += 1
+                
+            # عدّ الطلبات النشطة (غير المنتهية)
+            if status.upper() not in ["FERTIG", "ABGEHOLT", "STORNIERT", "ERLEDIGT", "ABGESCHLOSSEN"]:
+                active_orders += 1
+
+        result.append({
+            "technician_id": tech_id_str,
+            "name": tech.get("name"),
+            "email": tech.get("email"),
+            "branch_id": tech.get("branch_id"),
+            "total_assigned_orders": total_orders,
+            "active_orders": active_orders,
+            "reclamation_count": reclamation_count,
+            "status_breakdown": status_breakdown
+        })
+        
+    return result
 
 
 # ==================== ANALYTICS ====================

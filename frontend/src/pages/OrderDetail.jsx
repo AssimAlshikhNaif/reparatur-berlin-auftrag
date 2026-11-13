@@ -345,7 +345,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
   };
 
   const deleteMedia = async (m, index) => {
-    const mediaId = m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || String(index);
+    const mediaId = typeof m === 'string' ? m.split("/").pop() : (m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || m.id || index.toString());
     try {
       await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
       toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");

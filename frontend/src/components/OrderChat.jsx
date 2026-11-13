@@ -4,6 +4,30 @@ import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PaperPlaneRight, ChatCircleDots, Microphone, Stop, Trash } from "@phosphor-icons/react";
 
+// دالة تحويل الروابط النصية إلى روابط قابلة للنقر
+function renderMessageText(text) {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, i) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noreferrer"
+          className="text-blue-400 underline hover:text-blue-300 break-all font-medium inline-flex items-center gap-1"
+        >
+          {part} 🔗
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 export default function OrderChat({ orderId }) {
   const { user } = useAuth();
   const { t } = useTranslation();
@@ -201,7 +225,7 @@ export default function OrderChat({ orderId }) {
                 </div>
 
                 {/* عرض النص إن وجد */}
-                {m.message && <div className="text-sm text-foreground break-words pr-2">{m.message}</div>}
+                {m.message && <div className="text-sm text-foreground break-words pr-2">{renderMessageText(m.message)}</div>}
 
                 {/* عرض مشغل الصوت إذا كان هناك ملف صوتي */}
                 {m.audio_url && (

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
 import { PageHeader } from "@/components/PageHeader";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { UsersThree, Wrench, CurrencyEur, Clock, CheckCircle, TrendUp } from "@phosphor-icons/react";
+import { UsersThree, Wrench, CurrencyEur, Clock, CheckCircle, TrendUp, Warning } from "@phosphor-icons/react";
 
 function KpiCard({ title, value, subtext, icon: Icon }) {
   return (
@@ -23,8 +23,23 @@ function KpiCard({ title, value, subtext, icon: Icon }) {
 export default function Analytics() {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
+  const [techActivity, setTechActivity] = useState([]);
 
-  useEffect(() => { api.get("/analytics").then((r) => setData(r.data)); }, []);
+  // التقاط branch_id من الـ URL (الذي ترسله القائمة المنسدلة العلوية للفرع)
+  const queryParams = new URLSearchParams(window.location.search);
+  const branchId = queryParams.get("branch_id");
+
+  useEffect(() => {
+    // جلب بيانات التحليلات العامة مع دعم فرع الـ URL إن وجد
+    const url = branchId ? `/analytics?branch_id=${branchId}` : "/analytics";
+    api.get(url).then((r) => setData(r.data));
+
+    // جلب نشاط الفنيين والريكلامسيون المخصص للأدمن
+    const techUrl = branchId ? `/admin/technicians-activity?branch_id=${branchId}` : "/admin/technicians-activity";
+    api.get(techUrl)
+      .then((r) => setTechActivity(r.data))
+      .catch((err) => console.log("Not admin or unauthorized for tech activity", err));
+  }, [branchId]);
 
   if (!data) return <div className="p-8 font-mono text-muted-foreground animate-pulse">{t("ana.loading")}</div>;
 
@@ -150,6 +165,55 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+
+      {/* 4. Admin Exclusive: Technicians Activity & Reklamation Metrics per Branch */}
+      {techActivity.length > 0 && (
+        <div className="px-6 md:px-8">
+          <div className="border border-border/80 rounded-xl bg-card p-6 shadow-sm space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Warning size={20} className="text-amber-400" />
+                <h2 className="font-head font-semibold text-base">Techniker & Reklamation Aktivität (Admin)</h2>
+              </div>
+              <span className="text-xs font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded">Nur für Administratoren</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/60 text-left font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <th className="pb-3 font-medium">Techniker</th>
+                    <th className="pb-3 font-medium text-center">Gesamt Aufträge</th>
+                    <th className="pb-3 font-medium text-center">Aktيف (Aktiv)</th>
+                    <th className="pb-3 font-medium text-center text-amber-400">Reklamationen</th>
+                    <th className="pb-3 font-medium text-right">Status Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40 font-mono text-xs">
+                  {techActivity.map((tech) => (
+                    <tr key={tech.technician_id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 font-medium text-foreground flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-500/10 text-blue-400 font-bold flex items-center justify-center">
+                          {tech.name[0]}
+                        </div>
+                        {tech.name}
+                      </td>
+                      <td className="py-3 text-center text-foreground">{tech.total_assigned_orders}</td>
+                      <td className="py-3 text-center text-blue-400">{tech.active_orders}</td>
+                      <td className="py-3 text-center font-bold text-amber-400">{tech.reclamation_count}</td>
+                      <td className="py-3 text-right text-muted-foreground">
+                        {Object.entries(tech.status_breakdown || {})
+                          .map(([st, count]) => `${st}: ${count}`)
+                          .join(" | ") || "Keine"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
