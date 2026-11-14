@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api from "@/lib/api";
@@ -6,7 +7,6 @@ import { toast } from "sonner";
 import { Bell, Check, Trash, X } from "@phosphor-icons/react";
 import { berlinDateTime } from "@/lib/datetime";
 
-// زيادة فترة التحديث قليلاً (15 ثانية) لمنع تكدس الطلبات واستهلاك اتصالات المتصفح
 const POLL_MS = 60000;
 
 function playBeep() {
@@ -16,12 +16,11 @@ function playBeep() {
     const ctx = new Ctx();
     const now = ctx.currentTime;
     
-    // تكرار النغمات لتصبح أطول وأكثر تنبيهاً للموظف
     const tones = [800, 1200, 800, 1200, 1000, 1500];
     tones.forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = "sawtooth"; // نغمة حادة وقوية جداً
+      osc.type = "sawtooth";
       osc.frequency.value = freq;
       const t = now + i * 0.15;
       gain.gain.setValueAtTime(0.0001, t);
@@ -44,12 +43,30 @@ export default function NotificationBell() {
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, right: 0 });
+  
+  const buttonRef = useRef(null);
   const seenIds = useRef(new Set());
   const initialised = useRef(false);
   const soundOn = useRef(true);
-  
-  // مرجع لإلغاء الطلبات المتداخلة لمنع حدوث Stalled أو تداخل في الشبكة
   const abortControllerRef = useRef(null);
+
+  const updateCoords = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  };
+
+  const toggleOpen = () => {
+    if (!open) {
+      updateCoords();
+    }
+    setOpen((o) => !o);
+  };
 
   const poll = useCallback(async () => {
     try {
@@ -110,6 +127,14 @@ export default function NotificationBell() {
     };
   }, [poll, branchId]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (open) updateCoords();
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [open]);
+
   const markAllRead = async () => {
     try {
       const params = branchId ? { branch_id: branchId } : {};
@@ -128,10 +153,6 @@ export default function NotificationBell() {
     } catch (e) {}
   };
 
-  const toggleOpen = () => {
-    setOpen((o) => !o);
-  };
-
   const openItem = async (n) => {
     setOpen(false);
 
@@ -148,8 +169,9 @@ export default function NotificationBell() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative inline-block text-left">
       <button
+        ref={buttonRef}
         data-testid="notification-bell"
         onClick={toggleOpen}
         className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-border hover:bg-muted transition-colors cursor-pointer"
@@ -164,12 +186,15 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div data-testid="notification-panel"
-            className="fixed inset-x-4 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:left-auto sm:top-auto sm:mt-2 w-auto sm:w-96 max-h-[75vh] overflow-hidden z-40 bg-background border border-border rounded-xl shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="fixed inset-0 z-[99997]" onClick={() => setOpen(false)} />
+          <div 
+            data-testid="notification-panel"
+            style={{ top: `${coords.top}px`, right: `${coords.right}px` }}
+            className="fixed w-80 sm:w-96 max-h-[75vh] overflow-hidden z-[99998] bg-background border border-border rounded-xl shadow-2xl flex flex-col"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background">
               <div className="flex items-center gap-2">
                 <Bell size={15} className="text-accent" />
                 <span className="font-head font-semibold text-sm">{t("notif.title")}</span>
@@ -180,7 +205,7 @@ export default function NotificationBell() {
                 <button onClick={() => setOpen(false)} className="p-1.5 rounded hover:bg-muted text-muted-foreground cursor-pointer"><X size={15} /></button>
               </div>
             </div>
-            <div className="overflow-y-auto">
+            <div className="overflow-y-auto bg-background">
               {items.length === 0 ? (
                 <div className="text-xs font-mono text-muted-foreground/70 py-8 text-center">{t("notif.empty")}</div>
               ) : (
@@ -198,7 +223,8 @@ export default function NotificationBell() {
               )}
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

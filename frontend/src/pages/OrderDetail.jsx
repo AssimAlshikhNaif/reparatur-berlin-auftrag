@@ -486,7 +486,7 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
   }`}
 >
   <Bell size={14} /> 
-  {order.workshop_ready ? "⚠️ Bereit in Werkstatt " : "جاهز للاستلام من الورشة"}
+  {order.workshop_ready ? "⚠️ Bereit in Werkstatt" : "⚠️ Abholbereit"}
 </button>
                  {user && user.role !== "techniker" && (
   <button onClick={() => setStatus("FERTIG")} className={`inline-flex items-center gap-1.5 text-xs font-head font-semibold uppercase tracking...`}>

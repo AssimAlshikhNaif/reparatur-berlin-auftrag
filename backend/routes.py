@@ -1,5 +1,6 @@
 import os
 import uuid
+import urllib.parse
 import logging
 import shutil
 import pillow_heif
@@ -1588,12 +1589,14 @@ async def mark_workshop_ready(order_id: str, current=Depends(get_current_user)):
     
     # إرسال إشعار فوري وتنبيه للموظفين
     await push_notification(
-        kind="WORKSHOP_READY",
-        title="⚠️ جاهز للاستلام من الورشة",
-        message=f"التقني {current['name']} أعلن أن الجهاز {order.get('auftragsnummer','')} جاهز للاستلام من الورشة.",
-        by=current["name"], by_role=current["role"],
-        order_id=order_id, auftragsnummer=order.get("auftragsnummer")
-    )
+    kind="WORKSHOP_READY",
+    title="⚠️ Werkstatt bereit",
+    message=f"Techniker {current['name']} hat gemeldet, dass das Gerät {order.get('auftragsnummer', '')} abholbereit ist.",
+    by=current["name"],
+    by_role=current["role"],
+    order_id=order_id,
+    auftragsnummer=order.get("auftragsnummer")
+)
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(updated_order, current)
@@ -1621,96 +1624,40 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     
     media_list = order.get("media", [])
-    import urllib.parse
     decoded_id = urllib.parse.unquote(media_id)
-
-    target_media = None
+    target_filename = os.path.basename(decoded_id)
+    
     target_index = -1
-
-    # 1. البحث بالطريقة الذكية مع دعم الأشكال المختلفة (نصوص أو كائنات)
     for i, m in enumerate(media_list):
-        m_id = ""
-        m_oid = ""
-        m_file = ""
-        m_storage = ""
-        m_filename = ""
-        
-        if isinstance(m, str):
-            m_id = m
-            m_file = m
-            m_filename = os.path.basename(m)
-        elif isinstance(m, dict):
-            m_id = str(m.get("id", ""))
-            m_oid = str(m.get("_id", ""))
-            m_file = str(m.get("file_path", ""))
-            m_storage = str(m.get("storage_path", ""))
-            m_filename = str(m.get("filename", ""))
-        
-        # استخراج اسم الملف الصافي لكل من العنصر والمطلوب حذفه للمقارنة المطلقة
-        target_filename_only = os.path.basename(decoded_id)
-        current_filename_only = os.path.basename(m_file)
-        current_storage_only = os.path.basename(m_storage)
-        
-        if (decoded_id == m_id or 
-            decoded_id == m_oid or 
-            decoded_id == m_filename or 
-            decoded_id in m_file or 
-            decoded_id in m_storage or
-            target_filename_only == current_filename_only or
-            target_filename_only == current_storage_only or
-            m_file.endswith(decoded_id) or
-            m_storage.endswith(decoded_id)):
-            target_media = m
+        m_str = m if isinstance(m, str) else str(m.get("file_path") or m.get("filename") or "")
+        if decoded_id in m_str or target_filename in m_str or str(i) == decoded_id:
             target_index = i
             break
-
-    # 2. إذا لم يتم العثور عليها، نتحقق إن كان الـ media_id عبارة عن رقم ترتيبي (Index)
-    if target_index == -1 and decoded_id.isdigit():
-        idx = int(decoded_id)
-        if 0 <= idx < len(media_list):
-            target_index = idx
-            target_media = media_list[idx]
-
-    if not target_media or target_index == -1:
+            
+    if target_index == -1:
         raise HTTPException(status_code=404, detail="Media not found")
-
-    # 3. حذف الملف الفعلي من السيرفر بأمان تام (سواء كان الكائن دكشنري أو نص)
-    file_path = None
-    if isinstance(target_media, dict):
-        file_path = target_media.get("file_path") or target_media.get("storage_path") or target_media.get("filename")
-    elif isinstance(target_media, str):
-        file_path = target_media
-
-    if file_path:
-        filename_only = os.path.basename(file_path)
         
-        # الاحتمال الأول: البحث في الجذر المباشر
-        path_in_root = os.path.join("/app/uploads", filename_only)
-        
-        # الاحتمال الثاني: البحث في المجلد الفرعي (repair-berlin/orders)
-        # سنجد المسار الكامل بالبحث الفعلي لتجنب فقدان أي ملف فرعي
-        possible_paths = [
-        path_in_root,
+    # استخراج العنصر وحذف الملف فيزيائياً
+    removed_item = media_list.pop(target_index)
+    file_path_str = removed_item if isinstance(removed_item, str) else str(removed_item.get("file_path") or removed_item.get("filename") or "")
+    filename_only = os.path.basename(file_path_str)
+    
+    # مسارات البحث الآمنة داخل حاوية الدوكر
+    possible_paths = [
+        os.path.join("/app/uploads", filename_only),
         os.path.join("/app/uploads/repair-berlin/orders", filename_only),
-        os.path.join("/app/backend/uploads", filename_only),
         os.path.join("./uploads", filename_only),
         os.path.join("/uploads", filename_only),
-        file_path if file_path.startswith("/") else os.path.join("/app/uploads", file_path),
-        # إضافة احتمال البحث المباشر إذا كان المسار المخزن نسبياً أو كاملاً
-        file_path if file_path and os.path.isabs(file_path) else ""
     ]
-        
-        # محطة الحذف الآمن لأي مسار يتم العثور عليه
-        for target_p in possible_paths:
-            if os.path.exists(target_p) and os.path.isfile(target_p):
-                try:
-                    os.remove(target_p)
-                    print(f"Successfully deleted file at: {target_p}")
-                except Exception as e:
-                    print("Error removing file:", e)
-
-    # 4. إزالة العنصر من القائمة وتحديث قاعدة البيانات بدقة
-    media_list.pop(target_index)
+    
+    for p in possible_paths:
+        if p and os.path.exists(p) and os.path.isfile(p):
+            try:
+                os.remove(p)
+            except Exception as e:
+                print("Error removing file:", e)
+                
+    # تحديث قاعدة البيانات
     await db.orders.update_one(
         {"_id": ObjectId(order_id)},
         {"$set": {"media": media_list}}
