@@ -1617,7 +1617,7 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
         
     return {"message": "Notiz erfolgreich gelöscht"}
 
-@router.delete("/orders/{order_id}/media/{media_id}")
+@router.delete("/orders/{order_id}/media/{media_id:path}")
 async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
@@ -1666,7 +1666,6 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
-
 # ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,

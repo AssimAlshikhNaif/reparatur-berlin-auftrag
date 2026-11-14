@@ -54,14 +54,14 @@ export default function Analytics() {
   const totalResolved = techniker.reduce((acc, t2) => acc + (t2.resolved || 0), 0);
   const avgTechTime = (techniker.reduce((acc, t2) => acc + (t2.avg_hours || 0), 0) / (techniker.length || 1)).toFixed(1);
 
-  // دمج بيانات الفنيين لضمان ظهور الجدول دائماً بسلاسة وبدون أي أخطاء 504
+  // دمج بيانات الفنيين مع مطابقة الحالات الفعلية المعتمدة للتقنيين
   const finalTechList = techActivity.length > 0 ? techActivity : techniker.map(tk => ({
     technician_id: tk.id,
     name: tk.name,
     total_assigned_orders: tk.assigned,
     active_orders: tk.assigned - tk.resolved,
     reclamation_count: 0,
-    status_breakdown: { "Gelöst": tk.resolved, "Zugewiesen": tk.assigned }
+    status_breakdown: tk.status_breakdown || { "DIAGNOSE": 0, "WARTEN FREIGABE": 0, "IN BEARBEITUNG": 0, "WARTEN ERSATZTEIL": 0, "BEREIT IN WERKSTATT": tk.resolved }
   }));
 
   return (
@@ -137,7 +137,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* 3. Techniker & Reklamation Activity Section (Unified Table replacing old cards) */}
+      {/* 3. Techniker & Reklamation Activity Section */}
       <div className="px-6 md:px-8">
         <div className="border border-border/80 rounded-xl bg-card p-6 shadow-sm space-y-6">
           <div className="flex items-center justify-between">
@@ -173,6 +173,7 @@ export default function Analytics() {
                     <td className="py-3 text-center font-bold text-amber-400">{tech.reclamation_count}</td>
                     <td className="py-3 text-right text-muted-foreground">
                       {Object.entries(tech.status_breakdown || {})
+                        .filter(([_, count]) => count > 0) // عرض الحالات التي تحتوي على أعداد فعلية فقط لترتيب ونظافة الجدول
                         .map(([st, count]) => `${st}: ${count}`)
                         .join(" | ") || "Keine"}
                     </td>
