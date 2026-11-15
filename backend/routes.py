@@ -1617,22 +1617,34 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
         
     return {"message": "Notiz erfolgreich gelöscht"}
 
-@router.delete("/orders/{order_id}/media")
-async def delete_order_media(order_id: str, file_path: str, current=Depends(get_current_user)):
+@router.delete("/orders/{order_id}/media/{media_id:path}")
+async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     
     media_list = order.get("media", [])
-    decoded_id = urllib.parse.unquote(file_path).strip()
+    decoded_id = urllib.parse.unquote(media_id).strip()
     target_filename = os.path.basename(decoded_id)
     
     target_index = -1
     for i, m in enumerate(media_list):
-        m_str = m if isinstance(m, str) else str(m.get("file_path") or m.get("filename") or "")
+        # استخراج النص أو المسار بجميع الاحتمالات الممكنة للعنصر m
+        m_str = ""
+        if isinstance(m, str):
+            m_str = m
+        elif isinstance(m, dict):
+            m_str = str(m.get("file_path") or m.get("filename") or m.get("storage_path") or m.get("path") or "")
+        
         m_filename = os.path.basename(m_str)
         
-        if str(i) == decoded_id or target_filename == m_filename or decoded_id in m_str:
+        # مطابقة مرنة جداً تشمل رقم الـ index، أو اسم الملف الصافي، أو وجود الاسم ضمن النص المخزن
+        if (
+            str(i) == decoded_id 
+            or target_filename == m_filename 
+            or target_filename in m_str 
+            or decoded_id in m_str
+        ):
             target_index = i
             break
             
@@ -1641,10 +1653,15 @@ async def delete_order_media(order_id: str, file_path: str, current=Depends(get_
         
     # استخراج العنصر وحذف الملف فيزيائياً
     removed_item = media_list.pop(target_index)
-    file_path_str = removed_item if isinstance(removed_item, str) else str(removed_item.get("file_path") or removed_item.get("filename") or "")
+    file_path_str = ""
+    if isinstance(removed_item, str):
+        file_path_str = removed_item
+    elif isinstance(removed_item, dict):
+        file_path_str = str(removed_item.get("file_path") or removed_item.get("filename") or removed_item.get("storage_path") or removed_item.get("path") or "")
+        
     filename_only = os.path.basename(file_path_str)
     
-    # مسارات البحث الآمنة داخل حاوية الدوكر
+    # مسارات البحث الآمنة داخل مجلدات الرفع
     possible_paths = [
         os.path.join("/app/uploads", filename_only),
         os.path.join("/app/uploads/repair-berlin/orders", filename_only),
@@ -2716,3 +2733,34 @@ async def serve_uploaded_file(full_path: str):
         return Response(content=content, media_type=content_type)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/files/{file_path:path}")
+async def delete_file_directly(file_path: str, current=Depends(get_current_user)):
+    decoded_path = urllib.parse.unquote(file_path).strip()
+    filename_only = os.path.basename(decoded_path)
+    
+    possible_paths = [
+        os.path.join("/app/uploads", filename_only),
+        os.path.join("/app/uploads/repair-berlin/orders", filename_only),
+        os.path.join("./uploads", filename_only),
+        os.path.join("/uploads", filename_only),
+    ]
+    
+    file_deleted = False
+    for p in possible_paths:
+        if p and os.path.exists(p) and os.path.isfile(p):
+            try:
+                os.remove(p)
+                file_deleted = True
+            except Exception as e:
+                print("Error removing file:", e)
+                
+    try:
+        await db.orders.update_many(
+            {},
+            {"$pull": {"media": {"$regex": filename_only}}}
+        )
+    except Exception as e:
+        print("Error updating orders collection:", e)
+
+    return {"success": True, "deleted": file_deleted, "filename": filename_only}
