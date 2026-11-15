@@ -344,10 +344,9 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     } finally { setSavingSig(false); }
   };
 
-  const deleteMedia = async (m, index) => {
-    const mediaId = typeof m === 'string' ? m.split("/").pop() : (m.filename || m.file_path?.split("/").pop() || m.storage_path?.split("/").pop() || m.id || index.toString());
+  const deleteMedia = async (fileName) => {
     try {
-      await api.delete(`/orders/${id}/media/${encodeURIComponent(mediaId)}`);
+      await api.delete(`/orders/${id}/media/${fileName}`);
       toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
       await load();
     } catch (e) {
@@ -1811,18 +1810,18 @@ function MediaThumb({ m, onDelete }) {
         )}
       </a>
             {onDelete && (
-                <button
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onDelete();
-                    }}
-                    className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 rounded-md transition-colors"
-                    title="حذف الملف"
-                >
-                    🗑️
-                </button>
-            )}
+    <button
+        onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(fileName); // تمرير اسم الملف الصافي مباشرة هنا
+        }}
+        className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 rounded-md transition-colors"
+        title="حذف الملف"
+    >
+        🗑️
+    </button>
+)}
         </div>
     );
 }
