@@ -1990,24 +1990,27 @@ async def analytics(
             except Exception:
                 query["branch_id"] = branch_id
 
-        # 1. جلب المستخدمين مرة واحدة (عدددهم صغير عادة ولا يسبب ضغطاً)
+        # 1. جلب المستخدمين مرة واحدة
         users = await db.users.find().to_list(500)
         mitarbeiter = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"], "role": u["role"],
-                                     "created": 0, "delivered": 0, "revenue": 0.0}
+                                    "created": 0, "delivered": 0, "revenue": 0.0}
                        for u in users if u["role"] in ("mitarbeiter", "admin")}
+        
+        # 2. إعداد قاموس الفنيين مع حقل status_breakdown لتلبية متطلبات الواجهة
         techniker = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"],
                                     "assigned": 0, "resolved": 0, "revenue": 0.0,
-                                    "_times": []}
+                                    "total_assigned_orders": 0, "active_orders": 0, "reclamation_count": 0,
+                                    "status_breakdown": {}, "_times": []}
                      for u in users if u["role"] == "techniker"}
 
-        # 2. استخدام Projection جبار وسريع لجلب الحقول اللازمة فقط ودون جلب كل تفاصيل الـ 5000 طلب الثقيلة
+        # 3. جلب الطلبات بالـ Projection اللازم
         orders = await db.orders.find(
             query,
             {
                 "created_by": 1, "assigned_techniker_id": 1, "status": 1,
                 "total_price": 1, "estimated_price": 1, "labor_cost": 1, 
                 "parts_cost": 1, "diagnosis_fee": 1, "cost_status": 1,
-                "status_history": 1, "branch_id": 1, "created_at": 1
+                "status_history": 1, "branch_id": 1, "created_at": 1, "is_reclamation": 1
             }
         ).sort("created_at", -1).limit(2000).to_list(length=2000)
 
@@ -2023,7 +2026,22 @@ async def analytics(
             tid = o.get("assigned_techniker_id")
             if tid in techniker:
                 techniker[tid]["assigned"] += 1
-                status = o.get("status")
+                techniker[tid]["total_assigned_orders"] += 1
+                
+                status = o.get("status") or "UNKNOWN"
+                
+                # تحديث تفاصيل وزيادة عداد الحالة لكل فني
+                sb = techniker[tid]["status_breakdown"]
+                sb[status] = sb.get(status, 0) + 1
+
+                # حساب الطلبات النشطة (غير المنتهية)
+                if status not in ("FERTIG", "ABGEHOLT", "STORNIERT"):
+                    techniker[tid]["active_orders"] += 1
+
+                # فحص الـ Reklamation إن وجد في الطلب
+                if o.get("is_reclamation") or status == "REKLAMATION":
+                    techniker[tid]["reclamation_count"] += 1
+
                 if status in ("FERTIG", "ABGEHOLT"):
                     techniker[tid]["resolved"] += 1
                     if status == "ABGEHOLT":
@@ -2047,7 +2065,7 @@ async def analytics(
     except Exception as e:
         print(f"Error in analytics: {e}")
         return {"mitarbeiter": [], "techniker": []}
-
+                
 # ==================== MEDIA ====================
 @router.post("/orders/{order_id}/media")
 async def upload_media(

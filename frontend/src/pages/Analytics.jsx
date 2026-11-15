@@ -171,12 +171,30 @@ export default function Analytics() {
                     <td className="py-3 text-center text-foreground font-semibold">{tech.total_assigned_orders}</td>
                     <td className="py-3 text-center text-blue-400 font-semibold">{tech.active_orders}</td>
                     <td className="py-3 text-center font-bold text-amber-400">{tech.reclamation_count}</td>
-                    <td className="py-3 text-right text-muted-foreground">
-                      {Object.entries(tech.status_breakdown || {})
-                        .filter(([_, count]) => count > 0) // عرض الحالات التي تحتوي على أعداد فعلية فقط لترتيب ونظافة الجدول
-                        .map(([st, count]) => `${st}: ${count}`)
-                        .join(" | ") || "Keine"}
-                    </td>
+                   <td className="py-3 text-right">
+  <div className="flex flex-wrap gap-1 justify-end items-center">
+    {Object.entries(tech.status_breakdown || {})
+      .filter(([_, count]) => count > 0)
+      .map(([st, count]) => (
+        <span 
+          key={st}
+          className={`px-2 py-0.5 text-[10px] rounded font-mono ${
+            st === 'BEREIT IN WERKSTATT' ? 'bg-yellow-500/25 text-yellow-300 border border-yellow-500/30' :
+            st === 'WARTEN ERSATZTEIL' ? 'bg-orange-500/25 text-orange-300 border border-orange-500/30' :
+            st === 'IN BEARBEITUNG' ? 'bg-blue-500/25 text-blue-300 border border-blue-500/30' :
+            st === 'DIAGNOSE' ? 'bg-purple-500/25 text-purple-300 border border-purple-500/30' :
+            st === 'WARTEN FREIGABE' ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/30' :
+            'bg-zinc-800 text-zinc-300 border border-zinc-700'
+          }`}
+        >
+          {st}: {count}
+        </span>
+      ))}
+      {Object.entries(tech.status_breakdown || {}).filter(([_, count]) => count > 0).length === 0 && (
+        <span className="text-muted-foreground">Keine</span>
+      )}
+  </div>
+</td>
                   </tr>
                 ))}
               </tbody>
