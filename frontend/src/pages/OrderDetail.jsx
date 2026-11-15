@@ -344,14 +344,24 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     } finally { setSavingSig(false); }
   };
 
-  const deleteMedia = async (fileName) => {
+  const deleteMedia = async (m) => {
+    // استخراج اسم الملف الصافي بجميع الاحتمالات الممكنة
+    const rawPath = typeof m === 'string' ? m : (m?.storage_path || m?.path || m?.file_path || m?.filename || "");
+    const fileName = rawPath.split('/').pop();
+
+    if (!fileName || fileName.includes("[object")) {
+      console.error("Invalid filename extracted:", m);
+      toast.error("Ungültiger Dateiname");
+      return;
+    }
+
     try {
       await api.delete(`/orders/${id}/media/${fileName}`);
-      toast.success(t("toast.mediaDeleted") || "Bild erfolgreich gelöscht");
+      toast.success("Bild erfolgreich gelöscht");
       await load();
     } catch (e) {
       console.error("Delete media error:", e.response?.data || e);
-      toast.error(e.response?.data?.detail || t("toast.deleteFailed") || "Fehler beim Löschen");
+      toast.error(e.response?.data?.detail || "Fehler beim Löschen");
     }
   };
 
@@ -1809,15 +1819,15 @@ function MediaThumb({ m, onDelete }) {
           <img src={exactUrl} alt={m.original_filename} className="w-full h-full object-cover" />
         )}
       </a>
-            {onDelete && (
+           {onDelete && (
     <button
         onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onDelete(fileName); // تمرير اسم الملف الصافي مباشرة هنا
+            onDelete(m); // إرسال الكائن m بالكامل أو العنصر
         }}
         className="absolute top-1 right-1 p-1.5 bg-red-950/80 hover:bg-red-700 text-red-300 rounded-md transition-colors"
-        title="حذف الملف"
+        title="Datei löschen"
     >
         🗑️
     </button>
