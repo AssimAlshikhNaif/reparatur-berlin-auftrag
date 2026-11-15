@@ -358,13 +358,24 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     try {
       await api.delete(`/orders/${id}/media/${fileName}`);
       toast.success("Bild erfolgreich gelöscht");
+
+      // 🚀 إزالة الصورة من الواجهة محلياً فوراً وبدون أي تأخير
+      setOrder(prev => ({
+        ...prev,
+        media: (prev?.media || []).filter(item => {
+          const itemPath = typeof item === 'string' ? item : (item?.storage_path || item?.path || item?.file_path || item?.filename || "");
+          return !itemPath.includes(fileName);
+        })
+      }));
+
+      // ثم جلب البيانات المحدثة من السيرفر للتأكد
       await load();
     } catch (e) {
       console.error("Delete media error:", e.response?.data || e);
       toast.error(e.response?.data?.detail || "Fehler beim Löschen");
     }
   };
-
+  
   const uploadFiles = async (files) => {
     if (!files.length) return;
     setUploading(true);
