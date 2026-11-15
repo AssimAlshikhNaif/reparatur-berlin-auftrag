@@ -1617,20 +1617,22 @@ async def delete_order_note(order_id: str, note_id: str, current=Depends(get_cur
         
     return {"message": "Notiz erfolgreich gelöscht"}
 
-@router.delete("/orders/{order_id}/media/{media_id:path}")
-async def delete_order_media(order_id: str, media_id: str, current=Depends(get_current_user)):
+@router.delete("/orders/{order_id}/media")
+async def delete_order_media(order_id: str, file_path: str, current=Depends(get_current_user)):
     order = await db.orders.find_one({"_id": ObjectId(order_id)})
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     
     media_list = order.get("media", [])
-    decoded_id = urllib.parse.unquote(media_id)
+    decoded_id = urllib.parse.unquote(file_path).strip()
     target_filename = os.path.basename(decoded_id)
     
     target_index = -1
     for i, m in enumerate(media_list):
         m_str = m if isinstance(m, str) else str(m.get("file_path") or m.get("filename") or "")
-        if decoded_id in m_str or target_filename in m_str or str(i) == decoded_id:
+        m_filename = os.path.basename(m_str)
+        
+        if str(i) == decoded_id or target_filename == m_filename or decoded_id in m_str:
             target_index = i
             break
             
@@ -1666,6 +1668,7 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     bmap, umap = await _name_maps()
     return serialize_order(updated_order, current)
+    
 # ==================== COSTS =============
 @router.patch("/orders/{order_id}/costs")
 async def update_costs(order_id: str, input: CostUpdate,
