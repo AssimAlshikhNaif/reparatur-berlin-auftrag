@@ -38,7 +38,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   
   const billingMode = order?.diagnosis_payment_status || "OPEN"; 
 
-  // 1. حساب الإجمالي (Gesamt / Brutto) كأصل للمبلغ المدخل بناءً على الحالة
+  // حساب الإجمالي (Gesamt / Brutto) كأصل للمبلغ المدخل بناءً على الحالة
   let grossVal = 0;
   if (billingMode === "OPEN" || billingMode === "diag_and_repair") {
     grossVal = feeD + feeL + feeP;
@@ -48,13 +48,11 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     grossVal = feeD;
   }
   
-  // إذا لم تكن التكاليف مفصلة ولكن الـ gross موجود في الـ order
   if (grossVal === 0 && order?.cost?.gross) {
     grossVal = Number(order.cost.gross) || 0;
   }
   grossVal = Number(grossVal.toFixed(2));
 
-  // 2. استخراج النيتو والضريبة بالطريقة العكسية (القسمة على 1.19)
   const liveNet = Number((grossVal / 1.19).toFixed(2));
   const liveTax = Number((grossVal - liveNet).toFixed(2));
   const nettoVal = liveNet;
@@ -66,11 +64,10 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   const isDiagPaid = order?.is_diagnosis_paid_at_intake === true;
   const diagLabel = billingMode === "PAID" || billingMode === "repair_only" ? "ERLASSEN" : isDiagPaid ? "BEZAHLT" : "NICHT BEZAHLT";
   
-  // تحسين منطق حالة الدفع ليدعم الحالة القادمة من السيستم أو الحسابات الرقمية
   const isExplicitlyPaid = order?.is_paid === true || order?.payment_status === "PAID" || order?.payment_status === "bezahlt";
   const payStatus = isExplicitlyPaid || (grossVal > 0 && restVal <= 0) ? "Bezahlt" : anzahlungVal > 0 ? "Teilweise" : "Nicht bezahlt";
 
-  // طباعة المعاينة عبر نافذة منبثقة (معدلة خصيصاً لتكون واضحة وحادة على طابعات الـ POS الحرارية)
+  // دالة الطباعة المباشرة (معدلة لضمان بقاء رقم الطلب ووضوحه على الطابعة الحرارية)
   const handlePrint = () => {
     const canvas = document.querySelector("#abholschein canvas");
     const qrDataUrl = canvas ? canvas.toDataURL("image/png") : null;
@@ -83,9 +80,13 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     const tempContainer = document.createElement("div");
     tempContainer.innerHTML = document.getElementById("abholschein").innerHTML;
 
-    const qrContainer = tempContainer.querySelector("canvas")?.parentElement;
-    if (qrContainer && qrDataUrl) {
-      qrContainer.innerHTML = `<img src="${qrDataUrl}" alt="QR Code" style="width: 120px; height: 120px; display: block; margin: 0 auto; filter: contrast(200%);" />`;
+    // استبدال الـ canvas ذاته فقط بصورة الـ QR مع الحفاظ على النص (رقم الطلب) تحته تماماً
+    const canvasInTemp = tempContainer.querySelector("canvas");
+    if (canvasInTemp && qrDataUrl) {
+      const imgElem = document.createElement("img");
+      imgElem.src = qrDataUrl;
+      imgElem.style.cssText = "width: 120px; height: 120px; display: block; margin: 0 auto; filter: contrast(200%);";
+      canvasInTemp.parentNode.replaceChild(imgElem, canvasInTemp);
     }
 
     const receiptHTML = tempContainer.innerHTML;
@@ -94,7 +95,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   <!DOCTYPE html>
   <html>
     <head>
-      <title>Abholschein - ${order?.auftragsnummer || ""}</title>
+      <title>Abholschein - ${order?.auftragsnummer || order?.auftrag_nr || ""}</title>
       <style>
         * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body {
@@ -104,9 +105,8 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
           padding: 2mm;
           background: #fff;
           color: #000;
-          font-weight: bold; /* زيادة سماكة الخطوط لتكون واضحة على الطابعة الحرارية */
+          font-weight: bold;
         }
-        /* إجبار كافة النصوص والحدود على أن تكون سوداء غامقة جداً للطباعة الحرارية */
         div, span, p, td, th, li {
           color: #000 !important;
         }
@@ -131,6 +131,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
   `);
     printWindow.document.close();
   };
+
   // توليد وتحميل PDF
   const downloadPdf = async () => {
     const canvas = document.querySelector("#abholschein canvas");
@@ -186,7 +187,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     if (qrData) { doc.addImage(qrData, "PNG", 27, y, 26, 26); y += 28; }
 
     doc.setFont("courier", "bold"); doc.setFontSize(11);
-    doc.text(order?.auftragsnummer || "", 40, y, { align: "center" }); y += 6;
+    doc.text(order?.auftragsnummer || order?.auftrag_nr || "", 40, y, { align: "center" }); y += 6;
 
     doc.setFont("courier", "normal"); doc.setFontSize(8);
     const line = (l, r) => { doc.text(l, 4, y); doc.text(r, 76, y, { align: "right" }); y += 4; };
@@ -253,7 +254,7 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
     }
     doc.setLineWidth(0.2); doc.line(4, y, 50, y); y += 3;
     doc.text("Unterschrift Kunde", 4, y); y += 5;
-    doc.save(`${order?.auftragsnummer || "auftrag"}.pdf`);
+    doc.save(`${order?.auftragsnummer || order?.auftrag_nr || "auftrag"}.pdf`);
   };
 
   return (
@@ -305,8 +306,8 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
             </div>
 
             <div style={{ textAlign: "center", margin: "2mm 0" }}>
-              <QRCodeCanvas value={order?.auftragsnummer || ""} size={120} level="M" includeMargin={false} />
-              <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "2mm" }}>{order?.auftragsnummer}</div>
+              <QRCodeCanvas value={order?.auftragsnummer || order?.auftrag_nr || ""} size={120} level="M" includeMargin={false} />
+              <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "2mm" }}>{order?.auftragsnummer || order?.auftrag_nr}</div>
             </div>
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "10px", lineHeight: 1.6 }}>
@@ -367,9 +368,9 @@ export default function Abholschein({ order, branchName, branchInfo, onClose }) 
 
             <div style={{ borderTop: "1px dashed #000", paddingTop: "2mm", marginTop: "2mm", fontSize: "7.5px", lineHeight: 1.4, textAlign: "center" }}>
               {order?.status === "ANGENOMMEN" ? (
-                <span>* Der genannte Betrag ist ein unverbindlicher Kostenvoranschlag. Zusätzliche Reparaturkosten werden erst nach Absprache berechnet.</span>
+                <span>Der genannte Betrag ist ein unverbindlicher Kostenvoranschlag. Zusätzliche Reparaturkosten werden erst nach Absprache berechnet.</span>
               ) : (
-                <span>* Vielen Dank für Ihren Auftrag! Alle Beträge inkl. 19% MwSt.</span>
+                <span>Vielen Dank für Ihren Auftrag! Alle Beträge inkl. 19% MwSt.</span>
               )}
             </div>
 

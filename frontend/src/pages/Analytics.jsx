@@ -23,7 +23,7 @@ function KpiCard({ title, value, subtext, icon: Icon }) {
 export default function Analytics() {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
-  const [techActivity, setTechActivity] = useState([]);
+  const [selectedTechForOrders, setSelectedTechForOrders] = useState(null);
 
   // التقاط branch_id من الـ URL (القائمة المنسدلة للفرع)
   const queryParams = new URLSearchParams(window.location.search);
@@ -34,14 +34,6 @@ export default function Analytics() {
     api.get(url)
       .then((r) => setData(r.data))
       .catch((err) => console.error("Error loading analytics data:", err));
-
-    const techUrl = branchId ? `/admin/technicians-activity?branch_id=${branchId}` : "/admin/technicians-activity";
-    api.get(techUrl)
-      .then((r) => setTechActivity(r.data))
-      .catch((err) => {
-        console.log("Tech activity fallback triggered", err);
-        setTechActivity([]);
-      });
   }, [branchId]);
 
   if (!data) return <div className="p-8 font-mono text-muted-foreground animate-pulse">{t("ana.loading")}</div>;
@@ -54,14 +46,15 @@ export default function Analytics() {
   const totalResolved = techniker.reduce((acc, t2) => acc + (t2.resolved || 0), 0);
   const avgTechTime = (techniker.reduce((acc, t2) => acc + (t2.avg_hours || 0), 0) / (techniker.length || 1)).toFixed(1);
 
-  // دمج بيانات الفنيين مع مطابقة الحالات الفعلية المعتمدة للتقنيين
-  const finalTechList = techActivity.length > 0 ? techActivity : techniker.map(tk => ({
+  // الاعتماد المباشر على بيانات الـ techniker القادمة من الباك إند مع قائمة الطلبات الحقيقية
+  const finalTechList = techniker.map(tk => ({
     technician_id: tk.id,
     name: tk.name,
     total_assigned_orders: tk.assigned,
-    active_orders: tk.assigned - tk.resolved,
-    reclamation_count: 0,
-    status_breakdown: tk.status_breakdown || { "DIAGNOSE": 0, "WARTEN FREIGABE": 0, "IN BEARBEITUNG": 0, "WARTEN ERSATZTEIL": 0, "BEREIT IN WERKSTATT": tk.resolved }
+    active_orders: tk.active_orders || (tk.assigned - tk.resolved),
+    reclamation_count: tk.reclamation_count || 0,
+    status_breakdown: tk.status_breakdown || {},
+    orders_list: tk.orders_list || []
   }));
 
   return (
@@ -162,39 +155,49 @@ export default function Analytics() {
               <tbody className="divide-y divide-border/40 font-mono text-xs">
                 {finalTechList.map((tech) => (
                   <tr key={tech.technician_id || tech.name} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-3 font-medium text-foreground flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 font-bold flex items-center justify-center text-xs">
-                        {tech.name?.[0]?.toUpperCase() || "T"}
+                    <td className="py-3 font-medium text-foreground">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 font-bold flex items-center justify-center text-xs">
+                          {tech.name?.[0]?.toUpperCase() || "T"}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-head font-medium text-sm text-foreground">{tech.name}</span>
+                          <button 
+                            onClick={() => setSelectedTechForOrders(tech)}
+                            className="text-[11px] text-accent hover:underline text-left mt-0.5 font-mono flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>Aufträge anzeigen ({tech.orders_list?.length || 0})</span>
+                          </button>
+                        </div>
                       </div>
-                      <span className="font-head font-medium text-sm">{tech.name}</span>
                     </td>
                     <td className="py-3 text-center text-foreground font-semibold">{tech.total_assigned_orders}</td>
                     <td className="py-3 text-center text-blue-400 font-semibold">{tech.active_orders}</td>
                     <td className="py-3 text-center font-bold text-amber-400">{tech.reclamation_count}</td>
-                   <td className="py-3 text-right">
-  <div className="flex flex-wrap gap-1 justify-end items-center">
-    {Object.entries(tech.status_breakdown || {})
-      .filter(([_, count]) => count > 0)
-      .map(([st, count]) => (
-        <span 
-          key={st}
-          className={`px-2 py-0.5 text-[10px] rounded font-mono ${
-            st === 'BEREIT IN WERKSTATT' ? 'bg-yellow-500/25 text-yellow-300 border border-yellow-500/30' :
-            st === 'WARTEN ERSATZTEIL' ? 'bg-orange-500/25 text-orange-300 border border-orange-500/30' :
-            st === 'IN BEARBEITUNG' ? 'bg-blue-500/25 text-blue-300 border border-blue-500/30' :
-            st === 'DIAGNOSE' ? 'bg-purple-500/25 text-purple-300 border border-purple-500/30' :
-            st === 'WARTEN FREIGABE' ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/30' :
-            'bg-zinc-800 text-zinc-300 border border-zinc-700'
-          }`}
-        >
-          {st}: {count}
-        </span>
-      ))}
-      {Object.entries(tech.status_breakdown || {}).filter(([_, count]) => count > 0).length === 0 && (
-        <span className="text-muted-foreground">Keine</span>
-      )}
-  </div>
-</td>
+                    <td className="py-3 text-right">
+                      <div className="flex flex-wrap gap-1 justify-end items-center">
+                        {Object.entries(tech.status_breakdown || {})
+                          .filter(([_, count]) => count > 0)
+                          .map(([st, count]) => (
+                            <span 
+                              key={st}
+                              className={`px-2 py-0.5 text-[10px] rounded font-mono ${
+                                st === 'BEREIT IN WERKSTATT' ? 'bg-yellow-500/25 text-yellow-300 border border-yellow-500/30' :
+                                st === 'WARTEN ERSATZTEIL' ? 'bg-orange-500/25 text-orange-300 border border-orange-500/30' :
+                                st === 'IN BEARBEITUNG' ? 'bg-blue-500/25 text-blue-300 border border-blue-500/30' :
+                                st === 'DIAGNOSE' ? 'bg-purple-500/25 text-purple-300 border border-purple-500/30' :
+                                st === 'WARTEN FREIGABE' ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/30' :
+                                'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                              }`}
+                            >
+                              {st}: {count}
+                            </span>
+                          ))}
+                          {Object.entries(tech.status_breakdown || {}).filter(([_, count]) => count > 0).length === 0 && (
+                            <span className="text-muted-foreground">Keine</span>
+                          )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -202,6 +205,56 @@ export default function Analytics() {
           </div>
         </div>
       </div>
+
+      {/* Modal لعارض طلبات الفني المختار */}
+      {selectedTechForOrders && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-xl max-w-2xl w-full p-6 shadow-xl space-y-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <h3 className="font-head font-semibold text-lg text-foreground">
+                Aufträge von: {selectedTechForOrders.name}
+              </h3>
+              <button 
+                onClick={() => setSelectedTechForOrders(null)}
+                className="text-muted-foreground hover:text-foreground font-mono text-sm"
+              >
+                ✕ Schließen
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-2 flex-1 pr-1">
+              {selectedTechForOrders.orders_list && selectedTechForOrders.orders_list.length > 0 ? (
+                selectedTechForOrders.orders_list.map((ord) => (
+                  <div 
+                    key={ord.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/40 transition-colors"
+                  >
+                    <div>
+                      <div className="font-mono font-semibold text-sm text-foreground">{ord.auftrag_nr}</div>
+                      <div className="text-xs text-muted-foreground">{ord.device}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="px-2 py-0.5 text-[10px] rounded font-mono bg-accent/10 text-accent border border-accent/20">
+                        {ord.status}
+                      </span>
+                      <button
+                        onClick={() => window.open(`/auftrag/${ord.id}`, '_blank')}
+                        className="px-3 py-1.5 text-xs font-mono bg-accent text-accent-foreground rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        Öffnen ↗
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 font-mono text-sm text-muted-foreground">
+                  Keine Aufträge gefunden.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

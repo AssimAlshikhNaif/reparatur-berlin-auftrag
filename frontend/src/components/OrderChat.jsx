@@ -308,7 +308,7 @@ export default function OrderChat({ orderId }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder={t("chat.placeholder")}
-            className="flex-1 bg-black border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent transition-colors"
+            className="flex-1 bg-background text-foreground border border-border px-3 py-2 text-sm rounded-lg outline-none focus:border-accent"
           />
 
           {/* زر الميكروفون للتسجيل */}

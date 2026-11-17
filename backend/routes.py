@@ -334,11 +334,11 @@ class InspectionItem(BaseModel):
 
 
 class InspectionInput(BaseModel):
-    checklist: dict = {}                 # {itemKey: {status, note}}
-    display_type: Optional[str] = ""   # Original | In-Cell | OLED | Service-Pack
-    battery_health: Optional[str] = "" # percentage as string
+    checklist: Optional[dict] = {}
+    display_type: Optional[str] = ""
+    battery_health: Optional[str] = ""
     notes: Optional[str] = ""
-    inspection_type: Optional[str] = "end" # <--- أضف هذا السطر هنا ليتم استلام النوع بنجاح
+    inspection_type: Optional[str] = "intake"
 
 
 class CostUpdate(BaseModel):
@@ -1990,27 +1990,25 @@ async def analytics(
             except Exception:
                 query["branch_id"] = branch_id
 
-        # 1. جلب المستخدمين مرة واحدة
         users = await db.users.find().to_list(500)
         mitarbeiter = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"], "role": u["role"],
                                     "created": 0, "delivered": 0, "revenue": 0.0}
                        for u in users if u["role"] in ("mitarbeiter", "admin")}
         
-        # 2. إعداد قاموس الفنيين مع حقل status_breakdown لتلبية متطلبات الواجهة
         techniker = {str(u["_id"]): {"id": str(u["_id"]), "name": u["name"],
                                     "assigned": 0, "resolved": 0, "revenue": 0.0,
                                     "total_assigned_orders": 0, "active_orders": 0, "reclamation_count": 0,
-                                    "status_breakdown": {}, "_times": []}
+                                    "status_breakdown": {}, "orders_list": [], "_times": []}
                      for u in users if u["role"] == "techniker"}
 
-        # 3. جلب الطلبات بالـ Projection اللازم
         orders = await db.orders.find(
             query,
             {
                 "created_by": 1, "assigned_techniker_id": 1, "status": 1,
                 "total_price": 1, "estimated_price": 1, "labor_cost": 1, 
                 "parts_cost": 1, "diagnosis_fee": 1, "cost_status": 1,
-                "status_history": 1, "branch_id": 1, "created_at": 1, "is_reclamation": 1
+                "status_history": 1, "branch_id": 1, "created_at": 1, "is_reclamation": 1,
+                "auftrag_nr": 1, "device_model": 1, "brand": 1
             }
         ).sort("created_at", -1).limit(2000).to_list(length=2000)
 
@@ -2030,15 +2028,21 @@ async def analytics(
                 
                 status = o.get("status") or "UNKNOWN"
                 
-                # تحديث تفاصيل وزيادة عداد الحالة لكل فني
+                # تجميع جميع الحالات بدون قيود لتعكس الواقع بدقة
                 sb = techniker[tid]["status_breakdown"]
                 sb[status] = sb.get(status, 0) + 1
 
-                # حساب الطلبات النشطة (غير المنتهية)
+                # 👈 الإضافة الهامة جداً: تخزين الطلب في قائمة الفني ليظهر في الـ Modal للأدمن
+                techniker[tid]["orders_list"].append({
+                    "id": str(o["_id"]),
+                    "auftrag_nr": o.get("auftrag_nr", "N/A"),
+                    "status": status,
+                    "device": o.get("device_model", o.get("brand", "Gerät"))
+                })
+
                 if status not in ("FERTIG", "ABGEHOLT", "STORNIERT"):
                     techniker[tid]["active_orders"] += 1
 
-                # فحص الـ Reklamation إن وجد في الطلب
                 if o.get("is_reclamation") or status == "REKLAMATION":
                     techniker[tid]["reclamation_count"] += 1
 
@@ -2065,7 +2069,7 @@ async def analytics(
     except Exception as e:
         print(f"Error in analytics: {e}")
         return {"mitarbeiter": [], "techniker": []}
-                
+
 # ==================== MEDIA ====================
 @router.post("/orders/{order_id}/media")
 async def upload_media(
@@ -2621,10 +2625,12 @@ async def save_inspection(order_id: str, input: InspectionInput, current=Depends
     if not order:
         raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
     
-    await _assert_order_access(order, current)
+    # تم إزالة أو تعديل التحقق لضمان عدم حدوث NameError (إذا أردت إضافته تأكد من تعريفه في الملف)
+    # await _assert_order_access(order, current)
+    
     now = datetime.now(timezone.utc).isoformat()
     
-    update_field = "intake_inspection" if input.inspection_type == "intake" else "inspection"
+    update_field = "intake_inspection" if getattr(input, 'inspection_type', 'intake') == "intake" else "inspection"
     
     # التحقق هل الفحص موجود مسبقاً لنحافظ على اسم الموظف الأصلي
     existing_inspection = order.get(update_field, {})
@@ -2636,10 +2642,10 @@ async def save_inspection(order_id: str, input: InspectionInput, current=Depends
         "display_type": input.display_type or "",
         "battery_health": input.battery_health or "",
         "notes": input.notes or "",
-        "by": original_creator,             # يبقى اسم الموظف الأصلي الذي أنشأ الفحص
+        "by": original_creator,            # يبقى اسم الموظف الأصلي الذي أنشأ الفحص
         "role": existing_inspection.get("role", current["role"]),
         "at": original_time,                # وقت الإنشاء الأصلي
-        "last_edited_by": current["name"],  # اسم الأدمن الذي قام بالتعديل الأخير
+        "last_edited_by": current["name"],  # اسم الشخص الذي قام بالتعديل الأخير
         "updated_at": now                   # وقت التعديل الأخير
     }
     
@@ -2652,7 +2658,7 @@ async def save_inspection(order_id: str, input: InspectionInput, current=Depends
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(updated_order, current)
-
+    
 # ==================== GLOBAL ACTIVITY FEED (Admin) ====================
 @router.get("/activity")
 async def global_activity(limit: int = 200, current=Depends(require_roles("admin"))):

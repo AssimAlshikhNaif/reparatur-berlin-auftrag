@@ -116,7 +116,7 @@ export default function InspectionForm({ order, readOnly: externalReadOnly = fal
                   <span className="text-xs font-mono font-bold uppercase tracking-wider text-accent">
                     {t(`inspection.cat.${cat.key}`)}
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-background border border-border text-muted-foreground font-mono">
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-background border border-border text-foreground font-mono">
                     {checkedCount}/{cat.items.length}
                   </span>
                 </div>
@@ -125,12 +125,12 @@ export default function InspectionForm({ order, readOnly: externalReadOnly = fal
 
               {/* محتوى القسم يظهر عند فتحه فقط */}
               {isOpen && (
-                <div className="p-3 space-y-2 border-t border-border/50 bg-background/20">
+                <div className="p-3 space-y-2 border-t border-border/50 bg-background">
                   {cat.items.map((item) => {
                     const cur = checklist[item] || {};
                     return (
                       <div key={item} data-testid={`insp-item-${inspectionType}-${item}`} className="flex flex-col sm:flex-row sm:items-center gap-2 border border-border/50 rounded-lg px-3 py-2 bg-background">
-                        <span className="text-sm text-foreground/90 flex-1">{t(`inspection.item.${item}`)}</span>
+                        <span className="text-sm text-foreground flex-1">{t(`inspection.item.${item}`)}</span>
                         <div className="flex items-center gap-1.5">
                           {STATUSES.map((s) => {
                             const active = cur.status === s.v;
@@ -148,9 +148,9 @@ export default function InspectionForm({ order, readOnly: externalReadOnly = fal
                         {!isReadOnly && (
                           <input data-testid={`insp-note-${inspectionType}-${item}`} value={cur.note || ""} onChange={(e) => setNote(item, e.target.value)}
                             placeholder={t("inspection.notePlaceholder")}
-                            className="sm:w-36 bg-background border border-border px-2 py-1 text-xs rounded outline-none focus:border-accent" />
+                            className="sm:w-36 bg-background text-foreground border border-border px-2 py-1 text-xs rounded outline-none focus:border-accent" />
                         )}
-                        {isReadOnly && cur.note ? <span className="sm:w-36 text-xs text-muted-foreground truncate">{cur.note}</span> : null}
+                        {isReadOnly && cur.note ? <span className="sm:w-36 text-xs text-foreground truncate">{cur.note}</span> : null}
                       </div>
                     );
                   })}

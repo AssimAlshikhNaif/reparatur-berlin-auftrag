@@ -90,7 +90,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const downloadPdf = async () => {
     const pdf = await generatePdfCanvas();
     if (!pdf) return;
-    pdf.save(`Rechnung_${invoiceNo}.pdf`);
+    pdf.save(`Garantieschein_${invoiceNo}.pdf`);
   };
 
   const cellTh = { textAlign: "left", padding: "6px 8px", fontSize: "11px", borderBottom: "2px solid #000" };
@@ -100,7 +100,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
       <div className="bg-background border border-border max-w-3xl w-full my-6">
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-head font-semibold text-sm">Rechnung · {order.auftragsnummer}</h3>
+          <h3 className="font-head font-semibold text-sm">Garantieschein · {order.auftragsnummer}</h3>
           <div className="flex items-center gap-2">
             <button data-testid="invoice-print-button" onClick={handlePrint}
               className="flex items-center gap-2 bg-primary text-primary-foreground text-xs font-head font-semibold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:bg-blue-600 transition-colors">
@@ -138,8 +138,8 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px" }}>RECHNUNG</div>
-                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Rechnungs-Nr.: {invoiceNo}</div>
+                <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px" }}>GARANTIESCHEIN</div>
+                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Garantieschein-Nr.: {invoiceNo ? invoiceNo.replace(/^RE-?/, '') : ''}</div>
                 <div style={{ fontSize: "11px", color: "#444" }}>Auftrags-Nr.: {order.auftragsnummer}</div>
                 <div style={{ fontSize: "12px" }}>Datum: {order.invoice_date ? berlinDateTime(order.invoice_date) : berlinNow()}</div>
               </div>
@@ -150,7 +150,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
             {/* Parties */}
             <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
               <div style={{ fontSize: "12px", lineHeight: 1.6 }}>
-                <div style={{ fontWeight: 700, marginBottom: "4px" }}>Rechnungsempfänger</div>
+                <div style={{ fontWeight: 700, marginBottom: "4px" }}>Kundenempfänger</div>
                 <div>{order.customer_name}</div>
                 <div>{order.customer_phone}</div>
                 {order.customer_address ? <div>{order.customer_address}</div> : null}
