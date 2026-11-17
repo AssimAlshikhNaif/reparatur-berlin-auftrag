@@ -2008,7 +2008,7 @@ async def analytics(
                 "total_price": 1, "estimated_price": 1, "labor_cost": 1, 
                 "parts_cost": 1, "diagnosis_fee": 1, "cost_status": 1,
                 "status_history": 1, "branch_id": 1, "created_at": 1, "is_reclamation": 1,
-                "auftrag_nr": 1, "device_model": 1, "brand": 1
+                "auftrag_nr": 1, "auftragsnummer": 1, "order_number": 1, "device_model": 1, "brand": 1
             }
         ).sort("created_at", -1).limit(2000).to_list(length=2000)
 
@@ -2035,7 +2035,7 @@ async def analytics(
                 # 👈 الإضافة الهامة جداً: تخزين الطلب في قائمة الفني ليظهر في الـ Modal للأدمن
                 techniker[tid]["orders_list"].append({
                     "id": str(o["_id"]),
-                    "auftrag_nr": o.get("auftrag_nr", "N/A"),
+                    "auftrag_nr": o.get("auftrag_nr") or o.get("auftragsnummer") or o.get("order_number") or "N/A",
                     "status": status,
                     "device": o.get("device_model", o.get("brand", "Gerät"))
                 })
@@ -2658,7 +2658,7 @@ async def save_inspection(order_id: str, input: InspectionInput, current=Depends
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})
     return serialize_order(updated_order, current)
-    
+
 # ==================== GLOBAL ACTIVITY FEED (Admin) ====================
 @router.get("/activity")
 async def global_activity(limit: int = 200, current=Depends(require_roles("admin"))):

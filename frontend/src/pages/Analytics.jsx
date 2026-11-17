@@ -230,7 +230,9 @@ export default function Analytics() {
                     className="flex items-center justify-between p-3 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/40 transition-colors"
                   >
                     <div>
-                      <div className="font-mono font-semibold text-sm text-foreground">{ord.auftrag_nr}</div>
+                      <div className="font-mono font-semibold text-sm text-foreground">
+                          {(ord.auftrag_nr || ord.auftragsnummer || ord.order_number || ord.id || "N/A").toString()}
+                    </div>
                       <div className="text-xs text-muted-foreground">{ord.device}</div>
                     </div>
                     <div className="flex items-center gap-3">
