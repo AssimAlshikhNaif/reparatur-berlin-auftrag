@@ -1677,9 +1677,10 @@ async def delete_order_media(order_id: str, media_id: str, current=Depends(get_c
                 print("Error removing file:", e)
                 
     # تحديث قاعدة البيانات
+    # تحديث قاعدة البيانات مع ضمان شمول الحقلين لعدم ضياع التحديث
     await db.orders.update_one(
         {"_id": ObjectId(order_id)},
-        {"$set": {"media": media_list}}
+        {"$set": {"media": media_list, "media_files": media_list}}
     )
     
     updated_order = await db.orders.find_one({"_id": ObjectId(order_id)})

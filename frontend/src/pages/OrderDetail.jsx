@@ -356,26 +356,30 @@ const saveCosts = () => act(() => api.patch(`/orders/${id}/costs`, {
     }
 
     try {
-      await api.delete(`/orders/${id}/media/${fileName}`);
-      toast.success("Bild erfolgreich gelöscht");
+    await api.delete(`/orders/${id}/media/${fileName}`);
+    toast.success("Bild erfolgreich gelöscht");
+    
+    // إزالة الصورة من الواجهة محلياً فوراً وبكل الاحتمالات لضمان عدم عودتها
+    setOrder(prev => {
+      if (!prev) return prev;
+      const filterMedia = (list) => (list || []).filter(item => {
+        const itemPath = typeof item === 'string' ? item : (item?.storage_path || item?.path || item?.file_path || item?.filename || '');
+        const itemFileName = itemPath.split('/').pop();
+        return itemFileName !== fileName && itemPath !== fileName;
+      });
 
-      // 🚀 إزالة الصورة من الواجهة محلياً فوراً وبدون أي تأخير
-      setOrder(prev => ({
+      return {
         ...prev,
-        media: (prev?.media || []).filter(item => {
-          const itemPath = typeof item === 'string' ? item : (item?.storage_path || item?.path || item?.file_path || item?.filename || "");
-          return !itemPath.includes(fileName);
-        })
-      }));
-
-      // ثم جلب البيانات المحدثة من السيرفر للتأكد
-      await load();
-    } catch (e) {
-      console.error("Delete media error:", e.response?.data || e);
-      toast.error(e.response?.data?.detail || "Fehler beim Löschen");
-    }
+        media: filterMedia(prev.media),
+        media_files: filterMedia(prev.media_files)
+      };
+    });
+  } catch (err) {
+    console.error("Error deleting media:", err);
+    toast.error("Fehler beim Löschen des Bildes");
+  }
   };
-  
+
   const uploadFiles = async (files) => {
     if (!files.length) return;
     setUploading(true);

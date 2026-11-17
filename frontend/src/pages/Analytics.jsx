@@ -223,36 +223,38 @@ export default function Analytics() {
             </div>
 
             <div className="overflow-y-auto space-y-2 flex-1 pr-1">
-              {selectedTechForOrders.orders_list && selectedTechForOrders.orders_list.length > 0 ? (
-                selectedTechForOrders.orders_list.map((ord) => (
-                  <div 
-                    key={ord.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/40 transition-colors"
-                  >
-                    <div>
-                      <div className="font-mono font-semibold text-sm text-foreground">
-                          {(ord.auftrag_nr || ord.auftragsnummer || ord.order_number || ord.id || "N/A").toString()}
-                    </div>
-                      <div className="text-xs text-muted-foreground">{ord.device}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="px-2 py-0.5 text-[10px] rounded font-mono bg-accent/10 text-accent border border-accent/20">
-                        {ord.status}
-                      </span>
-                      <button
-                        onClick={() => window.open(`/auftrag/${ord.id}`, '_blank')}
-                        className="px-3 py-1.5 text-xs font-mono bg-accent text-accent-foreground rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
-                      >
-                        Öffnen ↗
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8 font-mono text-sm text-muted-foreground">
-                  Keine Aufträge gefunden.
-                </div>
-              )}
+              {selectedTechForOrders.orders_list && selectedTechForOrders.orders_list.filter(ord => !['ABGEHOLT', 'FERTIG'].includes(ord.status)).length > 0 ? (
+  selectedTechForOrders.orders_list
+    .filter(ord => !['ABGEHOLT', 'FERTIG'].includes(ord.status))
+    .map((ord) => (
+      <div 
+        key={ord.id}
+        className="flex items-center justify-between p-3 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/40 transition-colors"
+      >
+        <div>
+          <div className="font-mono font-semibold text-sm text-foreground">
+            {(ord.auftrag_nr || ord.auftragsnummer || ord.order_number || ord.id || "N/A").toString()}
+          </div>
+          <div className="text-xs text-muted-foreground">{ord.device}</div>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="px-2 py-0.5 text-[10px] rounded font-mono bg-accent/10 text-accent border border-accent/20">
+            {ord.status}
+          </span>
+          <button
+            onClick={() => window.open(`/auftrag/${ord.id}`, '_blank')}
+            className="px-3 py-1.5 text-xs font-mono bg-accent text-accent-foreground rounded-lg hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            Öffnen ↗
+          </button>
+        </div>
+      </div>
+    ))
+) : (
+  <div className="text-center py-8 font-mono text-sm text-muted-foreground">
+    Keine aktiven Aufträge gefunden.
+  </div>
+)}
             </div>
           </div>
         </div>
