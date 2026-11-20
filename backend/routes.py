@@ -558,7 +558,16 @@ async def list_users(current=Depends(get_current_user)):
 @router.get("/technicians")
 async def list_technicians(current=Depends(get_current_user)):
     query = {"role": "techniker"}
-    allowed_branches = current.get("allowed_branches") or []
+    allowed_branches = list(current.get("allowed_branches") or [])
+
+    shared_branches = [
+        "6ad046b00af797d959edcef3",
+        "6ad046b00af797d959edcef4",
+        "6ad046b00af797d959edcef5",
+    ]
+    user_branch = current.get("branch_id")
+    if current.get("role") == "mitarbeiter" and user_branch and str(user_branch) in shared_branches:
+        allowed_branches = shared_branches
 
     if allowed_branches:
         branch_match_list = []
@@ -573,8 +582,6 @@ async def list_technicians(current=Depends(get_current_user)):
 
     users = await db.users.find(query).to_list(200)
     return [{"id": str(u["_id"]), "name": u["name"]} for u in users]
-
-
 @router.post("/users")
 async def create_user(input: UserCreate, current=Depends(get_current_user)):
     user_role = current.get("role", "")
