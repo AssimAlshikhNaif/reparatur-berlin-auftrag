@@ -67,23 +67,23 @@ BRANCHES = [
      {
         "name": "Media Technik Postplatz",
         "address": " Wallstr 13, 01067 Dresden ",
-        "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "phone": "035147599330 ",
+        "email": "Info@mediatechnikdd.de",
+        "logo_url": "/logos/Dersden.jpeg"
     },
      {
         "name": "Media Technik Pragerst ",
        "address": " Ferdinandstr 12, 01067 Dersden ",
-        "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "phone": "015772776666 ",
+        "email": "Admin@mediatechnikdd.de",
+        "logo_url": "/logos/Dersden.jpeg"
     },
      {
         "name": "Media Technik Hauptbahnof ",
         "address": " Wienerplatz 4, 01069 Dersden",
-        "phone": "+49 ",
-        "email": "",
-        "logo_url": ""
+        "phone": "035146688188 ",
+        "email": "Hbf@mediatechnikdd.de",
+        "logo_url": "/logos/Dersden.jpeg"
      },
      {
         "name": "Media Technik A&E Wittenberg",
@@ -164,7 +164,7 @@ SEED_PASSWORD = "Repair2026!"
 
 STAFF = [
     ("Admin User", "admin@repair.de", "admin"),
-    ("Chris", "chris@repair.de", "techniker"),
+   
 ]
 
 

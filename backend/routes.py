@@ -437,7 +437,20 @@ class BranchUpdate(BaseModel):
 
 @router.get("/branches")
 async def list_branches(current=Depends(get_current_user)):
-    branches = await db.branches.find().to_list(100)
+    query = {}
+    allowed_branches = current.get("allowed_branches") or []
+    if allowed_branches:
+        branch_match_ids = []
+        for b_id in allowed_branches:
+            b_str = str(b_id)
+            branch_match_ids.append(b_str)
+            try:
+                branch_match_ids.append(ObjectId(b_str))
+            except Exception:
+                pass
+        query["_id"] = {"$in": branch_match_ids}
+
+    branches = await db.branches.find(query).to_list(100)
     out = []
     for b in branches:
         name = b.get("name", "")
@@ -512,7 +525,6 @@ async def delete_branch(branch_id: str, current=Depends(require_roles("admin")))
     await db.branches.delete_one({"_id": ObjectId(branch_id)})
     return {"status": "deleted"}
 
-
 # ==================== USERS (Admin only) ====================
 @router.get("/users")
 async def list_users(current=Depends(get_current_user)):
@@ -545,8 +557,19 @@ async def list_users(current=Depends(get_current_user)):
 
 @router.get("/technicians")
 async def list_technicians(current=Depends(get_current_user)):
-    # جلب جميع المستخدمين الذين دورهم تقني دون أي تصفية حسب الفرع أو الصلاحيات
     query = {"role": "techniker"}
+    allowed_branches = current.get("allowed_branches") or []
+
+    if allowed_branches:
+        branch_match_list = []
+        for b in allowed_branches:
+            b_str = str(b)
+            branch_match_list.append(b_str)
+            try:
+                branch_match_list.append(ObjectId(b_str))
+            except Exception:
+                pass
+        query["branch_id"] = {"$in": branch_match_list}
 
     users = await db.users.find(query).to_list(200)
     return [{"id": str(u["_id"]), "name": u["name"]} for u in users]
@@ -561,7 +584,7 @@ async def create_user(input: UserCreate, current=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Keine Berechtigung")
         
     # إذا كان المشرف محدد بأفرع معينة، نتأكد أنه لا ينشئ مستخدماً لفرع خارج صلاحياته
-    if allowed_branches and user_role not in ["admin", "super_admin"]:
+    if allowed_branches and user_role != "super_admin":
         if input.branch_id and str(input.branch_id) not in [str(b) for b in allowed_branches]:
             raise HTTPException(status_code=403, detail="Nicht berechtigt, Benutzer für diesen Standort zu erstellen")
 
@@ -593,7 +616,6 @@ async def delete_user(user_id: str, current=Depends(get_current_user)):
         
     await db.users.delete_one({"_id": ObjectId(user_id)})
     return {"message": "Benutzer gelöscht"}
-
 
 # ==================== INVENTORY (Fully Updated) ====================
 @router.get("/inventory")
@@ -2520,18 +2542,34 @@ async def _notif_query(user: dict, branch_id_param: str = None):
     if role == "techniker":
         return {"target_user_id": str(user["_id"])}
 
-    
-    target_branch = branch_id_param or user.get("branch_id")
+    allowed_branches = user.get("allowed_branches") or []
+    allowed_str = [str(b) for b in allowed_branches]
 
-    # إذا تم تحديد فرع معين
-    if target_branch:
-        query_branch_ids = [target_branch]
-        try:
-            query_branch_ids.append(ObjectId(target_branch))
-        except:
-            pass
+    # تحديد قائمة الفروع المستهدفة
+    target_branches = []
+    if branch_id_param:
+        # إذا كان المستخدم مقيداً بأفرع معينة، نتأكد أن الفرع المختار من ضمن صلاحياته
+        if allowed_str and str(branch_id_param) not in allowed_str:
+            return {"target_user_id": None, "order_id": {"$in": []}}
+        target_branches = [branch_id_param]
+    elif allowed_branches:
+        # إذا لم يحدد فرعاً معيناً في الفلتر ولديه أفرع مسموحة، نجلب أفرعه المسموحة فقط
+        target_branches = allowed_branches
+    elif user.get("branch_id"):
+        target_branches = [user.get("branch_id")]
+
+    # إذا تم تحديد فرع أو مجموعة فروع
+    if target_branches:
+        query_branch_ids = []
+        for b in target_branches:
+            b_str = str(b)
+            query_branch_ids.append(b_str)
+            try:
+                query_branch_ids.append(ObjectId(b_str))
+            except Exception:
+                pass
             
-        # جلب طلبات هذا الفرع
+        # جلب طلبات هذه الفروع
         orders = await db.orders.find({"branch_id": {"$in": query_branch_ids}}, {"_id": 1}).to_list(10000)
         
         # جمع الـ IDs بصيغتي النص (String) و (ObjectId) لضمان المطابقة التامة مع الإشعارات
@@ -2540,7 +2578,7 @@ async def _notif_query(user: dict, branch_id_param: str = None):
         all_order_ids = list(set(ids + str_ids))
         
         if not all_order_ids:
-            # إذا لم تكن هناك طلبات في هذا الفرع، نعرض إشعاراً وهمياً لا يعيد شيئاً لتجنب الأخطاء
+            # إذا لم تكن هناك طلبات في هذه الفروع، نعرض إشعاراً وهمياً لا يعيد شيئاً لتجنب الأخطاء
             return {"target_user_id": None, "order_id": {"$in": []}}
 
         return {
@@ -2548,7 +2586,7 @@ async def _notif_query(user: dict, branch_id_param: str = None):
             "order_id": {"$in": all_order_ids}
         }
 
-    # إذا لم يتم تحديد فرع (في الصفحة الرئيسية / Dashboard) -> نعرض كل الإشعارات العامة أو التي لها order_id
+    # إذا لم يتم تحديد فرع ولم يكن مقيداً بأفرع -> نعرض كل الإشعارات العامة أو التي لها order_id
     return {
         "target_user_id": None
     }
