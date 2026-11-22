@@ -1154,13 +1154,6 @@ async def list_orders(
             continue
             
     return result
-    
-        if assigned_to and assigned_to != tech_id_str:
-            # إذا أردت السماح للتقني برؤية الطلب بغض النظر عن التعيين، احذف السطر الذي يرفع HTTPException
-            pass 
-
-    bmap, umap = await _name_maps()
-    return attach_names(serialize_order(order, current), bmap, umap)
 
 @router.delete("/orders/{order_id}")
 async def delete_order(order_id: str, current=Depends(get_current_user)):
@@ -1185,7 +1178,7 @@ async def delete_order(order_id: str, current=Depends(get_current_user)):
             pass
             
     return {"message": "Auftrag gelöscht", "auftragsnummer": order.get("auftragsnummer")}
-
+    
 @router.post("/orders")
 async def create_order(input: OrderCreate, current=Depends(require_roles("admin", "mitarbeiter" , "techniker" , "branch_admin"))):
     # 1. التحقق من اسم العميل
