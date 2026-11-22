@@ -1154,7 +1154,7 @@ async def list_orders(
             continue
             
     return result
-تفاصيل الطلب
+    
         if assigned_to and assigned_to != tech_id_str:
             # إذا أردت السماح للتقني برؤية الطلب بغض النظر عن التعيين، احذف السطر الذي يرفع HTTPException
             pass 
