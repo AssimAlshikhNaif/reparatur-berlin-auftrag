@@ -7,6 +7,25 @@ import { berlinDateTime, berlinNow } from "@/lib/datetime";
 import { SHOP_INFO } from "@/lib/constants";
 import { berlinDate } from "@/lib/datetime";
 
+function extractCityFromBranch(branch) {
+  if (branch?.city && String(branch.city).trim()) {
+    return String(branch.city).trim();
+  }
+  const addr = branch?.address ? String(branch.address).trim() : "";
+  if (addr) {
+    const plzMatch = addr.match(/\b\d{5}\s+([A-Za-zÄÖÜäöüß\- ]+?)\s*$/);
+    if (plzMatch && plzMatch[1]) {
+      return plzMatch[1].trim();
+    }
+    const parts = addr.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1].replace(/^\d{5}\s*/, "").trim();
+      if (lastPart) return lastPart;
+    }
+  }
+  return "Berlin";
+}
+
 export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const [order, setOrder] = useState(initialOrder);
   const [branch, setBranch] = useState(null);
@@ -27,7 +46,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     email: branch?.email || SHOP_INFO.email,
     taxNumber: branch?.tax_number || SHOP_INFO.taxNumber || "",
     steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer || "",
-    city: branch?.city || "Berlin",
+    city: extractCityFromBranch(branch),
     logo_url: branch?.logo_url || branchLogos[resolvedBranchName] || SHOP_INFO.logo_url || "",
   };
   const ortDatumShort = `${shop.city}, ${order.invoice_date ? berlinDate(order.invoice_date) : berlinDate()}`;

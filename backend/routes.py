@@ -753,7 +753,89 @@ async def delete_inventory(item_id: str, current=Depends(require_roles("admin"))
     return {"message": "Ersatzteil gelöscht"}
 
 
-# ==================== ORDERS ====================
+    
+@router.post("/orders/{order_id}/mark-read")
+async def mark_order_messages_as_read(
+    order_id: str,
+    current: dict = Depends(get_current_user)
+):
+    user_id_str = str(current.get("_id"))
+    
+    # محاولة جلب الطلب لمعرفة ما إذا كان الـ order_id المرسل هو رقم طلب (مثل RB-2026-...) أو Object ID
+    order_id_queries = [order_id]
+    try:
+        order_id_queries.append(ObjectId(order_id))
+    except Exception:
+        pass
+        
+    # إذا أرسل المستخدم الـ ID كنص، نبحث أيضاً إذا كان هناك طلب مرتبط يحمل هذا الرقم
+    order_doc = await db.orders.find_one({
+        "$or": [
+            {"_id": order_id},
+            {"_id": ObjectId(order_id) if ObjectId.is_valid(order_id) else None},
+            {"auftragsnummer": order_id}
+        ]
+    })
+    
+    if order_doc:
+        doc_id_str = str(order_doc["_id"])
+        auftragsnummer = order_doc.get("auftragsnummer")
+        if doc_id_str not in order_id_queries:
+            order_id_queries.append(doc_id_str)
+        if auftragsnummer and auftragsnummer not in order_id_queries:
+            order_id_queries.append(auftragsnummer)
+
+    # تحديث جميع الرسائل غير المقروءة المرتبطة بهذا الطلب بكافة أشكال معرفاته
+    result = await db.chat_messages.update_many(
+        {
+            "order_id": {"$in": order_id_queries},
+            "sender_id": {"$ne": user_id_str},
+            "is_read": False
+        },
+        {"$set": {"is_read": True}}
+    )
+    
+    return {"status": "success", "modified_count": result.modified_count}
+
+@router.get("/orders/lookup/{auftragsnummer}")
+async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
+    order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+        
+    if current["role"] == "techniker":
+        tech_id_str = str(current["_id"])
+        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
+        if assigned_to != tech_id_str:
+            raise HTTPException(status_code=403, detail="Nicht zugewiesen")
+            
+    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
+        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
+        
+    bmap, umap = await _name_maps()
+    return attach_names(serialize_order(order, current), bmap, umap)
+
+
+
+
+@router.get("/orders/{order_id}")
+async def get_order(order_id: str, current=Depends(get_current_user)):
+    try:
+        obj_id = ObjectId(order_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid ID format")
+        
+    order = await db.orders.find_one({"_id": obj_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
+        
+    # السماح للأدمن والموظف والتقني بالمرور دون قيود تعجيزية تسبب 403
+    # (إذا أردت تقييد التقني حصراً، سنكتفي بالمقارنة المرنة التالية)
+    if current["role"] == "techniker":
+        tech_id_str = str(current["_id"])
+        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
+        
+        # إذا لم يكن مسنداً لأحد بعد، أو كان مسنداً له، نسمح له بالفتح لكي يرى # ==================== ORDERS ====================
 async def _order_query_for_user(user: dict) -> dict:
     role = user.get("role")
     
@@ -1072,89 +1154,7 @@ async def list_orders(
             continue
             
     return result
-    
-@router.post("/orders/{order_id}/mark-read")
-async def mark_order_messages_as_read(
-    order_id: str,
-    current: dict = Depends(get_current_user)
-):
-    user_id_str = str(current.get("_id"))
-    
-    # محاولة جلب الطلب لمعرفة ما إذا كان الـ order_id المرسل هو رقم طلب (مثل RB-2026-...) أو Object ID
-    order_id_queries = [order_id]
-    try:
-        order_id_queries.append(ObjectId(order_id))
-    except Exception:
-        pass
-        
-    # إذا أرسل المستخدم الـ ID كنص، نبحث أيضاً إذا كان هناك طلب مرتبط يحمل هذا الرقم
-    order_doc = await db.orders.find_one({
-        "$or": [
-            {"_id": order_id},
-            {"_id": ObjectId(order_id) if ObjectId.is_valid(order_id) else None},
-            {"auftragsnummer": order_id}
-        ]
-    })
-    
-    if order_doc:
-        doc_id_str = str(order_doc["_id"])
-        auftragsnummer = order_doc.get("auftragsnummer")
-        if doc_id_str not in order_id_queries:
-            order_id_queries.append(doc_id_str)
-        if auftragsnummer and auftragsnummer not in order_id_queries:
-            order_id_queries.append(auftragsnummer)
-
-    # تحديث جميع الرسائل غير المقروءة المرتبطة بهذا الطلب بكافة أشكال معرفاته
-    result = await db.chat_messages.update_many(
-        {
-            "order_id": {"$in": order_id_queries},
-            "sender_id": {"$ne": user_id_str},
-            "is_read": False
-        },
-        {"$set": {"is_read": True}}
-    )
-    
-    return {"status": "success", "modified_count": result.modified_count}
-
-@router.get("/orders/lookup/{auftragsnummer}")
-async def lookup_order(auftragsnummer: str, current=Depends(get_current_user)):
-    order = await db.orders.find_one({"auftragsnummer": auftragsnummer})
-    if not order:
-        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-        
-    if current["role"] == "techniker":
-        tech_id_str = str(current["_id"])
-        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
-        if assigned_to != tech_id_str:
-            raise HTTPException(status_code=403, detail="Nicht zugewiesen")
-            
-    if current["role"] == "mitarbeiter" and str(order.get("branch_id")) != str(current.get("branch_id")):
-        raise HTTPException(status_code=403, detail="Anderer Filiale zugeordnet")
-        
-    bmap, umap = await _name_maps()
-    return attach_names(serialize_order(order, current), bmap, umap)
-
-
-
-
-@router.get("/orders/{order_id}")
-async def get_order(order_id: str, current=Depends(get_current_user)):
-    try:
-        obj_id = ObjectId(order_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid ID format")
-        
-    order = await db.orders.find_one({"_id": obj_id})
-    if not order:
-        raise HTTPException(status_code=404, detail="Auftrag nicht gefunden")
-        
-    # السماح للأدمن والموظف والتقني بالمرور دون قيود تعجيزية تسبب 403
-    # (إذا أردت تقييد التقني حصراً، سنكتفي بالمقارنة المرنة التالية)
-    if current["role"] == "techniker":
-        tech_id_str = str(current["_id"])
-        assigned_to = str(order.get("assigned_techniker_id") or order.get("techniker_id") or "")
-        
-        # إذا لم يكن مسنداً لأحد بعد، أو كان مسنداً له، نسمح له بالفتح لكي يرى تفاصيل الطلب
+تفاصيل الطلب
         if assigned_to and assigned_to != tech_id_str:
             # إذا أردت السماح للتقني برؤية الطلب بغض النظر عن التعيين، احذف السطر الذي يرفع HTTPException
             pass 
