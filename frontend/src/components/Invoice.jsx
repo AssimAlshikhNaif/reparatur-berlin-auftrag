@@ -7,11 +7,33 @@ import { berlinDateTime, berlinNow } from "@/lib/datetime";
 import { SHOP_INFO } from "@/lib/constants";
 import { berlinDate } from "@/lib/datetime";
 
-function extractCityFromBranch(branch) {
-  if (branch?.city && String(branch.city).trim()) {
-    return String(branch.city).trim();
+function extractCityFromBranch(branch, order, branchName) {
+  const directCity = branch?.city || order?.branch?.city || order?.city;
+  if (directCity && String(directCity).trim()) {
+    const cleanCity = String(directCity).trim();
+    if (/^dersden$/i.test(cleanCity)) return "Dresden";
+    return cleanCity;
   }
-  const addr = branch?.address ? String(branch.address).trim() : "";
+
+  const combinedText = [
+    branch?.address,
+    order?.branch?.address,
+    branch?.name,
+    order?.branch?.name,
+    branchName,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (/dresden|dersden|\b01\d{3}\b|wienerplatz/i.test(combinedText)) {
+    return "Dresden";
+  }
+
+  if (/berlin|\b10\d{3}\b|\b12\d{3}\b|\b13\d{3}\b|\b14\d{3}\b/i.test(combinedText)) {
+    return "Berlin";
+  }
+
+  const addr = String(branch?.address || order?.branch?.address || "").trim();
   if (addr) {
     const plzMatch = addr.match(/\b\d{5}\s+([A-Za-zÄÖÜäöüß\- ]+?)\s*$/);
     if (plzMatch && plzMatch[1]) {
@@ -23,6 +45,7 @@ function extractCityFromBranch(branch) {
       if (lastPart) return lastPart;
     }
   }
+
   return "Berlin";
 }
 
@@ -32,7 +55,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const cost = order.cost || {};
   const parts = order.used_parts || [];
   const invoiceNo = order.invoice_number || order.auftragsnummer;
-  
+
   const branchLogos = {
     "Praxis Smartphone": "/logos/handy_laptop_praxi-removebg-preview.png",
   };
@@ -46,7 +69,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     email: branch?.email || SHOP_INFO.email,
     taxNumber: branch?.tax_number || SHOP_INFO.taxNumber || "",
     steuernummer: branch?.steuernummer || SHOP_INFO.steuernummer || "",
-    city: extractCityFromBranch(branch),
+    city: extractCityFromBranch(branch, order, branchName),
     logo_url: branch?.logo_url || branchLogos[resolvedBranchName] || SHOP_INFO.logo_url || "",
   };
   const ortDatumShort = `${shop.city}, ${order.invoice_date ? berlinDate(order.invoice_date) : berlinDate()}`;
@@ -56,7 +79,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
   const diagFee = Number(cost.diagnosis_fee || 0);
   const laborCost = Number(cost.labor_cost || 0);
   const grossTotal = diagFee + laborCost + (parts.length > 0 ? parts.reduce((acc, p) => acc + Number(p.total || 0), 0) : Number(cost.parts_cost || 0));
-  
+
   // استخراج الصافي والضريبة عكسياً من الإجمالي (Brutto)
   const calculatedNet = grossTotal / 1.19;
   const calculatedTax = grossTotal - calculatedNet;
@@ -67,10 +90,14 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
       .then((r) => { if (active) setOrder(r.data); })
       .catch(() => {});
     api.get("/branches")
-      .then((r) => { if (active) setBranch((r.data || []).find((b) => b.id === initialOrder.branch_id) || null); })
+      .then((r) => {
+        if (!active) return;
+        const targetBranchId = initialOrder?.branch_id || initialOrder?.branch?._id || initialOrder?.branch?.id;
+        setBranch((r.data || []).find((b) => String(b.id ?? b._id) === String(targetBranchId)) || null);
+      })
       .catch(() => {});
     return () => { active = false; };
-  }, [initialOrder.id, initialOrder.branch_id]);
+  }, [initialOrder.id, initialOrder.branch_id, initialOrder.branch]);
 
   useEffect(() => {
     const handleAfterPrint = () => { if (onClose) onClose(); };
@@ -91,7 +118,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
 
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-    
+
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
@@ -103,7 +130,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
     const pdf = await generatePdfCanvas();
     if (!pdf) return;
     pdf.autoPrint();
-    window.open(pdf.output('bloburl'), '_blank');
+    window.open(pdf.output("bloburl"), "_blank");
   };
 
   const downloadPdf = async () => {
@@ -158,7 +185,7 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px" }}>GARANTIESCHEIN</div>
-                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Garantieschein-Nr.: {invoiceNo ? invoiceNo.replace(/^RE-?/, '') : ''}</div>
+                <div style={{ fontSize: "12px", marginTop: "6px" }} data-testid="invoice-number">Garantieschein-Nr.: {invoiceNo ? invoiceNo.replace(/^RE-?/, "") : ""}</div>
                 <div style={{ fontSize: "11px", color: "#444" }}>Auftrags-Nr.: {order.auftragsnummer}</div>
                 <div style={{ fontSize: "12px" }}>Datum: {order.invoice_date ? berlinDateTime(order.invoice_date) : berlinNow()}</div>
               </div>
@@ -195,27 +222,27 @@ export default function Invoice({ order: initialOrder, branchName, onClose }) {
               </thead>
               <tbody>
                 {order.defect_description && (
-  <tr>
-    <td 
-      style={{ 
-        ...cellTd, 
-        color: "#555", 
-        fontStyle: "italic", 
-        fontSize: "11px",
-        wordBreak: "break-word",
-        overflowWrap: "break-word",
-        maxWidth: "160mm",
-        whiteSpace: "normal"
-      }} 
-      colSpan="3"
-    >
-      <span style={{ fontWeight: "bold", fontStyle: "normal", color: "#111" }}>Fehler / Service: </span> 
-      <span style={{ display: "inline-block", wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "140mm" }}>
-        {order.defect_description}
-      </span>
-    </td>
-  </tr>
-)}
+                  <tr>
+                    <td
+                      style={{
+                        ...cellTd,
+                        color: "#555",
+                        fontStyle: "italic",
+                        fontSize: "11px",
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                        maxWidth: "160mm",
+                        whiteSpace: "normal",
+                      }}
+                      colSpan="3"
+                    >
+                      <span style={{ fontWeight: "bold", fontStyle: "normal", color: "#111" }}>Fehler / Service: </span>
+                      <span style={{ display: "inline-block", wordBreak: "break-word", overflowWrap: "break-word", maxWidth: "140mm" }}>
+                        {order.defect_description}
+                      </span>
+                    </td>
+                  </tr>
+                )}
                 {diagFee > 0 && (
                   <tr><td style={cellTd}>Diagnosegebühr</td><td style={{ ...cellTd, textAlign: "center" }}>1</td><td style={{ ...cellTd, textAlign: "right" }}>{diagFee.toFixed(2)} €</td></tr>
                 )}
